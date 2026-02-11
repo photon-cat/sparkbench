@@ -51,6 +51,31 @@ export function hitTest(p: Primitive, pt: Point, tolerance: number): boolean {
   );
 }
 
+export interface Rect {
+  minX: number;
+  minY: number;
+  maxX: number;
+  maxY: number;
+}
+
+export function boundsIntersect(a: Rect, b: Rect): boolean {
+  return a.minX <= b.maxX && a.maxX >= b.minX && a.minY <= b.maxY && a.maxY >= b.minY;
+}
+
+export function primitivesInRect(
+  primitives: Primitive[],
+  rect: Rect
+): number[] {
+  const result: number[] = [];
+  for (let i = 0; i < primitives.length; i++) {
+    const b = primitiveBounds(primitives[i]);
+    if (boundsIntersect(rect, b)) {
+      result.push(i);
+    }
+  }
+  return result;
+}
+
 export function screenToSymbol(
   screenX: number,
   screenY: number,

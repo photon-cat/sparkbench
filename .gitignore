@@ -9,7 +9,9 @@ out/
 dist/
 .vite/
 *.tsbuildinfo
-_build/
+_build/.pio/
+_build/src/
+_build/include/
 
 # Vendor subdirs
 vendor/*/node_modules/

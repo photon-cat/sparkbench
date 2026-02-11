@@ -6,7 +6,7 @@ import { PrimitiveRenderer } from "./PrimitiveRenderer";
 import { PortRenderer } from "./PortRenderer";
 import { useViewport } from "../hooks/useViewport";
 import { useDrawing } from "../hooks/useDrawing";
-import { screenToSymbol, hitTest } from "../utils/geometry";
+import { screenToSymbol, hitTest, primitivesInRect } from "../utils/geometry";
 
 interface CanvasProps {
   state: EditorState;
@@ -19,6 +19,8 @@ export const Canvas: React.FC<CanvasProps> = ({ state, dispatch, snapPoint }) =>
   const [size, setSize] = useState({ width: 800, height: 600 });
   const [cursorPos, setCursorPos] = useState<Point | null>(null);
   const dragRef = useRef<{ startSymPt: Point; startPrimitives: typeof state.symbol.primitives } | null>(null);
+  const marqueeRef = useRef<{ start: Point; current: Point } | null>(null);
+  const [marquee, setMarquee] = useState<{ start: Point; current: Point } | null>(null);
 
   const { viewport, activeTool, drawingState, symbol, selectedIds } = state;
 
@@ -98,8 +100,13 @@ export const Canvas: React.FC<CanvasProps> = ({ state, dispatch, snapPoint }) =>
             return;
           }
         }
-        // Clicked on empty space
-        dispatch({ type: "SELECT", ids: new Set() });
+        // Clicked on empty space — start marquee selection
+        if (!e.shiftKey) {
+          dispatch({ type: "SELECT", ids: new Set() });
+        }
+        marqueeRef.current = { start: pt, current: pt };
+        setMarquee({ start: pt, current: pt });
+        e.currentTarget.setPointerCapture(e.pointerId);
         return;
       }
 
@@ -115,6 +122,13 @@ export const Canvas: React.FC<CanvasProps> = ({ state, dispatch, snapPoint }) =>
 
       const pt = getSymbolPoint(e);
       setCursorPos(snapPoint(pt));
+
+      // Marquee selection drag
+      if (marqueeRef.current) {
+        marqueeRef.current.current = pt;
+        setMarquee({ ...marqueeRef.current });
+        return;
+      }
 
       // Drag selected primitives
       if (dragRef.current && selectedIds.size > 0) {
@@ -148,6 +162,28 @@ export const Canvas: React.FC<CanvasProps> = ({ state, dispatch, snapPoint }) =>
   const handlePointerUp = useCallback(
     (e: React.PointerEvent<SVGSVGElement>) => {
       endPan();
+
+      // Finish marquee selection
+      if (marqueeRef.current) {
+        const m = marqueeRef.current;
+        const rect = {
+          minX: Math.min(m.start.x, m.current.x),
+          minY: Math.min(m.start.y, m.current.y),
+          maxX: Math.max(m.start.x, m.current.x),
+          maxY: Math.max(m.start.y, m.current.y),
+        };
+        // Only select if the user actually dragged (not just a click)
+        const w = rect.maxX - rect.minX;
+        const h = rect.maxY - rect.minY;
+        if (w > 2 / viewport.zoom || h > 2 / viewport.zoom) {
+          const hits = primitivesInRect(symbol.primitives, rect);
+          dispatch({ type: "SELECT", ids: new Set(hits) });
+        }
+        marqueeRef.current = null;
+        setMarquee(null);
+        return;
+      }
+
       if (dragRef.current) {
         dragRef.current = null;
         return;
@@ -155,7 +191,7 @@ export const Canvas: React.FC<CanvasProps> = ({ state, dispatch, snapPoint }) =>
       const pt = getSymbolPoint(e);
       handleCanvasPointerUp(pt);
     },
-    [endPan, getSymbolPoint, handleCanvasPointerUp]
+    [endPan, getSymbolPoint, handleCanvasPointerUp, viewport.zoom, symbol.primitives, dispatch]
   );
 
   const handleDoubleClick = useCallback(
@@ -304,6 +340,20 @@ export const Canvas: React.FC<CanvasProps> = ({ state, dispatch, snapPoint }) =>
           strokeWidth={0.02}
           strokeDasharray={`${0.02} ${0.02}`}
           fill="none"
+        />
+      )}
+
+      {/* Marquee selection box */}
+      {marquee && (
+        <rect
+          x={Math.min(marquee.start.x, marquee.current.x)}
+          y={Math.min(marquee.start.y, marquee.current.y)}
+          width={Math.abs(marquee.current.x - marquee.start.x)}
+          height={Math.abs(marquee.current.y - marquee.start.y)}
+          fill="rgba(0,120,255,0.1)"
+          stroke="rgba(0,120,255,0.6)"
+          strokeWidth={1 / viewport.zoom}
+          strokeDasharray={`${3 / viewport.zoom} ${3 / viewport.zoom}`}
         />
       )}
 
