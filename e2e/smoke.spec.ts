@@ -14,7 +14,7 @@ test.describe("Smoke tests", () => {
     await page.goto("/projects/blink");
 
     // Toolbar shows project name
-    await expect(page.locator("text=blink")).toBeVisible();
+    await expect(page.getByText("blink", { exact: true }).first()).toBeVisible();
 
     // Code editor panel loads (Monaco)
     await expect(page.getByRole("code")).toBeVisible({ timeout: 15_000 });

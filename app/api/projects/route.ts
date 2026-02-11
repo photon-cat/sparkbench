@@ -3,6 +3,8 @@ import { readdir, mkdir, writeFile } from "fs/promises";
 import { existsSync } from "fs";
 import path from "path";
 
+export const dynamic = "force-dynamic";
+
 const PROJECTS_DIR = path.join(process.cwd(), "projects");
 
 export async function GET() {

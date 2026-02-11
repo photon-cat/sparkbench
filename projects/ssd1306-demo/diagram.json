@@ -1,0 +1,15 @@
+{
+  "version": 1,
+  "author": "sparkbench",
+  "editor": "sparkbench",
+  "parts": [
+    { "type": "wokwi-arduino-uno", "id": "uno", "top": 200, "left": 15, "attrs": {} },
+    { "type": "wokwi-ssd1306", "id": "oled1", "top": 20, "left": 150, "attrs": {} }
+  ],
+  "connections": [
+    ["uno:A4", "oled1:DATA", "green", []],
+    ["uno:A5", "oled1:CLK", "blue", []],
+    ["uno:5V", "oled1:VIN", "red", []],
+    ["uno:GND.1", "oled1:GND", "black", []]
+  ]
+}

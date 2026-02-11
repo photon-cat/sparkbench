@@ -10,10 +10,12 @@ import {
   timer2Config,
   AVRIOPort,
   AVRUSART,
+  AVRTWI,
   portBConfig,
   portCConfig,
   portDConfig,
   usart0Config,
+  twiConfig,
 } from "avr8js";
 import { loadHex } from "./intelhex";
 import { MicroTaskScheduler } from "./task-scheduler";
@@ -31,6 +33,7 @@ export class AVRRunner {
   readonly portC: AVRIOPort;
   readonly portD: AVRIOPort;
   readonly usart: AVRUSART;
+  readonly twi: AVRTWI;
   readonly speed = 16e6; // 16 MHz
   readonly workUnitCycles = 500000;
   readonly taskScheduler = new MicroTaskScheduler();
@@ -45,6 +48,7 @@ export class AVRRunner {
     this.portC = new AVRIOPort(this.cpu, portCConfig);
     this.portD = new AVRIOPort(this.cpu, portDConfig);
     this.usart = new AVRUSART(this.cpu, usart0Config, this.speed);
+    this.twi = new AVRTWI(this.cpu, twiConfig, this.speed);
     this.taskScheduler.start();
   }
 

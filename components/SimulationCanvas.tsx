@@ -357,6 +357,12 @@ export default function SimulationCanvas({
       if (wc.part.type === "wokwi-led") wc.onStateChange = (high) => { (el as any).value = high; };
       else if (wc.part.type === "wokwi-buzzer") wc.onStateChange = (high) => { (el as any).hasSignal = high; };
       else if (wc.part.type === "wokwi-arduino-uno") (el as any).ledPower = true;
+      if (wc.ssd1306) {
+        wc.ssd1306.onFrameReady = (imageData) => {
+          (el as any).imageData = imageData;
+          (el as any).redraw?.();
+        };
+      }
     }
 
     for (const [id, wc] of wired) {

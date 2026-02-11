@@ -6,6 +6,7 @@ import {
   findComponentPins,
 } from "./diagram-parser";
 import { mapArduinoPin, getPort } from "./pin-mapping";
+import { SSD1306Controller } from "./ssd1306-controller";
 
 export interface WiredComponent {
   part: DiagramPart;
@@ -15,6 +16,8 @@ export interface WiredComponent {
   setPressed?: (pressed: boolean) => void;
   /** Called with 8-element array for 7-segment display [a,b,c,d,e,f,g,dp] */
   onSegmentChange?: (values: number[]) => void;
+  /** SSD1306 controller — set onFrameReady to receive display updates */
+  ssd1306?: SSD1306Controller;
   /** Cleanup listener */
   cleanup?: () => void;
 }
@@ -74,6 +77,19 @@ export function wireComponents(
     }
 
     wired.set(part.id, wc);
+  }
+
+  // --- I2C components ---
+  for (const part of diagram.parts) {
+    if (part.type === "wokwi-ssd1306") {
+      const controller = new SSD1306Controller(runner.twi);
+      runner.twi.eventHandler = controller;
+      wired.set(part.id, {
+        part,
+        ssd1306: controller,
+        cleanup: () => controller.dispose(),
+      });
+    }
   }
 
   return wired;
