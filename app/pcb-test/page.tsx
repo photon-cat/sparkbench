@@ -1,21 +1,30 @@
 "use client";
 
-import { useState } from "react";
 import dynamic from "next/dynamic";
 import { parsePCBDesign } from "@/lib/pcb-parser";
 import type { PCBDesign } from "@/lib/pcb-types";
 
 // KiCanvas uses window/WebGL at module load time — must skip SSR
-const KiPCBCanvas = dynamic(() => import("@/components/KiPCBCanvas"), {
+const KiPCBEditor = dynamic(() => import("@/components/KiPCBEditor"), {
     ssr: false,
     loading: () => (
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100%", color: "#888" }}>
-            Loading PCB viewer...
+        <div
+            style={{
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                height: "100vh",
+                color: "#888",
+                fontFamily: "monospace",
+                background: "#0a0a1e",
+            }}
+        >
+            Loading PCB editor...
         </div>
     ),
 });
 
-// Simple test board: 100x80mm with 2 resistors and an LED
+// Test board: 60x40mm with a resistor, LED, and a trace between them
 const TEST_DESIGN: PCBDesign = parsePCBDesign({
     version: 2,
     units: "mm",
@@ -128,43 +137,14 @@ const TEST_DESIGN: PCBDesign = parsePCBDesign({
 });
 
 export default function PCBTestPage() {
-    const [design] = useState<PCBDesign>(TEST_DESIGN);
-    const [selected, setSelected] = useState<unknown>(null);
-    const [mousePos, setMousePos] = useState({ x: 0, y: 0 });
-
     return (
-        <div style={{ display: "flex", flexDirection: "column", height: "100vh" }}>
-            <div
-                style={{
-                    padding: "8px 16px",
-                    background: "#1a1a2e",
-                    color: "#e0e0e0",
-                    borderBottom: "1px solid #333",
-                    display: "flex",
-                    gap: 16,
-                    alignItems: "center",
-                    fontFamily: "monospace",
-                    fontSize: 13,
+        <div style={{ height: "100vh" }}>
+            <KiPCBEditor
+                initialDesign={TEST_DESIGN}
+                onSave={(design) => {
+                    console.log("Save:", JSON.stringify(design, null, 2));
                 }}
-            >
-                <strong>KiPCB Test</strong>
-                <span>
-                    Mouse: ({mousePos.x.toFixed(2)}, {mousePos.y.toFixed(2)}) mm
-                </span>
-                <span>
-                    Selected:{" "}
-                    {selected
-                        ? (selected as any).constructor?.name ?? "unknown"
-                        : "none"}
-                </span>
-            </div>
-            <div style={{ flex: 1, position: "relative" }}>
-                <KiPCBCanvas
-                    design={design}
-                    onSelect={setSelected}
-                    onMouseMove={(x, y) => setMousePos({ x, y })}
-                />
-            </div>
+            />
         </div>
     );
 }
