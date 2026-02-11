@@ -1,0 +1,112 @@
+{
+  "name": "tscircuit",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "type": "module",
+  "version": "0.0.1288",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/tscircuit/tscircuit"
+  },
+  "files": [
+    "dist",
+    "cli.mjs",
+    "globals.d.ts"
+  ],
+  "scripts": {
+    "build": "tsup-node && bun run copy-runframe-standalone && bun run copy-eval-webworker && cp types/static-assets.d.ts dist/static-assets.d.ts && bun run add-global-types-reference",
+    "add-global-types-reference": "echo '/// <reference path=\"../globals.d.ts\" />' | cat - dist/index.d.ts > dist/index.d.ts.tmp && mv dist/index.d.ts.tmp dist/index.d.ts",
+    "test": "bun test",
+    "upgrade-deps": "bun update --latest @tscircuit/core @tscircuit/cli @tscircuit/eval && bun run copy-core-versions && bun install --ignore-scripts",
+    "copy-runframe-standalone": "bun run scripts/copy-runframe-standalone.ts",
+    "copy-eval-webworker": "bun run scripts/copy-eval-webworker.ts",
+    "copy-core-versions": "bun run scripts/copy-core-versions.ts && bun install --ignore-scripts"
+  },
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./browser": "./dist/browser.min.js"
+  },
+  "bin": {
+    "tsci": "cli.mjs",
+    "tscircuit": "cli.mjs"
+  },
+  "devDependencies": {
+    "@types/bun": "^1.2.16",
+    "esbuild": "^0.20.2",
+    "esbuild-register": "^3.5.0",
+    "tsup": "^8.2.4"
+  },
+  "peerDependencies": {
+    "typescript": "^5.0.0"
+  },
+  "dependencies": {
+    "@flatten-js/core": "^1.6.2",
+    "@lume/kiwi": "^0.4.3",
+    "@resvg/resvg-js": "^2.6.2",
+    "@rollup/plugin-commonjs": "^29.0.0",
+    "@rollup/plugin-json": "^6.1.0",
+    "@rollup/plugin-node-resolve": "^16.0.3",
+    "@rollup/plugin-typescript": "^12.3.0",
+    "@tscircuit/alphabet": "0.0.18",
+    "@tscircuit/capacity-autorouter": "^0.0.264",
+    "@tscircuit/checks": "^0.0.88",
+    "@tscircuit/circuit-json-flex": "^0.0.3",
+    "@tscircuit/circuit-json-util": "^0.0.77",
+    "@tscircuit/cli": "^0.1.904",
+    "@tscircuit/copper-pour-solver": "^0.0.20",
+    "@tscircuit/core": "^0.0.1021",
+    "@tscircuit/eval": "^0.0.626",
+    "@tscircuit/footprinter": "^0.0.288",
+    "@tscircuit/infgrid-ijump-astar": "^0.0.35",
+    "@tscircuit/matchpack": "^0.0.16",
+    "@tscircuit/math-utils": "^0.0.29",
+    "@tscircuit/miniflex": "^0.0.4",
+    "@tscircuit/ngspice-spice-engine": "^0.0.8",
+    "@tscircuit/props": "^0.0.470",
+    "@tscircuit/runframe": "^0.0.1592",
+    "@tscircuit/schematic-match-adapt": "^0.0.16",
+    "@tscircuit/schematic-trace-solver": "^v0.0.45",
+    "@tscircuit/simple-3d-svg": "^0.0.41",
+    "@tscircuit/solver-utils": "^0.0.3",
+    "@tscircuit/soup-util": "^0.0.41",
+    "bpc-graph": "^0.0.57",
+    "calculate-elbow": "^0.0.12",
+    "calculate-packing": "0.0.68",
+    "circuit-json": "^0.0.376",
+    "circuit-json-to-bpc": "^0.0.13",
+    "circuit-json-to-connectivity-map": "^0.0.23",
+    "circuit-json-to-gltf": "^0.0.62",
+    "circuit-json-to-simple-3d": "^0.0.9",
+    "circuit-json-to-spice": "^0.0.33",
+    "circuit-to-svg": "^0.0.327",
+    "comlink": "^4.4.2",
+    "connectivity-map": "^1.0.0",
+    "css-select": "5.1.0",
+    "debug": "^4.3.6",
+    "flatbush": "^4.5.0",
+    "format-si-unit": "^0.0.3",
+    "graphics-debug": "^0.0.60",
+    "jscad-planner": "^0.0.13",
+    "kicad-component-converter": "^0.1.30",
+    "kicad-to-circuit-json": "^0.0.15",
+    "kicadts": "^0.0.23",
+    "minicssgrid": "^0.0.9",
+    "performance-now": "^2.1.0",
+    "poppygl": "^0.0.16",
+    "react": "^19.1.0",
+    "react-dom": "^19.1.0",
+    "rollup": "^4.53.2",
+    "rollup-plugin-dts": "^6.2.3",
+    "s-expression": "^3.1.1",
+    "schematic-symbols": "^0.0.208",
+    "spicey": "^0.0.14",
+    "sucrase": "^3.35.0",
+    "svg-path-commander": "^2.1.11",
+    "transformation-matrix": "^2.16.1",
+    "tslib": "^2.8.1",
+    "zod": "^3.25.67"
+  }
+}
