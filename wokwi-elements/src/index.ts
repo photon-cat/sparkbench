@@ -4,6 +4,7 @@ export { AnalogJoystickElement } from './analog-joystick-element';
 export { ArduinoMegaElement } from './arduino-mega-element';
 export { ArduinoNanoElement } from './arduino-nano-element';
 export { ArduinoUnoElement } from './arduino-uno-element';
+export { ATmega328DipElement } from './atmega328-dip-element';
 export { BiaxialStepperElement } from './biaxial-stepper-element';
 export { BigSoundSensorElement } from './big-sound-sensor-element';
 export { BuzzerElement } from './buzzer-element';
@@ -45,6 +46,15 @@ export { PushbuttonElement } from './pushbutton-element';
 export { ResistorElement } from './resistor-element';
 export { RGBLedElement } from './rgb-led-element';
 export { RotaryDialerElement } from './rotary-dialer-element';
+export { SchematicICElement } from './schematic-ic-element';
+export type { ICDefinition, ICPinDefinition, PinElectricalType } from './schematic/types';
+export {
+  IC_74HC595,
+  IC_74HC00,
+  IC_MPU6050,
+  IC_ATMEGA328P,
+  ALL_DEFINITIONS,
+} from './schematic/definitions';
 export { ServoElement } from './servo-element';
 export { SlidePotentiometerElement } from './slide-potentiometer-element';
 export { SlideSwitchElement } from './slide-switch-element';
