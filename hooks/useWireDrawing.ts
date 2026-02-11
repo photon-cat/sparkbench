@@ -2,6 +2,7 @@
 
 import { useState, useCallback, useEffect, useRef, MutableRefObject } from "react";
 import type { DiagramConnection } from "@/lib/diagram-parser";
+import type { ToolType } from "@/components/ToolPalette";
 
 const UNIT_PX = 9.6; // 0.1 inch in CSS pixels (96 dpi)
 function snapToGrid(v: number): number {
@@ -44,6 +45,7 @@ export interface UseWireDrawingOptions {
   onAddConnection?: (conn: DiagramConnection) => void;
   zoomRef: MutableRefObject<number>;
   panRef: MutableRefObject<{ x: number; y: number }>;
+  activeTool: ToolType;
 }
 
 export interface UseWireDrawingReturn {
@@ -61,20 +63,17 @@ export function useWireDrawing({
   onAddConnection,
   zoomRef,
   panRef,
+  activeTool,
 }: UseWireDrawingOptions): UseWireDrawingReturn {
   const [wireDrawing, setWireDrawing] = useState<WireDrawingState | null>(null);
   const [cursorPos, setCursorPos] = useState({ x: 0, y: 0 });
   const onAddConnectionRef = useRef(onAddConnection);
   onAddConnectionRef.current = onAddConnection;
 
-  // Cancel wire drawing with Escape
+  // Cancel wire drawing when tool changes away from wire
   useEffect(() => {
-    const handleKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") setWireDrawing(null);
-    };
-    window.addEventListener("keydown", handleKey);
-    return () => window.removeEventListener("keydown", handleKey);
-  }, []);
+    if (activeTool !== "wire") setWireDrawing(null);
+  }, [activeTool]);
 
   /** Convert a mouse event to content-space coordinates */
   const screenToContent = useCallback(

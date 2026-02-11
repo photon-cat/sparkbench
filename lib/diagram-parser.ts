@@ -10,12 +10,22 @@ export interface DiagramPart {
 // Each connection: [fromPin, toPin, color, routingHints]
 export type DiagramConnection = [string, string, string, string[]];
 
+export interface DiagramLabel {
+  id: string;
+  name: string;
+  pinRef: string;
+  x: number;
+  y: number;
+  orientation?: number;
+}
+
 export interface Diagram {
   version: number;
   author: string;
   editor: string;
   parts: DiagramPart[];
   connections: DiagramConnection[];
+  labels?: DiagramLabel[];
 }
 
 export function parseDiagram(json: unknown): Diagram {
@@ -26,6 +36,7 @@ export function parseDiagram(json: unknown): Diagram {
     editor: d.editor ?? "",
     parts: d.parts ?? [],
     connections: d.connections ?? [],
+    labels: d.labels ?? [],
   };
 }
 

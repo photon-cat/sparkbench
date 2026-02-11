@@ -4,7 +4,7 @@ import dynamic from "next/dynamic";
 import styles from "./Workbench.module.css";
 import EditorPanel from "./EditorPanel";
 import SimulationPanel from "./SimulationPanel";
-import { Diagram, DiagramConnection } from "@/lib/diagram-parser";
+import { Diagram, DiagramConnection, DiagramLabel } from "@/lib/diagram-parser";
 import { AVRRunner } from "@/lib/avr-runner";
 
 // SplitPane wraps Allotment and imports its CSS — must skip SSR
@@ -27,6 +27,7 @@ interface WorkbenchProps {
   onAddPart: (partType: string) => void;
   onPartMove: (partId: string, top: number, left: number) => void;
   onAddConnection: (conn: DiagramConnection) => void;
+  onAddLabel?: (label: DiagramLabel) => void;
 }
 
 export default function Workbench({
@@ -46,6 +47,7 @@ export default function Workbench({
   onAddPart,
   onPartMove,
   onAddConnection,
+  onAddLabel,
 }: WorkbenchProps) {
   return (
     <div className={styles.workbench}>
@@ -73,6 +75,7 @@ export default function Workbench({
               onAddPart={onAddPart}
               onPartMove={onPartMove}
               onAddConnection={onAddConnection}
+              onAddLabel={onAddLabel}
             />
           }
         />

@@ -1,8 +1,9 @@
 "use client";
 
 import { useEffect, useRef, useState, useCallback } from "react";
-import type { Diagram, DiagramPart, DiagramConnection } from "@/lib/diagram-parser";
+import type { Diagram, DiagramPart, DiagramConnection, DiagramLabel } from "@/lib/diagram-parser";
 import type { AVRRunner } from "@/lib/avr-runner";
+import type { ToolType } from "@/components/ToolPalette";
 import {
   wireComponents,
   cleanupWiring,
@@ -41,8 +42,11 @@ interface CanvasPin { ref: string; x: number; y: number; name: string; }
 interface SimulationCanvasProps {
   diagram: Diagram | null;
   runner: AVRRunner | null;
+  activeTool: ToolType;
+  onToolChange: (tool: ToolType) => void;
   onPartMove?: (partId: string, top: number, left: number) => void;
   onAddConnection?: (conn: DiagramConnection) => void;
+  onAddLabel?: (label: DiagramLabel) => void;
 }
 
 function pinToCanvas(
@@ -74,8 +78,11 @@ function pinToCanvas(
 export default function SimulationCanvas({
   diagram,
   runner,
+  activeTool,
+  onToolChange,
   onPartMove,
   onAddConnection,
+  onAddLabel,
 }: SimulationCanvasProps) {
   const viewportRef = useRef<HTMLDivElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -98,6 +105,10 @@ export default function SimulationCanvas({
   const panStateRef = useRef({ x: panX, y: panY });
   panStateRef.current = { x: panX, y: panY };
 
+  // Keep activeTool in a ref for use in callbacks without re-creating them
+  const activeToolRef = useRef(activeTool);
+  activeToolRef.current = activeTool;
+
   const {
     wireDrawing,
     isDrawing,
@@ -105,7 +116,7 @@ export default function SimulationCanvas({
     handlePinClick,
     handleCanvasClick,
     handleMouseMove,
-  } = useWireDrawing({ containerRef, onAddConnection, zoomRef, panRef: panStateRef });
+  } = useWireDrawing({ containerRef, onAddConnection, zoomRef, panRef: panStateRef, activeTool });
 
   // Wrapper: useDragParts reports positions including ORIGIN_PX offset;
   // subtract it so diagram coordinates stay origin-relative.
@@ -133,6 +144,24 @@ export default function SimulationCanvas({
     ensureElementsLoaded().then(() => setReady(true));
   }, []);
 
+  // --- Keyboard shortcuts ---
+  useEffect(() => {
+    const handleKey = (e: KeyboardEvent) => {
+      const tag = (e.target as HTMLElement).tagName;
+      if (tag === "INPUT" || tag === "TEXTAREA") return;
+
+      if (e.key === "w" || e.key === "W") {
+        onToolChange("wire");
+      } else if (e.key === "l" || e.key === "L") {
+        onToolChange("label");
+      } else if (e.key === "Escape") {
+        onToolChange("cursor");
+      }
+    };
+    window.addEventListener("keydown", handleKey);
+    return () => window.removeEventListener("keydown", handleKey);
+  }, [onToolChange]);
+
   // --- Zoom with scroll wheel ---
   useEffect(() => {
     const vp = viewportRef.current;
@@ -151,8 +180,6 @@ export default function SimulationCanvas({
       const newZoom = Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, oldZoom * factor));
 
       // Keep content point under cursor stationary
-      // Content point under cursor: cx = mx / oldZoom + panX
-      // After zoom: (cx - newPanX) * newZoom = mx → newPanX = cx - mx / newZoom
       const contentX = mx / oldZoom + panStateRef.current.x;
       const contentY = my / oldZoom + panStateRef.current.y;
       const newPanX = contentX - mx / newZoom;
@@ -169,14 +196,18 @@ export default function SimulationCanvas({
     return () => vp.removeEventListener("wheel", handleWheel);
   }, []);
 
-  // --- Pan with left-click (empty space) or middle-click ---
+  // --- Pan handler: middle-click always pans; left-click only in cursor mode on empty space ---
   const handlePanStart = useCallback((e: React.PointerEvent) => {
-    // Middle button (1) always pans; left button (0) only on empty space
     if (e.button === 1) {
+      // Middle button always pans
       e.preventDefault();
     } else if (e.button === 0) {
+      // Left button: only pan in cursor mode on empty space
+      if (activeToolRef.current !== "cursor") return;
       const target = e.target as HTMLElement;
       if (target.closest("[data-part-id]")) return;
+      // Skip pin hit area circles so onClick fires
+      if (target.tagName === "circle") return;
     } else {
       return;
     }
@@ -211,6 +242,25 @@ export default function SimulationCanvas({
     panDragRef.current.target.releasePointerCapture(panDragRef.current.pointerId);
     panDragRef.current = null;
   }, []);
+
+  // --- Pin click dispatch: wire mode → wire handler, label mode → place label ---
+  const handlePinClickDispatch = useCallback(
+    (pinRef: string, pinX: number, pinY: number) => {
+      const tool = activeToolRef.current;
+      if (tool === "wire") {
+        handlePinClick(pinRef, pinX, pinY);
+      } else if (tool === "label") {
+        const name = window.prompt("Label name (net name):");
+        if (!name) return;
+        const id = `label-${Date.now()}`;
+        onAddLabel?.({ id, name, pinRef, x: pinX, y: pinY });
+      } else {
+        // cursor mode: still allow wire start/complete for convenience
+        handlePinClick(pinRef, pinX, pinY);
+      }
+    },
+    [handlePinClick, onAddLabel],
+  );
 
   // --- Compute pins & wires ---
   const computePinsAndWires = useCallback((diag: Diagram): boolean => {
@@ -376,6 +426,14 @@ export default function SimulationCanvas({
   const screenX = (u: number) => ((u * UNIT_PX + ORIGIN_PX) - panX) * zoom;
   const screenY = (u: number) => ((u * UNIT_PX + ORIGIN_PX) - panY) * zoom;
 
+  // Cursor style based on active tool
+  const cursorStyle = activeTool === "cursor"
+    ? (isDrawing ? "crosshair" : "grab")
+    : "crosshair";
+
+  // Labels from diagram
+  const labels = diagram?.labels ?? [];
+
   return (
     <div ref={viewportRef} style={{ position: "relative", width: "100%", height: "100%", overflow: "hidden" }}>
       {!diagram ? (
@@ -439,11 +497,11 @@ export default function SimulationCanvas({
         style={{
           position: "absolute", top: RULER_SIZE, left: RULER_SIZE, right: 0, bottom: 0,
           overflow: "hidden",
-          cursor: isDrawing ? "crosshair" : "grab",
+          cursor: cursorStyle,
         }}
-        onPointerDown={isDrawing ? undefined : handlePanStart}
-        onPointerMove={isDrawing ? undefined : handlePanMove}
-        onPointerUp={isDrawing ? undefined : handlePanEnd}
+        onPointerDown={handlePanStart}
+        onPointerMove={handlePanMove}
+        onPointerUp={handlePanEnd}
         onContextMenu={(e) => e.preventDefault()}
       >
         {/* Transform wrapper */}
@@ -496,6 +554,39 @@ export default function SimulationCanvas({
               )}
             </svg>
 
+            {/* Global labels SVG overlay */}
+            {labels.length > 0 && (
+              <svg style={{ position: "absolute", top: 0, left: 0, width: "100%", height: "100%", pointerEvents: "none", zIndex: 8, overflow: "visible" }}>
+                {labels.map((label) => (
+                  <g key={label.id}>
+                    {/* Flag shape */}
+                    <path
+                      d={`M${label.x},${label.y} l-8,-12 l-${Math.max(label.name.length * 7, 20)},0 l0,24 l${Math.max(label.name.length * 7, 20)},0 Z`}
+                      fill="rgba(0, 180, 80, 0.15)"
+                      stroke="#00b450"
+                      strokeWidth={1.5}
+                      strokeLinejoin="round"
+                    />
+                    {/* Label name */}
+                    <text
+                      x={label.x - 12 - Math.max(label.name.length * 7, 20) / 2}
+                      y={label.y + 4}
+                      fill="#00e060"
+                      fontSize={11}
+                      fontFamily="'Cascadia Code', 'Fira Code', monospace"
+                      fontWeight={600}
+                      textAnchor="middle"
+                      style={{ pointerEvents: "none" }}
+                    >
+                      {label.name}
+                    </text>
+                    {/* Connection dot */}
+                    <circle cx={label.x} cy={label.y} r={3} fill="#00b450" />
+                  </g>
+                ))}
+              </svg>
+            )}
+
             {/* Pin hit areas + highlights */}
             <svg style={{ position: "absolute", top: 0, left: 0, width: "100%", height: "100%", pointerEvents: "none", zIndex: 10, overflow: "visible" }}>
               {allPins.map((pin) => {
@@ -515,7 +606,7 @@ export default function SimulationCanvas({
                       style={{ pointerEvents: "all", cursor: "crosshair" }}
                       onMouseEnter={() => { setHoveredPin(pin.ref); setTooltipPos({ x: pin.x, y: pin.y }); }}
                       onMouseLeave={() => setHoveredPin(null)}
-                      onClick={(e) => { e.stopPropagation(); handlePinClick(pin.ref, pin.x, pin.y); }}
+                      onClick={(e) => { e.stopPropagation(); handlePinClickDispatch(pin.ref, pin.x, pin.y); }}
                     />
                   </g>
                 );

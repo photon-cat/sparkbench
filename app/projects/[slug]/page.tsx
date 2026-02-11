@@ -4,7 +4,7 @@ import { useState, useRef, useCallback, useEffect } from "react";
 import { useParams } from "next/navigation";
 import Toolbar from "@/components/Toolbar";
 import Workbench from "@/components/Workbench";
-import { parseDiagram, type Diagram, type DiagramPart, type DiagramConnection } from "@/lib/diagram-parser";
+import { parseDiagram, type Diagram, type DiagramPart, type DiagramConnection, type DiagramLabel } from "@/lib/diagram-parser";
 import { useSimulation } from "@/hooks/useSimulation";
 import { fetchDiagram, fetchSketch, saveDiagram, saveSketch } from "@/lib/api";
 
@@ -147,6 +147,26 @@ export default function ProjectPage() {
     setDirty(true);
   }, []);
 
+  const handleAddLabel = useCallback((label: DiagramLabel) => {
+    setDiagram((prev) => {
+      if (!prev) return prev;
+      return { ...prev, labels: [...(prev.labels ?? []), label] };
+    });
+
+    setDiagramJson((prev) => {
+      try {
+        const obj = JSON.parse(prev);
+        if (!obj.labels) obj.labels = [];
+        obj.labels.push(label);
+        return JSON.stringify(obj, null, 2);
+      } catch {
+        return prev;
+      }
+    });
+
+    setDirty(true);
+  }, []);
+
   const handleDiagramChange = useCallback(
     (json: string) => {
       setDiagramJson(json);
@@ -196,6 +216,7 @@ export default function ProjectPage() {
         onAddPart={handleAddPart}
         onPartMove={handlePartMove}
         onAddConnection={handleAddConnection}
+        onAddLabel={handleAddLabel}
       />
     </div>
   );

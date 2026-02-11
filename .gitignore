@@ -22,6 +22,10 @@ tools/*/node_modules/
 tools/*/dist/
 tools/*/.vite/
 
+# Playwright
+test-results/
+playwright-report/
+
 # Environment
 .env
 .env.local

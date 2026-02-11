@@ -1,12 +1,13 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useCallback } from "react";
 import Tabs from "./Tabs";
 import SimulationCanvas from "./SimulationCanvas";
 import SimulationControls from "./SimulationControls";
 import SerialMonitor from "./SerialMonitor";
+import ToolPalette, { type ToolType } from "./ToolPalette";
 import styles from "./SimulationPanel.module.css";
-import { Diagram, DiagramConnection } from "@/lib/diagram-parser";
+import { Diagram, DiagramConnection, DiagramLabel } from "@/lib/diagram-parser";
 import { AVRRunner } from "@/lib/avr-runner";
 
 const SIM_TABS = [
@@ -27,6 +28,7 @@ interface SimulationPanelProps {
   onAddPart: (partType: string) => void;
   onPartMove: (partId: string, top: number, left: number) => void;
   onAddConnection: (conn: DiagramConnection) => void;
+  onAddLabel?: (label: DiagramLabel) => void;
 }
 
 export default function SimulationPanel({
@@ -42,8 +44,14 @@ export default function SimulationPanel({
   onAddPart,
   onPartMove,
   onAddConnection,
+  onAddLabel,
 }: SimulationPanelProps) {
   const [activeTab, setActiveTab] = useState("simulation");
+  const [activeTool, setActiveTool] = useState<ToolType>("cursor");
+
+  const handleToolChange = useCallback((tool: ToolType) => {
+    setActiveTool(tool);
+  }, []);
 
   const statusLabel =
     status === "compiling"
@@ -63,7 +71,15 @@ export default function SimulationPanel({
         {activeTab === "simulation" ? (
           <>
             <div className={styles.canvas}>
-              <SimulationCanvas diagram={diagram} runner={runner} onPartMove={onPartMove} onAddConnection={onAddConnection} />
+              <SimulationCanvas
+                diagram={diagram}
+                runner={runner}
+                activeTool={activeTool}
+                onToolChange={handleToolChange}
+                onPartMove={onPartMove}
+                onAddConnection={onAddConnection}
+                onAddLabel={onAddLabel}
+              />
             </div>
 
             {/* Status bar */}
@@ -95,6 +111,9 @@ export default function SimulationPanel({
                 onAddPart={onAddPart}
               />
             </div>
+
+            {/* Tool palette */}
+            <ToolPalette activeTool={activeTool} onToolChange={handleToolChange} />
           </>
         ) : (
           <div style={{ padding: 16, color: "#999" }}>
