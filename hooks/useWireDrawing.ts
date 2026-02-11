@@ -1,11 +1,11 @@
 "use client";
 
-import { useState, useCallback, useEffect, useRef } from "react";
+import { useState, useCallback, useEffect, useRef, MutableRefObject } from "react";
 import type { DiagramConnection } from "@/lib/diagram-parser";
 
-const MM_PX = 3.7795275591; // 1 mm in CSS pixels (96 dpi)
+const UNIT_PX = 9.6; // 0.1 inch in CSS pixels (96 dpi)
 function snapToGrid(v: number): number {
-  return Math.round(v / MM_PX) * MM_PX;
+  return Math.round(v / UNIT_PX) * UNIT_PX;
 }
 
 const WIRE_COLORS = ["green", "blue", "red", "gold", "orange", "purple", "pink"];
@@ -42,6 +42,8 @@ function buildPreviewPath(
 export interface UseWireDrawingOptions {
   containerRef: React.RefObject<HTMLDivElement | null>;
   onAddConnection?: (conn: DiagramConnection) => void;
+  zoomRef: MutableRefObject<number>;
+  panRef: MutableRefObject<{ x: number; y: number }>;
 }
 
 export interface UseWireDrawingReturn {
@@ -57,6 +59,8 @@ export interface UseWireDrawingReturn {
 export function useWireDrawing({
   containerRef,
   onAddConnection,
+  zoomRef,
+  panRef,
 }: UseWireDrawingOptions): UseWireDrawingReturn {
   const [wireDrawing, setWireDrawing] = useState<WireDrawingState | null>(null);
   const [cursorPos, setCursorPos] = useState({ x: 0, y: 0 });
@@ -71,6 +75,20 @@ export function useWireDrawing({
     window.addEventListener("keydown", handleKey);
     return () => window.removeEventListener("keydown", handleKey);
   }, []);
+
+  /** Convert a mouse event to content-space coordinates */
+  const screenToContent = useCallback(
+    (e: React.MouseEvent): { x: number; y: number } => {
+      const rect = containerRef.current?.getBoundingClientRect();
+      if (!rect) return { x: 0, y: 0 };
+      const zoom = zoomRef.current;
+      return {
+        x: (e.clientX - rect.left) / zoom,
+        y: (e.clientY - rect.top) / zoom,
+      };
+    },
+    [containerRef, zoomRef],
+  );
 
   const handlePinClick = useCallback(
     (pinRef: string, pinX: number, pinY: number) => {
@@ -108,11 +126,9 @@ export function useWireDrawing({
       const target = e.target as HTMLElement;
       if (target.tagName === "circle") return;
 
-      const rect = containerRef.current?.getBoundingClientRect();
-      if (!rect) return;
-
-      const x = snapToGrid(e.clientX - rect.left + (containerRef.current?.parentElement?.scrollLeft || 0));
-      const y = snapToGrid(e.clientY - rect.top + (containerRef.current?.parentElement?.scrollTop || 0));
+      const pt = screenToContent(e);
+      const x = snapToGrid(pt.x);
+      const y = snapToGrid(pt.y);
 
       const last = wireDrawing.points[wireDrawing.points.length - 1];
       const dx = Math.abs(x - last.x);
@@ -127,22 +143,17 @@ export function useWireDrawing({
         return { ...prev, points: [...prev.points, mid, { x, y }] };
       });
     },
-    [wireDrawing, containerRef],
+    [wireDrawing, screenToContent],
   );
 
   const handleMouseMove = useCallback(
     (e: React.MouseEvent) => {
       if (!wireDrawing) return;
 
-      const rect = containerRef.current?.getBoundingClientRect();
-      if (!rect) return;
-
-      const x = snapToGrid(e.clientX - rect.left + (containerRef.current?.parentElement?.scrollLeft || 0));
-      const y = snapToGrid(e.clientY - rect.top + (containerRef.current?.parentElement?.scrollTop || 0));
-
-      setCursorPos({ x, y });
+      const pt = screenToContent(e);
+      setCursorPos({ x: snapToGrid(pt.x), y: snapToGrid(pt.y) });
     },
-    [wireDrawing, containerRef],
+    [wireDrawing, screenToContent],
   );
 
   const isDrawing = wireDrawing !== null;

@@ -1,17 +1,18 @@
 "use client";
 
-import { useCallback, useRef } from "react";
+import { useCallback, useRef, MutableRefObject } from "react";
 
-const MM_PX = 3.7795275591; // 1 mm in CSS pixels (96 dpi)
+const UNIT_PX = 9.6; // 0.1 inch in CSS pixels (96 dpi)
 function snapToGrid(v: number): number {
-  return Math.round(v / MM_PX) * MM_PX;
+  return Math.round(v / UNIT_PX) * UNIT_PX;
 }
 
 export interface UseDragPartsOptions {
   onPartMove?: (partId: string, top: number, left: number) => void;
+  zoomRef: MutableRefObject<number>;
 }
 
-export function useDragParts({ onPartMove }: UseDragPartsOptions) {
+export function useDragParts({ onPartMove, zoomRef }: UseDragPartsOptions) {
   const onPartMoveRef = useRef(onPartMove);
   onPartMoveRef.current = onPartMove;
 
@@ -52,8 +53,9 @@ export function useDragParts({ onPartMove }: UseDragPartsOptions) {
       const drag = dragRef.current;
       if (!drag || drag.wrapper !== wrapper) return;
 
-      const dx = e.clientX - drag.startX;
-      const dy = e.clientY - drag.startY;
+      const zoom = zoomRef.current;
+      const dx = (e.clientX - drag.startX) / zoom;
+      const dy = (e.clientY - drag.startY) / zoom;
 
       wrapper.style.left = `${snapToGrid(drag.origLeft + dx)}px`;
       wrapper.style.top = `${snapToGrid(drag.origTop + dy)}px`;
@@ -63,8 +65,9 @@ export function useDragParts({ onPartMove }: UseDragPartsOptions) {
       const drag = dragRef.current;
       if (!drag || drag.wrapper !== wrapper) return;
 
-      const dx = e.clientX - drag.startX;
-      const dy = e.clientY - drag.startY;
+      const zoom = zoomRef.current;
+      const dx = (e.clientX - drag.startX) / zoom;
+      const dy = (e.clientY - drag.startY) / zoom;
 
       wrapper.releasePointerCapture(e.pointerId);
       wrapper.style.cursor = "grab";
@@ -79,7 +82,7 @@ export function useDragParts({ onPartMove }: UseDragPartsOptions) {
         );
       }
     });
-  }, []);
+  }, [zoomRef]);
 
   return { attachDragHandlers };
 }
