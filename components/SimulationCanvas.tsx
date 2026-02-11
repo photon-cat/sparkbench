@@ -17,6 +17,10 @@ import { useWireDrawing } from "@/hooks/useWireDrawing";
 import { useDragParts } from "@/hooks/useDragParts";
 
 const MM_PX = 3.7795275591; // 1 mm in CSS pixels (96 dpi)
+const GRID_MM = 1000; // grid size in mm
+const GRID_PX = GRID_MM * MM_PX; // grid size in px
+const RULER_SIZE = 28; // ruler thickness in px
+const TICK_INTERVAL_MM = 25; // major tick every 25mm
 
 let elementsLoaded = false;
 function ensureElementsLoaded(): Promise<void> {
@@ -87,7 +91,7 @@ export default function SimulationCanvas({
   const [allPins, setAllPins] = useState<CanvasPin[]>([]);
   const [hoveredPin, setHoveredPin] = useState<string | null>(null);
   const [tooltipPos, setTooltipPos] = useState({ x: 0, y: 0 });
-  const [canvasSize, setCanvasSize] = useState({ w: 600, h: 560 });
+  const [scrollPos, setScrollPos] = useState({ x: 0, y: 0 });
 
   const {
     wireDrawing,
@@ -141,14 +145,6 @@ export default function SimulationCanvas({
     if (elementsWithPins < diag.parts.length / 2) {
       return false;
     }
-
-    let maxX = 600;
-    let maxY = 560;
-    for (const p of pinList) {
-      if (p.x + 40 > maxX) maxX = p.x + 40;
-      if (p.y + 40 > maxY) maxY = p.y + 40;
-    }
-    setCanvasSize({ w: maxX, h: maxY });
 
     setWires(renderWires(diag.connections, pinPositions));
     setAllPins(pinList);
@@ -301,14 +297,14 @@ export default function SimulationCanvas({
     const target = e.target as HTMLElement;
     if (target.closest("[data-part-id]")) return;
 
-    const scrollParent = containerRef.current?.parentElement;
-    if (!scrollParent) return;
+    const sp = scrollRef.current;
+    if (!sp) return;
 
     panRef.current = {
       startX: e.clientX,
       startY: e.clientY,
-      origScrollLeft: scrollParent.scrollLeft,
-      origScrollTop: scrollParent.scrollTop,
+      origScrollLeft: sp.scrollLeft,
+      origScrollTop: sp.scrollTop,
     };
 
     (e.target as HTMLElement).setPointerCapture(e.pointerId);
@@ -321,10 +317,10 @@ export default function SimulationCanvas({
     const dx = e.clientX - panRef.current.startX;
     const dy = e.clientY - panRef.current.startY;
 
-    const scrollParent = containerRef.current?.parentElement;
-    if (scrollParent) {
-      scrollParent.scrollLeft = panRef.current.origScrollLeft - dx;
-      scrollParent.scrollTop = panRef.current.origScrollTop - dy;
+    const sp = scrollRef.current;
+    if (sp) {
+      sp.scrollLeft = panRef.current.origScrollLeft - dx;
+      sp.scrollTop = panRef.current.origScrollTop - dy;
     }
   }, []);
 
@@ -344,6 +340,20 @@ export default function SimulationCanvas({
     });
   }
 
+  // Track scroll for ruler updates
+  const scrollRef = useRef<HTMLDivElement>(null);
+
+  const handleScroll = useCallback(() => {
+    const el = scrollRef.current;
+    if (el) setScrollPos({ x: el.scrollLeft, y: el.scrollTop });
+  }, []);
+
+  // Build ruler ticks
+  const rulerTicks: number[] = [];
+  for (let mm = 0; mm <= GRID_MM; mm += TICK_INTERVAL_MM) {
+    rulerTicks.push(mm);
+  }
+
   if (!diagram) {
     return (
       <div
@@ -361,179 +371,303 @@ export default function SimulationCanvas({
   }
 
   return (
-    <div
-      ref={containerRef}
-      onClick={handleCanvasClick}
-      onMouseMove={handleMouseMove}
-      onPointerDown={isDrawing ? undefined : handlePanStart}
-      onPointerMove={isDrawing ? undefined : handlePanMove}
-      onPointerUp={isDrawing ? undefined : handlePanEnd}
-      style={{
-        position: "relative",
-        width: canvasSize.w + 400,
-        height: canvasSize.h + 400,
-        cursor: isDrawing ? "crosshair" : "grab",
-      }}
-    >
-      {/* Dot grid background */}
-      <svg
+    <div style={{ position: "relative", width: "100%", height: "100%", overflow: "hidden" }}>
+      {/* Corner box with "Millimetres" label */}
+      <div
         style={{
           position: "absolute",
           top: 0,
           left: 0,
-          width: "100%",
-          height: "100%",
+          width: RULER_SIZE,
+          height: RULER_SIZE,
+          background: "#1a1a1a",
+          zIndex: 30,
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          borderRight: "1px solid #333",
+          borderBottom: "1px solid #333",
+        }}
+      />
+      <div
+        style={{
+          position: "absolute",
+          top: 2,
+          right: 8,
+          zIndex: 30,
+          fontSize: 10,
+          color: "#666",
+          fontFamily: "monospace",
           pointerEvents: "none",
-          zIndex: 0,
         }}
       >
-        <defs>
-          <pattern
-            id="mm-grid"
-            width={MM_PX}
-            height={MM_PX}
-            patternUnits="userSpaceOnUse"
-          >
-            <circle cx={MM_PX / 2} cy={MM_PX / 2} r={0.5} fill="#555" />
-          </pattern>
-        </defs>
-        <rect width="100%" height="100%" fill="url(#mm-grid)" />
-      </svg>
+        Millimetres
+      </div>
 
-      {/* Wire SVG overlay */}
-      <svg
+      {/* Top ruler */}
+      <div
         style={{
           position: "absolute",
           top: 0,
-          left: 0,
-          width: "100%",
-          height: "100%",
+          left: RULER_SIZE,
+          right: 0,
+          height: RULER_SIZE,
+          background: "#1a1a1a",
+          borderBottom: "1px solid #333",
+          zIndex: 20,
+          overflow: "hidden",
           pointerEvents: "none",
-          zIndex: 5,
-          overflow: "visible",
         }}
       >
-        {wires.map((wire, i) => {
-          const isHighlighted = highlightedWireIndices.has(i);
-          return (
-            <polyline
-              key={i}
-              points={wire.points.map((p) => `${p.x},${p.y}`).join(" ")}
-              fill="none"
-              stroke={wire.color}
-              strokeWidth={isHighlighted ? 3 : 1.5}
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              opacity={
-                hoveredPin
-                  ? isHighlighted
-                    ? 1
-                    : 0.2
-                  : 0.85
-              }
-              style={{
-                transition: "opacity 0.15s, stroke-width 0.15s",
-              }}
-            />
-          );
-        })}
-
-        {/* Wire drawing preview */}
-        {wireDrawing && (
-          <polyline
-            points={previewPath}
-            fill="none"
-            stroke="#0f0"
-            strokeWidth={2}
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            strokeDasharray="6 3"
-            opacity={0.9}
-          />
-        )}
-      </svg>
-
-      {/* Pin hit areas + highlights */}
-      <svg
-        style={{
-          position: "absolute",
-          top: 0,
-          left: 0,
-          width: "100%",
-          height: "100%",
-          pointerEvents: "none",
-          zIndex: 10,
-          overflow: "visible",
-        }}
-      >
-        {allPins.map((pin) => {
-          const isHovered = hoveredPin === pin.ref;
-          const isWireStart = wireDrawing?.fromRef === pin.ref;
-          return (
-            <g key={pin.ref}>
-              {(isHovered || isWireStart) && (
-                <>
-                  <circle
-                    cx={pin.x}
-                    cy={pin.y}
-                    r={8}
-                    fill={isWireStart ? "rgba(0, 255, 0, 0.3)" : "rgba(0, 200, 0, 0.25)"}
-                    stroke={isWireStart ? "#0f0" : "#0c0"}
-                    strokeWidth={2}
-                  />
-                  <circle
-                    cx={pin.x}
-                    cy={pin.y}
-                    r={3}
-                    fill={isWireStart ? "#0f0" : "#0c0"}
-                  />
-                </>
-              )}
-              <circle
-                cx={pin.x}
-                cy={pin.y}
-                r={10}
-                fill="transparent"
-                style={{ pointerEvents: "all", cursor: "crosshair" }}
-                onMouseEnter={() => {
-                  setHoveredPin(pin.ref);
-                  setTooltipPos({ x: pin.x, y: pin.y });
-                }}
-                onMouseLeave={() => setHoveredPin(null)}
-                onClick={(e) => {
-                  e.stopPropagation();
-                  handlePinClick(pin.ref, pin.x, pin.y);
-                }}
-              />
-            </g>
-          );
-        })}
-      </svg>
-
-      {/* Pin tooltip */}
-      {hoveredPin && (
-        <div
+        <svg
           style={{
             position: "absolute",
-            left: tooltipPos.x + 12,
-            top: tooltipPos.y - 32,
-            background: "rgba(0, 0, 0, 0.9)",
-            color: "#0c0",
-            padding: "4px 10px",
-            borderRadius: 4,
-            fontSize: 13,
-            fontFamily: "'Cascadia Code', 'Fira Code', monospace",
-            fontWeight: 600,
-            whiteSpace: "nowrap",
-            zIndex: 20,
-            pointerEvents: "none",
-            border: "1px solid #0c0",
-            boxShadow: "0 2px 8px rgba(0,0,0,0.5)",
+            top: 0,
+            left: -scrollPos.x,
+            width: GRID_PX,
+            height: RULER_SIZE,
           }}
         >
-          {hoveredPin}
+          {rulerTicks.map((mm) => {
+            const x = mm * MM_PX;
+            return (
+              <g key={mm}>
+                <line x1={x} y1={RULER_SIZE - 8} x2={x} y2={RULER_SIZE} stroke="#c084fc" strokeWidth={1} />
+                <text x={x + 3} y={12} fill="#888" fontSize={10} fontFamily="monospace">
+                  {Math.round(mm)}
+                </text>
+              </g>
+            );
+          })}
+        </svg>
+      </div>
+
+      {/* Left ruler */}
+      <div
+        style={{
+          position: "absolute",
+          top: RULER_SIZE,
+          left: 0,
+          bottom: 0,
+          width: RULER_SIZE,
+          background: "#1a1a1a",
+          borderRight: "1px solid #333",
+          zIndex: 20,
+          overflow: "hidden",
+          pointerEvents: "none",
+        }}
+      >
+        <svg
+          style={{
+            position: "absolute",
+            top: -scrollPos.y,
+            left: 0,
+            width: RULER_SIZE,
+            height: GRID_PX,
+          }}
+        >
+          {rulerTicks.map((mm) => {
+            const y = mm * MM_PX;
+            return (
+              <g key={mm}>
+                <line x1={RULER_SIZE - 8} y1={y} x2={RULER_SIZE} y2={y} stroke="#c084fc" strokeWidth={1} />
+                <text x={2} y={y + 12} fill="#888" fontSize={10} fontFamily="monospace">
+                  {Math.round(mm)}
+                </text>
+              </g>
+            );
+          })}
+        </svg>
+      </div>
+
+      {/* Scrollable canvas area */}
+      <div
+        ref={scrollRef}
+        onScroll={handleScroll}
+        style={{
+          position: "absolute",
+          top: RULER_SIZE,
+          left: RULER_SIZE,
+          right: 0,
+          bottom: 0,
+          overflow: "auto",
+        }}
+      >
+        <div
+          ref={containerRef}
+          onClick={handleCanvasClick}
+          onMouseMove={handleMouseMove}
+          onPointerDown={isDrawing ? undefined : handlePanStart}
+          onPointerMove={isDrawing ? undefined : handlePanMove}
+          onPointerUp={isDrawing ? undefined : handlePanEnd}
+          style={{
+            position: "relative",
+            width: GRID_PX,
+            height: GRID_PX,
+            cursor: isDrawing ? "crosshair" : "grab",
+          }}
+        >
+          {/* Dot grid background */}
+          <svg
+            style={{
+              position: "absolute",
+              top: 0,
+              left: 0,
+              width: "100%",
+              height: "100%",
+              pointerEvents: "none",
+              zIndex: 0,
+            }}
+          >
+            <defs>
+              <pattern
+                id="mm-grid"
+                width={MM_PX}
+                height={MM_PX}
+                patternUnits="userSpaceOnUse"
+              >
+                <circle cx={MM_PX / 2} cy={MM_PX / 2} r={0.5} fill="#555" />
+              </pattern>
+            </defs>
+            <rect width="100%" height="100%" fill="url(#mm-grid)" />
+          </svg>
+
+          {/* Wire SVG overlay */}
+          <svg
+            style={{
+              position: "absolute",
+              top: 0,
+              left: 0,
+              width: "100%",
+              height: "100%",
+              pointerEvents: "none",
+              zIndex: 5,
+              overflow: "visible",
+            }}
+          >
+            {wires.map((wire, i) => {
+              const isHighlighted = highlightedWireIndices.has(i);
+              return (
+                <polyline
+                  key={i}
+                  points={wire.points.map((p) => `${p.x},${p.y}`).join(" ")}
+                  fill="none"
+                  stroke={wire.color}
+                  strokeWidth={isHighlighted ? 3 : 1.5}
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  opacity={
+                    hoveredPin
+                      ? isHighlighted
+                        ? 1
+                        : 0.2
+                      : 0.85
+                  }
+                  style={{
+                    transition: "opacity 0.15s, stroke-width 0.15s",
+                  }}
+                />
+              );
+            })}
+
+            {/* Wire drawing preview */}
+            {wireDrawing && (
+              <polyline
+                points={previewPath}
+                fill="none"
+                stroke="#0f0"
+                strokeWidth={2}
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeDasharray="6 3"
+                opacity={0.9}
+              />
+            )}
+          </svg>
+
+          {/* Pin hit areas + highlights */}
+          <svg
+            style={{
+              position: "absolute",
+              top: 0,
+              left: 0,
+              width: "100%",
+              height: "100%",
+              pointerEvents: "none",
+              zIndex: 10,
+              overflow: "visible",
+            }}
+          >
+            {allPins.map((pin) => {
+              const isHovered = hoveredPin === pin.ref;
+              const isWireStart = wireDrawing?.fromRef === pin.ref;
+              return (
+                <g key={pin.ref}>
+                  {(isHovered || isWireStart) && (
+                    <>
+                      <circle
+                        cx={pin.x}
+                        cy={pin.y}
+                        r={8}
+                        fill={isWireStart ? "rgba(0, 255, 0, 0.3)" : "rgba(0, 200, 0, 0.25)"}
+                        stroke={isWireStart ? "#0f0" : "#0c0"}
+                        strokeWidth={2}
+                      />
+                      <circle
+                        cx={pin.x}
+                        cy={pin.y}
+                        r={3}
+                        fill={isWireStart ? "#0f0" : "#0c0"}
+                      />
+                    </>
+                  )}
+                  <circle
+                    cx={pin.x}
+                    cy={pin.y}
+                    r={10}
+                    fill="transparent"
+                    style={{ pointerEvents: "all", cursor: "crosshair" }}
+                    onMouseEnter={() => {
+                      setHoveredPin(pin.ref);
+                      setTooltipPos({ x: pin.x, y: pin.y });
+                    }}
+                    onMouseLeave={() => setHoveredPin(null)}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handlePinClick(pin.ref, pin.x, pin.y);
+                    }}
+                  />
+                </g>
+              );
+            })}
+          </svg>
+
+          {/* Pin tooltip */}
+          {hoveredPin && (
+            <div
+              style={{
+                position: "absolute",
+                left: tooltipPos.x + 12,
+                top: tooltipPos.y - 32,
+                background: "rgba(0, 0, 0, 0.9)",
+                color: "#0c0",
+                padding: "4px 10px",
+                borderRadius: 4,
+                fontSize: 13,
+                fontFamily: "'Cascadia Code', 'Fira Code', monospace",
+                fontWeight: 600,
+                whiteSpace: "nowrap",
+                zIndex: 20,
+                pointerEvents: "none",
+                border: "1px solid #0c0",
+                boxShadow: "0 2px 8px rgba(0,0,0,0.5)",
+              }}
+            >
+              {hoveredPin}
+            </div>
+          )}
         </div>
-      )}
+      </div>
     </div>
   );
 }

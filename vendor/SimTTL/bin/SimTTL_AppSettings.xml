@@ -1,0 +1,37 @@
+﻿<?xml version="1.0" encoding="UTF-8"?>
+<settings>
+  <identifier>SimTTL_AppSettings</identifier>
+  <schematics_source>NetlistImport</schematics_source>
+  <schematics_name>TTL_6510_Computer.net</schematics_name>
+  <netlist_filename>TTL 6510 Computer.net</netlist_filename>
+  <simttl_filename>SimTTLFiles\TTL_6510_Computer_Test_SBC_Codes_in_BCD.sttlf</simttl_filename>
+  <recent_kicad_files />
+  <recent_simttl_files>
+    <item>SimTTLFiles\TTL_6510_Computer_Test_SBC_Codes_in_BCD.sttlf</item>
+    <item>SimTTLFiles\TTL_6510_Computer_Test_Branch_Codes.sttlf</item>
+    <item>SimTTLFiles\TTL_6510_Computer_Test_All_Codes.sttlf</item>
+    <item>SimTTLFiles\TTL_6510_Computer_Test_Addr_Calc.sttlf</item>
+    <item>SimTTLFiles\TTL_6510_Computer_Test_ADC_Codes_in_BCD.sttlf</item>
+  </recent_simttl_files>
+  <print_settings>
+    <paper_source>
+      <name>Paper Cassette</name>
+      <kind>Custom</kind>
+      <raw_kind>258</raw_kind>
+    </paper_source>
+    <paper_size>
+      <raw_kind>1</raw_kind>
+      <name>Letter (8.5 x 11 in)</name>
+      <width>850</width>
+      <height>1100</height>
+    </paper_size>
+    <margins>
+      <left>100</left>
+      <top>100</top>
+      <right>100</right>
+      <bottom>100</bottom>
+    </margins>
+    <landscape>True</landscape>
+    <color>True</color>
+  </print_settings>
+</settings>

@@ -1,0 +1,16 @@
+0: 1E LDA @E
+1: 3C SUB @C
+2: 76 JC  #6
+3: 1D LDA @D
+4: E0 OUT
+5: F0 HALT
+6: 4E STA @E
+7: 1D LDA @D
+8: 2F ADD @F
+9: 4D STA @D
+A: 60 JMP #0
+B: 00
+C: 01
+D: 00
+E: 02
+F: 03

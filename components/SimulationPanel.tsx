@@ -10,7 +10,7 @@ import { Diagram, DiagramConnection } from "@/lib/diagram-parser";
 import { AVRRunner } from "@/lib/avr-runner";
 
 const SIM_TABS = [
-  { id: "simulation", label: "Simulation" },
+  { id: "simulation", label: "Diagram" },
   { id: "description", label: "Description" },
 ];
 
