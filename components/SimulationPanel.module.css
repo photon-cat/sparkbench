@@ -1,0 +1,90 @@
+.panel {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  background: var(--bg-simulation);
+}
+
+.body {
+  flex: 1;
+  position: relative;
+  overflow: hidden;
+}
+
+.canvas {
+  width: 100%;
+  height: 100%;
+  overflow: auto;
+}
+
+.controls {
+  position: absolute;
+  top: 8px;
+  left: 12px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  z-index: 10;
+}
+
+.statusBar {
+  position: absolute;
+  top: 8px;
+  right: 12px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  color: #999;
+  z-index: 10;
+}
+
+.statusDot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #666;
+}
+
+.statusDot.running {
+  background: #4caf50;
+}
+
+.statusDot.compiling {
+  background: #ff9800;
+}
+
+.statusDot.error {
+  background: #f44336;
+}
+
+.serialSection {
+  border-top: 1px solid var(--separator-border);
+  height: 150px;
+  display: flex;
+  flex-direction: column;
+  background: #1e1e1e;
+}
+
+.serialHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 4px 12px;
+  font-size: 12px;
+  font-weight: 500;
+  color: #ccc;
+  background: #252526;
+  border-bottom: 1px solid var(--separator-border);
+}
+
+.serialOutput {
+  flex: 1;
+  padding: 8px 12px;
+  font-family: "Cascadia Code", "Fira Code", "Consolas", monospace;
+  font-size: 12px;
+  color: #33ff33;
+  overflow-y: auto;
+  white-space: pre-wrap;
+  word-break: break-all;
+}

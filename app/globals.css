@@ -1,0 +1,41 @@
+@import "tailwindcss";
+
+:root {
+  --separator-border: rgba(128, 128, 128, 0.35);
+  --sash-size: 8px;
+  --sash-hover-size: 4px;
+  --sash-hover-transition-duration: 0.1s;
+  --focus-border: #007fd4;
+  --toolbar-height: 40px;
+  --wokwi-green: #335533;
+  --wokwi-green-hover: #88aa88;
+  --bg-toolbar: #1a1a1a;
+  --bg-editor: #222222;
+  --bg-simulation: #333333;
+  --bg-body: #000000;
+  --text-primary: #cccccc;
+  --text-secondary: #999999;
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html,
+body {
+  height: 100%;
+  background: var(--bg-body);
+  color: var(--text-primary);
+  font-family: Roboto, -apple-system, BlinkMacSystemFont, "Segoe UI", Oxygen,
+    Ubuntu, Cantarell, "Fira Sans", "Droid Sans", "Helvetica Neue", sans-serif;
+  font-size: 16px;
+  line-height: 1.5;
+  overflow: hidden;
+}
+
+/* Allotment overrides to match Wokwi */
+.split-view-view {
+  overflow: hidden;
+}
