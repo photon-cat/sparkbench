@@ -36,13 +36,14 @@
     "lib/**/*.ts",
     ".next/types/**/*.ts",
     ".next/dev/types/**/*.ts",
-    "vendor/kicanvas/src/**/*.ts",
-    "vendor/kicanvas/src/**/*.d.ts"
+    "vendor/kicanvas/src/base/**/*.ts",
+    "vendor/kicanvas/src/graphics/**/*.ts",
+    "vendor/kicanvas/src/kicad/**/*.ts",
+    "vendor/kicanvas/src/viewers/**/*.ts",
+    "vendor/kicanvas/src/kicanvas/themes/**/*.ts"
   ],
   "exclude": [
     "node_modules",
-    "vendor/kicanvas/src/kc-ui",
-    "vendor/kicanvas/src/kicanvas",
     "tools"
   ]
 }
