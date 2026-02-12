@@ -9,12 +9,15 @@ function snapToGrid(v: number): number {
 
 export interface UseDragPartsOptions {
   onPartMove?: (partId: string, top: number, left: number) => void;
+  onPartSelect?: (partId: string) => void;
   zoomRef: MutableRefObject<number>;
 }
 
-export function useDragParts({ onPartMove, zoomRef }: UseDragPartsOptions) {
+export function useDragParts({ onPartMove, onPartSelect, zoomRef }: UseDragPartsOptions) {
   const onPartMoveRef = useRef(onPartMove);
   onPartMoveRef.current = onPartMove;
+  const onPartSelectRef = useRef(onPartSelect);
+  onPartSelectRef.current = onPartSelect;
 
   const dragRef = useRef<{
     wrapper: HTMLElement;
@@ -75,11 +78,15 @@ export function useDragParts({ onPartMove, zoomRef }: UseDragPartsOptions) {
       dragRef.current = null;
 
       if (Math.abs(dx) > 2 || Math.abs(dy) > 2) {
+        // Actual drag — report move
         onPartMoveRef.current?.(
           partId,
           snapToGrid(drag.origTop + dy),
           snapToGrid(drag.origLeft + dx),
         );
+      } else {
+        // Click without drag — select the part
+        onPartSelectRef.current?.(partId);
       }
     });
   }, [zoomRef]);

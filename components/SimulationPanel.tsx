@@ -1,25 +1,34 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useMemo } from "react";
+import dynamic from "next/dynamic";
 import Tabs from "./Tabs";
 import SimulationCanvas from "./SimulationCanvas";
 import SimulationControls from "./SimulationControls";
 import SerialMonitor from "./SerialMonitor";
 import ToolPalette, { type ToolType } from "./ToolPalette";
+import PartAttributePanel from "./PartAttributePanel";
 import styles from "./SimulationPanel.module.css";
 import { Diagram, DiagramConnection, DiagramLabel } from "@/lib/diagram-parser";
 import { AVRRunner } from "@/lib/avr-runner";
 
-const SIM_TABS = [
-  { id: "simulation", label: "Diagram" },
-  { id: "description", label: "Description" },
-];
+// Dynamic import for PCB editor (no SSR — WebGL)
+const KiPCBEditor = dynamic(() => import("./KiPCBEditor"), {
+  ssr: false,
+  loading: () => (
+    <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100%", color: "#888", fontFamily: "monospace" }}>
+      Loading PCB editor...
+    </div>
+  ),
+});
 
 interface SimulationPanelProps {
   diagram: Diagram | null;
   runner: AVRRunner | null;
   status: "idle" | "compiling" | "running" | "paused" | "error";
   serialOutput: string;
+  pcbText: string | null;
+  onPcbSave: (text: string) => void;
   onStart: () => void;
   onStop: () => void;
   onPause: () => void;
@@ -29,6 +38,14 @@ interface SimulationPanelProps {
   onPartMove: (partId: string, top: number, left: number) => void;
   onAddConnection: (conn: DiagramConnection) => void;
   onAddLabel?: (label: DiagramLabel) => void;
+  selectedPartId: string | null;
+  onPartSelect: (partId: string | null) => void;
+  onDeletePart: (partId: string) => void;
+  onPartRotate: (partId: string, angle: number) => void;
+  onPartAttrChange: (partId: string, attr: string, value: string) => void;
+  placingPartId: string | null;
+  onFinishPlacing: () => void;
+  onInitPCB: () => void;
 }
 
 export default function SimulationPanel({
@@ -36,6 +53,8 @@ export default function SimulationPanel({
   runner,
   status,
   serialOutput,
+  pcbText,
+  onPcbSave,
   onStart,
   onStop,
   onPause,
@@ -45,9 +64,23 @@ export default function SimulationPanel({
   onPartMove,
   onAddConnection,
   onAddLabel,
+  selectedPartId,
+  onPartSelect,
+  onDeletePart,
+  onPartRotate,
+  onPartAttrChange,
+  placingPartId,
+  onFinishPlacing,
+  onInitPCB,
 }: SimulationPanelProps) {
   const [activeTab, setActiveTab] = useState("simulation");
   const [activeTool, setActiveTool] = useState<ToolType>("cursor");
+
+  const simTabs = useMemo(() => [
+    { id: "simulation", label: "Diagram" },
+    { id: "pcb", label: "PCB" },
+    { id: "description", label: "Description" },
+  ], []);
 
   const handleToolChange = useCallback((tool: ToolType) => {
     setActiveTool(tool);
@@ -66,7 +99,7 @@ export default function SimulationPanel({
 
   return (
     <div className={styles.panel}>
-      <Tabs tabs={SIM_TABS} activeId={activeTab} onTabChange={setActiveTab} />
+      <Tabs tabs={simTabs} activeId={activeTab} onTabChange={setActiveTab} />
       <div className={styles.body}>
         {activeTab === "simulation" ? (
           <>
@@ -79,6 +112,12 @@ export default function SimulationPanel({
                 onPartMove={onPartMove}
                 onAddConnection={onAddConnection}
                 onAddLabel={onAddLabel}
+                selectedPartId={selectedPartId}
+                onPartSelect={onPartSelect}
+                onDeletePart={onDeletePart}
+                onPartRotate={onPartRotate}
+                placingPartId={placingPartId}
+                onFinishPlacing={onFinishPlacing}
               />
             </div>
 
@@ -114,20 +153,59 @@ export default function SimulationPanel({
 
             {/* Tool palette */}
             <ToolPalette activeTool={activeTool} onToolChange={handleToolChange} />
+
+            {/* Part attribute panel */}
+            {selectedPartId && diagram && (
+              <PartAttributePanel
+                part={diagram.parts.find((p) => p.id === selectedPartId) ?? null}
+                onAttrChange={(attr, value) => onPartAttrChange(selectedPartId, attr, value)}
+                onRotate={(angle) => onPartRotate(selectedPartId, angle)}
+                onDelete={() => onDeletePart(selectedPartId)}
+                onClose={() => onPartSelect(null)}
+              />
+            )}
           </>
+        ) : activeTab === "pcb" ? (
+          pcbText !== null ? (
+            <KiPCBEditor
+              initialPcbText={pcbText}
+              onSave={onPcbSave}
+            />
+          ) : (
+            <div style={{
+              display: "flex", flexDirection: "column", alignItems: "center",
+              justifyContent: "center", height: "100%", gap: 16, color: "#999",
+              fontFamily: "monospace",
+            }}>
+              <div style={{ fontSize: 14, color: "#ccc" }}>No PCB layout yet</div>
+              <div style={{ fontSize: 12, maxWidth: 280, textAlign: "center", lineHeight: 1.5 }}>
+                Generate an initial board layout from your schematic diagram with footprints placed in a grid.
+              </div>
+              <button
+                onClick={onInitPCB}
+                style={{
+                  padding: "8px 20px", background: "#1a5c2a", border: "1px solid #2a8a42",
+                  borderRadius: 4, color: "#fff", fontSize: 13, cursor: "pointer",
+                  fontFamily: "monospace", fontWeight: 600,
+                }}
+              >
+                Initialize from Schematic
+              </button>
+            </div>
+          )
         ) : (
           <div style={{ padding: 16, color: "#999" }}>
             <h3 style={{ color: "#ccc", marginBottom: 8 }}>
-              Simon Game with Score Display
+              Project Description
             </h3>
             <p>
-              A Simon memory game with 4 LEDs, 4 buttons, a buzzer, and a
-              7-segment score display. Built for Arduino Uno.
+              Select the Diagram tab to view and edit the schematic,
+              or the PCB tab to edit the board layout.
             </p>
           </div>
         )}
       </div>
-      <SerialMonitor output={serialOutput} visible={status === "running" || status === "paused"} />
+      <SerialMonitor output={serialOutput} visible={activeTab === "simulation" && (status === "running" || status === "paused")} />
     </div>
   );
 }

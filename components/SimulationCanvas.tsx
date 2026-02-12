@@ -47,6 +47,12 @@ interface SimulationCanvasProps {
   onPartMove?: (partId: string, top: number, left: number) => void;
   onAddConnection?: (conn: DiagramConnection) => void;
   onAddLabel?: (label: DiagramLabel) => void;
+  selectedPartId: string | null;
+  onPartSelect?: (partId: string | null) => void;
+  onDeletePart?: (partId: string) => void;
+  onPartRotate?: (partId: string, angle: number) => void;
+  placingPartId?: string | null;
+  onFinishPlacing?: () => void;
 }
 
 function pinToCanvas(
@@ -83,6 +89,12 @@ export default function SimulationCanvas({
   onPartMove,
   onAddConnection,
   onAddLabel,
+  selectedPartId,
+  onPartSelect,
+  onDeletePart,
+  onPartRotate,
+  placingPartId,
+  onFinishPlacing,
 }: SimulationCanvasProps) {
   const viewportRef = useRef<HTMLDivElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -109,6 +121,12 @@ export default function SimulationCanvas({
   const activeToolRef = useRef(activeTool);
   activeToolRef.current = activeTool;
 
+  // Placement mode refs
+  const placingPartIdRef = useRef<string | null>(null);
+  placingPartIdRef.current = placingPartId ?? null;
+  const onFinishPlacingRef = useRef(onFinishPlacing);
+  onFinishPlacingRef.current = onFinishPlacing;
+
   const {
     wireDrawing,
     isDrawing,
@@ -116,6 +134,7 @@ export default function SimulationCanvas({
     handlePinClick,
     handleCanvasClick,
     handleMouseMove,
+    cancelDrawing,
   } = useWireDrawing({ containerRef, onAddConnection, zoomRef, panRef: panStateRef, activeTool });
 
   // Wrapper: useDragParts reports positions including ORIGIN_PX offset;
@@ -126,7 +145,34 @@ export default function SimulationCanvas({
     },
     [onPartMove],
   );
-  const { attachDragHandlers } = useDragParts({ onPartMove: handlePartMove, zoomRef });
+  const handlePartSelectFromDrag = useCallback(
+    (partId: string) => {
+      onPartSelect?.(partId);
+    },
+    [onPartSelect],
+  );
+  const { attachDragHandlers } = useDragParts({ onPartMove: handlePartMove, onPartSelect: handlePartSelectFromDrag, zoomRef });
+
+  // --- Placement mode: part follows cursor ---
+  const handlePlacementMove = useCallback((e: React.PointerEvent) => {
+    const pid = placingPartIdRef.current;
+    if (!pid || !containerRef.current || !viewportRef.current) return;
+    const rect = viewportRef.current.getBoundingClientRect();
+    const sx = e.clientX - rect.left - RULER_SIZE;
+    const sy = e.clientY - rect.top - RULER_SIZE;
+    const z = zoomRef.current;
+    const contentX = sx / z + panStateRef.current.x;
+    const contentY = sy / z + panStateRef.current.y;
+    const snapX = Math.round(contentX / UNIT_PX) * UNIT_PX;
+    const snapY = Math.round(contentY / UNIT_PX) * UNIT_PX;
+
+    const wrapper = containerRef.current.querySelector(`[data-part-id="${pid}"]`) as HTMLElement | null;
+    if (wrapper) {
+      wrapper.style.top = `${snapY}px`;
+      wrapper.style.left = `${snapX}px`;
+      wrapper.style.opacity = "0.7";
+    }
+  }, []);
 
   const prevPartsKeyRef = useRef<string>("");
 
@@ -148,19 +194,34 @@ export default function SimulationCanvas({
   useEffect(() => {
     const handleKey = (e: KeyboardEvent) => {
       const tag = (e.target as HTMLElement).tagName;
-      if (tag === "INPUT" || tag === "TEXTAREA") return;
+      if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") return;
 
       if (e.key === "w" || e.key === "W") {
         onToolChange("wire");
       } else if (e.key === "l" || e.key === "L") {
         onToolChange("label");
       } else if (e.key === "Escape") {
+        if (placingPartIdRef.current) {
+          onDeletePart?.(placingPartIdRef.current);
+          onFinishPlacingRef.current?.();
+        } else if (isDrawing) {
+          cancelDrawing();
+        } else {
+          onPartSelect?.(null);
+        }
         onToolChange("cursor");
+      } else if ((e.key === "Delete" || e.key === "Backspace") && selectedPartId) {
+        e.preventDefault();
+        onDeletePart?.(selectedPartId);
+        onPartSelect?.(null);
+      } else if ((e.key === "r" || e.key === "R") && selectedPartId && !e.ctrlKey && !e.metaKey) {
+        e.preventDefault();
+        onPartRotate?.(selectedPartId, 90);
       }
     };
     window.addEventListener("keydown", handleKey);
     return () => window.removeEventListener("keydown", handleKey);
-  }, [onToolChange]);
+  }, [onToolChange, selectedPartId, onDeletePart, onPartSelect, onPartRotate, isDrawing, cancelDrawing]);
 
   // --- Zoom with scroll wheel ---
   useEffect(() => {
@@ -198,6 +259,7 @@ export default function SimulationCanvas({
 
   // --- Pan handler: middle-click always pans; left-click only in cursor mode on empty space ---
   const handlePanStart = useCallback((e: React.PointerEvent) => {
+    if (placingPartIdRef.current) return; // Don't pan during placement
     if (e.button === 1) {
       // Middle button always pans
       e.preventDefault();
@@ -304,6 +366,18 @@ export default function SimulationCanvas({
         if (wrapper) {
           wrapper.style.top = `${part.top + ORIGIN_PX}px`;
           wrapper.style.left = `${part.left + ORIGIN_PX}px`;
+          wrapper.style.transform = part.rotate ? `rotate(${part.rotate}deg)` : "";
+        }
+        // Sync attributes on the element
+        const el = elementsRef.current.get(part.id);
+        if (el) {
+          for (const [key, value] of Object.entries(part.attrs || {})) {
+            if (value === "" || value === undefined) {
+              el.removeAttribute(key);
+            } else if (el.getAttribute(key) !== value) {
+              el.setAttribute(key, value);
+            }
+          }
         }
       }
       let attempt = 0;
@@ -398,6 +472,34 @@ export default function SimulationCanvas({
     };
   }, [runner, diagram]);
 
+  // --- Clean up placement opacity when placement ends ---
+  useEffect(() => {
+    if (placingPartId || !containerRef.current) return;
+    const wrappers = containerRef.current.querySelectorAll("[data-part-id]");
+    wrappers.forEach((el) => {
+      (el as HTMLElement).style.opacity = "";
+    });
+  }, [placingPartId]);
+
+  // --- Selection highlight on part wrappers ---
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container) return;
+    const wrappers = container.querySelectorAll("[data-part-id]");
+    wrappers.forEach((el) => {
+      const wrapper = el as HTMLElement;
+      if (wrapper.dataset.partId === selectedPartId) {
+        wrapper.style.outline = "2px solid #2563eb";
+        wrapper.style.outlineOffset = "2px";
+        wrapper.style.borderRadius = "4px";
+      } else {
+        wrapper.style.outline = "";
+        wrapper.style.outlineOffset = "";
+        wrapper.style.borderRadius = "";
+      }
+    });
+  }, [selectedPartId, diagram]);
+
   // --- Highlighted wires ---
   const highlightedWireIndices = new Set<number>();
   if (hoveredPin) {
@@ -433,9 +535,11 @@ export default function SimulationCanvas({
   const screenY = (u: number) => ((u * UNIT_PX + ORIGIN_PX) - panY) * zoom;
 
   // Cursor style based on active tool
-  const cursorStyle = activeTool === "cursor"
-    ? (isDrawing ? "crosshair" : "grab")
-    : "crosshair";
+  const cursorStyle = placingPartId
+    ? "crosshair"
+    : activeTool === "cursor"
+      ? (isDrawing ? "crosshair" : "grab")
+      : "crosshair";
 
   // Labels from diagram
   const labels = diagram?.labels ?? [];
@@ -506,7 +610,7 @@ export default function SimulationCanvas({
           cursor: cursorStyle,
         }}
         onPointerDown={handlePanStart}
-        onPointerMove={handlePanMove}
+        onPointerMove={(e) => { handlePanMove(e); handlePlacementMove(e); }}
         onPointerUp={handlePanEnd}
         onContextMenu={(e) => e.preventDefault()}
       >
@@ -522,7 +626,27 @@ export default function SimulationCanvas({
         >
           <div
             ref={containerRef}
-            onClick={handleCanvasClick}
+            onClick={(e) => {
+              // Finalize placement on click
+              if (placingPartIdRef.current && containerRef.current) {
+                const pid = placingPartIdRef.current;
+                const wrapper = containerRef.current.querySelector(`[data-part-id="${pid}"]`) as HTMLElement | null;
+                if (wrapper) {
+                  const top = parseFloat(wrapper.style.top) - ORIGIN_PX;
+                  const left = parseFloat(wrapper.style.left) - ORIGIN_PX;
+                  onPartMove?.(pid, top, left);
+                  wrapper.style.opacity = "";
+                }
+                onFinishPlacingRef.current?.();
+                return;
+              }
+              handleCanvasClick(e as any);
+              // Deselect if clicking empty space (not on a part)
+              const target = e.target as HTMLElement;
+              if (!target.closest("[data-part-id]")) {
+                onPartSelect?.(null);
+              }
+            }}
             onMouseMove={handleMouseMove}
             style={{ position: "relative", width: GRID_PX, height: GRID_PX }}
           >

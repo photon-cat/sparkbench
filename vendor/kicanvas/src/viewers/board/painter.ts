@@ -31,7 +31,7 @@ import {
 import type { BoardTheme } from "../../kicad";
 
 abstract class BoardItemPainter extends ItemPainter {
-    override view_painter: BoardPainter;
+    declare view_painter: BoardPainter;
 
     override get theme(): BoardTheme {
         return this.view_painter.theme;
@@ -1173,6 +1173,7 @@ class FootprintPainter extends BoardItemPainter {
 
     layers_for(fp: board_items.Footprint): string[] {
         const layers = new Set();
+        if (!this.view_painter) return [];
         for (const item of fp.items()) {
             const item_layers = this.view_painter.layers_for(item);
             for (const layer of item_layers) {
@@ -1183,6 +1184,7 @@ class FootprintPainter extends BoardItemPainter {
     }
 
     paint(layer: ViewLayer, fp: board_items.Footprint) {
+        if (!this.view_painter) return;
         const matrix = Matrix3.translation(
             fp.at.position.x,
             fp.at.position.y,
@@ -1206,7 +1208,7 @@ class FootprintPainter extends BoardItemPainter {
 }
 
 export class BoardPainter extends DocumentPainter {
-    override theme: BoardTheme;
+    declare theme: BoardTheme;
 
     constructor(gfx: Renderer, layers: LayerSet, theme: BoardTheme) {
         super(gfx, layers, theme);

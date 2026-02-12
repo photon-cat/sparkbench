@@ -17,6 +17,7 @@ interface WorkbenchProps {
   serialOutput: string;
   sketchCode: string;
   diagramJson: string;
+  pcbText: string | null;
   onStart: () => void;
   onStop: () => void;
   onPause: () => void;
@@ -24,10 +25,20 @@ interface WorkbenchProps {
   onRestart: () => void;
   onSketchChange: (code: string) => void;
   onDiagramChange: (json: string) => void;
+  onPcbChange: (text: string) => void;
+  onPcbSave: (text: string) => void;
   onAddPart: (partType: string) => void;
   onPartMove: (partId: string, top: number, left: number) => void;
   onAddConnection: (conn: DiagramConnection) => void;
   onAddLabel?: (label: DiagramLabel) => void;
+  selectedPartId: string | null;
+  onPartSelect: (partId: string | null) => void;
+  onDeletePart: (partId: string) => void;
+  onPartRotate: (partId: string, angle: number) => void;
+  onPartAttrChange: (partId: string, attr: string, value: string) => void;
+  placingPartId: string | null;
+  onFinishPlacing: () => void;
+  onInitPCB: () => void;
 }
 
 export default function Workbench({
@@ -37,6 +48,7 @@ export default function Workbench({
   serialOutput,
   sketchCode,
   diagramJson,
+  pcbText,
   onStart,
   onStop,
   onPause,
@@ -44,10 +56,20 @@ export default function Workbench({
   onRestart,
   onSketchChange,
   onDiagramChange,
+  onPcbChange,
+  onPcbSave,
   onAddPart,
   onPartMove,
   onAddConnection,
   onAddLabel,
+  selectedPartId,
+  onPartSelect,
+  onDeletePart,
+  onPartRotate,
+  onPartAttrChange,
+  placingPartId,
+  onFinishPlacing,
+  onInitPCB,
 }: WorkbenchProps) {
   return (
     <div className={styles.workbench}>
@@ -57,8 +79,10 @@ export default function Workbench({
             <EditorPanel
               sketchCode={sketchCode}
               diagramJson={diagramJson}
+              pcbText={pcbText}
               onSketchChange={onSketchChange}
               onDiagramChange={onDiagramChange}
+              onPcbChange={onPcbChange}
             />
           }
           right={
@@ -67,6 +91,8 @@ export default function Workbench({
               runner={runner}
               status={status}
               serialOutput={serialOutput}
+              pcbText={pcbText}
+              onPcbSave={onPcbSave}
               onStart={onStart}
               onStop={onStop}
               onPause={onPause}
@@ -76,6 +102,14 @@ export default function Workbench({
               onPartMove={onPartMove}
               onAddConnection={onAddConnection}
               onAddLabel={onAddLabel}
+              selectedPartId={selectedPartId}
+              onPartSelect={onPartSelect}
+              onDeletePart={onDeletePart}
+              onPartRotate={onPartRotate}
+              onPartAttrChange={onPartAttrChange}
+              placingPartId={placingPartId}
+              onFinishPlacing={onFinishPlacing}
+              onInitPCB={onInitPCB}
             />
           }
         />

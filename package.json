@@ -17,6 +17,7 @@
     "@wokwi/elements": "^1.9.1",
     "allotment": "^1.20.5",
     "avr8js": "^0.20.1",
+    "clipper2-js": "^1.2.4",
     "next": "16.1.6",
     "react": "19.2.3",
     "react-dom": "19.2.3"
@@ -29,6 +30,7 @@
     "@types/react-dom": "^19",
     "eslint": "^9",
     "eslint-config-next": "16.1.6",
+    "raw-loader": "^4.0.2",
     "tailwindcss": "^4",
     "typescript": "^5"
   }

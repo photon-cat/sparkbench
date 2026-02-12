@@ -5,7 +5,10 @@
     "allowJs": true,
     "skipLibCheck": true,
     "strict": true,
+    "strictPropertyInitialization": false,
+    "experimentalDecorators": true,
     "noEmit": true,
+    "allowImportingTsExtensions": true,
     "esModuleInterop": true,
     "module": "esnext",
     "moduleResolution": "bundler",
@@ -19,16 +22,28 @@
       }
     ],
     "paths": {
-      "@/*": ["./*"]
+      "@/*": ["./*"],
+      "@kicanvas/*": ["./vendor/kicanvas/src/*"]
     }
   },
   "include": [
     "next-env.d.ts",
-    "**/*.ts",
-    "**/*.tsx",
+    "app/**/*.ts",
+    "app/**/*.tsx",
+    "components/**/*.ts",
+    "components/**/*.tsx",
+    "hooks/**/*.ts",
+    "lib/**/*.ts",
     ".next/types/**/*.ts",
     ".next/dev/types/**/*.ts",
-    "**/*.mts"
+    "vendor/kicanvas/src/base/**/*.ts",
+    "vendor/kicanvas/src/graphics/**/*.ts",
+    "vendor/kicanvas/src/kicad/**/*.ts",
+    "vendor/kicanvas/src/viewers/**/*.ts",
+    "vendor/kicanvas/src/kicanvas/themes/**/*.ts"
   ],
-  "exclude": ["node_modules", "vendor", "tools"]
+  "exclude": [
+    "node_modules",
+    "tools"
+  ]
 }
