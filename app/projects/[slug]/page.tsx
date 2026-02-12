@@ -6,7 +6,7 @@ import Toolbar from "@/components/Toolbar";
 import Workbench from "@/components/Workbench";
 import { parseDiagram, type Diagram, type DiagramPart, type DiagramConnection, type DiagramLabel } from "@/lib/diagram-parser";
 import { useSimulation } from "@/hooks/useSimulation";
-import { fetchDiagram, fetchSketch, saveDiagram, saveSketch } from "@/lib/api";
+import { fetchDiagram, fetchSketch, saveDiagram, saveSketch, fetchPCB, savePCB } from "@/lib/api";
 
 export default function ProjectPage() {
   const { slug } = useParams<{ slug: string }>();
@@ -14,9 +14,12 @@ export default function ProjectPage() {
   const [diagram, setDiagram] = useState<Diagram | null>(null);
   const [sketchCode, setSketchCode] = useState("");
   const [diagramJson, setDiagramJson] = useState("");
+  const [pcbText, setPcbText] = useState<string | null>(null);
   const [projectFiles, setProjectFiles] = useState<{ name: string; content: string }[]>([]);
   const [lastSaved, setLastSaved] = useState<Date | null>(null);
   const [dirty, setDirty] = useState(false);
+  const [selectedPartId, setSelectedPartId] = useState<string | null>(null);
+  const [placingPartId, setPlacingPartId] = useState<string | null>(null);
 
   const loadedRef = useRef(false);
 
@@ -51,6 +54,12 @@ export default function ProjectPage() {
         setProjectFiles(data.files || []);
       })
       .catch((err) => console.error("Failed to load sketch:", err));
+
+    fetchPCB(slug)
+      .then((data) => {
+        setPcbText(data?.pcbText ?? null);
+      })
+      .catch((err) => console.error("Failed to load PCB:", err));
   }, [slug]);
 
   const handleSketchChange = useCallback((code: string) => {
@@ -75,9 +84,12 @@ export default function ProjectPage() {
       return base + n;
     }
 
+    let placedId = "";
+
     setDiagram((prev) => {
       if (!prev) return prev;
       const id = nextId(new Set(prev.parts.map((p) => p.id)));
+      placedId = id;
       const newPart: DiagramPart = { type: partType, id, top: 200, left: 200, attrs };
       return { ...prev, parts: [...prev.parts, newPart] };
     });
@@ -94,6 +106,10 @@ export default function ProjectPage() {
       }
     });
 
+    if (placedId) {
+      setPlacingPartId(placedId);
+      setSelectedPartId(placedId);
+    }
     setDirty(true);
   }, []);
 
@@ -181,20 +197,166 @@ export default function ProjectPage() {
     [],
   );
 
+  const handlePartSelect = useCallback((partId: string | null) => {
+    setSelectedPartId(partId);
+  }, []);
+
+  const handleDeletePart = useCallback((partId: string) => {
+    setDiagram((prev) => {
+      if (!prev) return prev;
+      return {
+        ...prev,
+        parts: prev.parts.filter((p) => p.id !== partId),
+        connections: prev.connections.filter((conn) => {
+          return !conn[0].startsWith(partId + ":") && !conn[1].startsWith(partId + ":");
+        }),
+        labels: (prev.labels ?? []).filter((l) => !l.pinRef?.startsWith(partId + ":")),
+      };
+    });
+
+    setDiagramJson((prev) => {
+      try {
+        const obj = JSON.parse(prev);
+        obj.parts = (obj.parts ?? []).filter((p: any) => p.id !== partId);
+        obj.connections = (obj.connections ?? []).filter((c: any) => {
+          return !c[0]?.startsWith(partId + ":") && !c[1]?.startsWith(partId + ":");
+        });
+        if (obj.labels) {
+          obj.labels = obj.labels.filter((l: any) => !l.pinRef?.startsWith(partId + ":"));
+        }
+        return JSON.stringify(obj, null, 2);
+      } catch {
+        return prev;
+      }
+    });
+
+    setSelectedPartId(null);
+    setDirty(true);
+  }, []);
+
+  const handlePartRotate = useCallback((partId: string, angle: number) => {
+    setDiagram((prev) => {
+      if (!prev) return prev;
+      return {
+        ...prev,
+        parts: prev.parts.map((p) =>
+          p.id === partId ? { ...p, rotate: ((p.rotate ?? 0) + angle) % 360 } : p,
+        ),
+      };
+    });
+
+    setDiagramJson((prev) => {
+      try {
+        const obj = JSON.parse(prev);
+        const part = (obj.parts ?? []).find((p: any) => p.id === partId);
+        if (part) part.rotate = ((part.rotate ?? 0) + angle) % 360;
+        return JSON.stringify(obj, null, 2);
+      } catch {
+        return prev;
+      }
+    });
+
+    setDirty(true);
+  }, []);
+
+  const handlePartAttrChange = useCallback((partId: string, attr: string, value: string) => {
+    setDiagram((prev) => {
+      if (!prev) return prev;
+      return {
+        ...prev,
+        parts: prev.parts.map((p) => {
+          if (p.id !== partId) return p;
+          const newAttrs = { ...p.attrs };
+          if (value === "") {
+            delete newAttrs[attr];
+          } else {
+            newAttrs[attr] = value;
+          }
+          return { ...p, attrs: newAttrs };
+        }),
+      };
+    });
+
+    setDiagramJson((prev) => {
+      try {
+        const obj = JSON.parse(prev);
+        const part = (obj.parts ?? []).find((p: any) => p.id === partId);
+        if (part) {
+          if (!part.attrs) part.attrs = {};
+          if (value === "") {
+            delete part.attrs[attr];
+          } else {
+            part.attrs[attr] = value;
+          }
+        }
+        return JSON.stringify(obj, null, 2);
+      } catch {
+        return prev;
+      }
+    });
+
+    setDirty(true);
+  }, []);
+
+  const handlePcbChange = useCallback((text: string) => {
+    setPcbText(text);
+    if (loadedRef.current) setDirty(true);
+  }, []);
+
+  const handlePcbSave = useCallback(async (text: string) => {
+    if (!slug) return;
+    try {
+      await savePCB(slug, text);
+      setPcbText(text);
+    } catch (err) {
+      console.error("PCB save error:", err);
+    }
+  }, [slug]);
+
+  const handleFinishPlacing = useCallback(() => {
+    setPlacingPartId(null);
+  }, []);
+
+  const handleInitPCB = useCallback(async () => {
+    if (!diagram) return;
+    // Dynamic imports to avoid SSR issues with KiCanvas window access
+    const [{ extractNetlist }, { initPCBFromSchematic }, { buildKicadPCBTree }, { serializeSExpr }] = await Promise.all([
+      import("@/lib/netlist"),
+      import("@/lib/pcb-parser"),
+      import("@/lib/kicanvas-factory"),
+      import("@/lib/sexpr-serializer"),
+    ]);
+
+    const netlist = extractNetlist(diagram);
+    const design = initPCBFromSchematic(diagram, netlist);
+    const tree = buildKicadPCBTree(design);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const text = serializeSExpr(tree as any);
+
+    setPcbText(text);
+    if (slug) {
+      await savePCB(slug, text);
+    }
+  }, [diagram, slug]);
+
   const handleSave = useCallback(async () => {
     if (!slug) return;
 
     try {
-      await Promise.all([
+      const promises: Promise<void>[] = [
         saveDiagram(slug, diagramJson),
         saveSketch(slug, sketchCode),
-      ]);
+      ];
+      if (pcbText !== null) {
+        promises.push(savePCB(slug, pcbText));
+      }
+      await Promise.all(promises);
       setLastSaved(new Date());
       setDirty(false);
     } catch (err) {
       console.error("Save error:", err);
     }
-  }, [slug, diagramJson, sketchCode]);
+  }, [slug, diagramJson, sketchCode, pcbText]);
 
   return (
     <div style={{ height: "100vh", display: "flex", flexDirection: "column" }}>
@@ -206,6 +368,7 @@ export default function ProjectPage() {
         serialOutput={serialOutput}
         sketchCode={sketchCode}
         diagramJson={diagramJson}
+        pcbText={pcbText}
         onStart={handleStart}
         onStop={handleStop}
         onPause={handlePause}
@@ -213,10 +376,20 @@ export default function ProjectPage() {
         onRestart={handleRestart}
         onSketchChange={handleSketchChange}
         onDiagramChange={handleDiagramChange}
+        onPcbChange={handlePcbChange}
+        onPcbSave={handlePcbSave}
         onAddPart={handleAddPart}
         onPartMove={handlePartMove}
         onAddConnection={handleAddConnection}
         onAddLabel={handleAddLabel}
+        selectedPartId={selectedPartId}
+        onPartSelect={handlePartSelect}
+        onDeletePart={handleDeletePart}
+        onPartRotate={handlePartRotate}
+        onPartAttrChange={handlePartAttrChange}
+        placingPartId={placingPartId}
+        onFinishPlacing={handleFinishPlacing}
+        onInitPCB={handleInitPCB}
       />
     </div>
   );

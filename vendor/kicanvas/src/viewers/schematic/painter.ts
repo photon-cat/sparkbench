@@ -641,7 +641,7 @@ class SchematicSheetPainter extends SchematicItemPainter {
 }
 
 export class SchematicPainter extends BaseSchematicPainter {
-    override theme: SchematicTheme;
+    declare theme: SchematicTheme;
 
     constructor(gfx: Renderer, layers: LayerSet, theme: SchematicTheme) {
         super(gfx, layers, theme);

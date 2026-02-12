@@ -1,28 +1,34 @@
 /**
  * Hook for dragging footprints on the PCB canvas.
  *
+ * Operates on S-expression trees (List) rather than PCBDesign.
+ *
  * Handles mousedown → mousemove → mouseup cycle:
  * - Mousedown on a selected footprint starts drag
  * - Mousemove computes world-space delta, paints preview on overlay
- * - Mouseup snaps to grid and commits MoveFootprintCommand
+ * - Mouseup snaps to grid and commits move via tree mutation
  *
  * Also handles:
  * - R key: rotate 90° CCW
  * - F key: flip F.Cu↔B.Cu
- * - Delete/Backspace: delete selected items
+ * - Delete/Backspace: delete selected footprint
+ * - Ctrl+Z / Ctrl+Shift+Z: undo/redo
  */
 
 import { useRef, useCallback, useEffect } from "react";
 import { Vec2 } from "@kicanvas/base/math";
 import { Color, Polyline } from "@kicanvas/graphics";
-import type { PCBDesign } from "@/lib/pcb-types";
+import type { List } from "@kicanvas/kicad/tokenizer";
 import {
-    PCBUndoStack,
-    MoveFootprintCommand,
-    RotateFootprintCommand,
-    FlipFootprintCommand,
-    DeleteItemsCommand,
-} from "@/lib/pcb-undo";
+    findFootprintByRef,
+    getAt,
+    setAt,
+    rotateFootprint,
+    flipFootprint,
+    removeChildren,
+    getFootprintRef,
+} from "@/lib/sexpr-mutate";
+import type { SExprUndoStack } from "@/lib/sexpr-undo";
 import type { EditableBoardViewer } from "@/lib/editable-board-viewer";
 
 const GRID_SNAP = 0.5; // mm
@@ -41,22 +47,32 @@ interface DragState {
 
 export interface UseKiPCBDragOptions {
     viewer: EditableBoardViewer | null;
-    design: PCBDesign;
-    undoStack: PCBUndoStack;
+    pcbTree: List;
+    undoStack: SExprUndoStack;
     selectedRef: string | null;
-    onDesignChange: (design: PCBDesign) => void;
+    onTreeChange: (tree: List) => void;
     canvasElement: HTMLCanvasElement | null;
 }
 
 export function useKiPCBDrag({
     viewer,
-    design,
+    pcbTree,
     undoStack,
     selectedRef,
-    onDesignChange,
+    onTreeChange,
     canvasElement,
 }: UseKiPCBDragOptions) {
     const dragRef = useRef<DragState | null>(null);
+
+    // Keep latest refs for callbacks
+    const pcbTreeRef = useRef(pcbTree);
+    pcbTreeRef.current = pcbTree;
+    const selectedRefRef = useRef(selectedRef);
+    selectedRefRef.current = selectedRef;
+    const onTreeChangeRef = useRef(onTreeChange);
+    onTreeChangeRef.current = onTreeChange;
+    const undoStackRef = useRef(undoStack);
+    undoStackRef.current = undoStack;
 
     // Mouse → world coordinate conversion
     const getWorldPos = useCallback(
@@ -67,7 +83,6 @@ export function useKiPCBDrag({
                 e.clientX - rect.left,
                 e.clientY - rect.top,
             );
-            // Use the viewer's camera to convert screen → world
             const worldPos = viewer.viewport.camera.screen_to_world(screenPos);
             return { x: worldPos.x, y: worldPos.y };
         },
@@ -77,23 +92,27 @@ export function useKiPCBDrag({
     // Start drag
     const onMouseDown = useCallback(
         (e: MouseEvent) => {
-            if (!selectedRef || !viewer || e.button !== 0) return;
+            const sel = selectedRefRef.current;
+            if (!sel || !viewer || e.button !== 0) return;
 
-            const fp = design.footprints.find((f) => f.ref === selectedRef);
+            const fp = findFootprintByRef(pcbTreeRef.current, sel);
             if (!fp) return;
+
+            const at = getAt(fp);
+            if (!at) return;
 
             const worldPos = getWorldPos(e);
             if (!worldPos) return;
 
             dragRef.current = {
-                ref: selectedRef,
+                ref: sel,
                 startX: worldPos.x,
                 startY: worldPos.y,
-                origX: fp.x,
-                origY: fp.y,
+                origX: at.x,
+                origY: at.y,
             };
         },
-        [selectedRef, viewer, design, getWorldPos],
+        [viewer, getWorldPos],
     );
 
     // Drag in progress
@@ -161,61 +180,69 @@ export function useKiPCBDrag({
             // Only commit if actually moved
             if (toX === drag.origX && toY === drag.origY) return;
 
-            const cmd = new MoveFootprintCommand(
-                drag.ref,
-                drag.origX,
-                drag.origY,
-                toX,
-                toY,
-            );
-            const newDesign = undoStack.execute(cmd, design);
-            onDesignChange(newDesign);
+            const tree = pcbTreeRef.current;
+            undoStackRef.current.pushSnapshot(tree);
+            const newTree = structuredClone(tree);
+            const fp = findFootprintByRef(newTree, drag.ref);
+            if (fp) {
+                const at = getAt(fp);
+                setAt(fp, toX, toY, at?.rotation);
+            }
+            onTreeChangeRef.current(newTree);
         },
-        [viewer, design, undoStack, onDesignChange, getWorldPos],
+        [viewer, getWorldPos],
     );
 
     // Keyboard shortcuts
     const onKeyDown = useCallback(
         (e: KeyboardEvent) => {
-            if (!selectedRef) return;
+            const sel = selectedRefRef.current;
+            if (!sel) return;
 
             // R: Rotate 90° CCW
             if (e.key === "r" || e.key === "R") {
+                if (e.ctrlKey || e.metaKey) return;
                 e.preventDefault();
-                const cmd = new RotateFootprintCommand(selectedRef, 90);
-                const newDesign = undoStack.execute(cmd, design);
-                onDesignChange(newDesign);
+                const tree = pcbTreeRef.current;
+                undoStackRef.current.pushSnapshot(tree);
+                const newTree = structuredClone(tree);
+                const fp = findFootprintByRef(newTree, sel);
+                if (fp) rotateFootprint(fp, 90);
+                onTreeChangeRef.current(newTree);
                 return;
             }
 
             // F: Flip
             if (e.key === "f" || e.key === "F") {
+                if (e.ctrlKey || e.metaKey) return;
                 e.preventDefault();
-                const cmd = new FlipFootprintCommand(selectedRef);
-                const newDesign = undoStack.execute(cmd, design);
-                onDesignChange(newDesign);
+                const tree = pcbTreeRef.current;
+                undoStackRef.current.pushSnapshot(tree);
+                const newTree = structuredClone(tree);
+                const fp = findFootprintByRef(newTree, sel);
+                if (fp) flipFootprint(fp);
+                onTreeChangeRef.current(newTree);
                 return;
             }
 
-            // Delete/Backspace: Delete selected
+            // Delete/Backspace: Delete selected footprint
             if (e.key === "Delete" || e.key === "Backspace") {
                 e.preventDefault();
-                const fp = design.footprints.find(
-                    (f) => f.ref === selectedRef,
-                );
-                if (fp) {
-                    const cmd = new DeleteItemsCommand(new Set([fp.uuid]));
-                    const newDesign = undoStack.execute(cmd, design);
-                    onDesignChange(newDesign);
-                }
+                const tree = pcbTreeRef.current;
+                undoStackRef.current.pushSnapshot(tree);
+                const newTree = structuredClone(tree);
+                removeChildren(newTree, "footprint", (fp) => {
+                    return getFootprintRef(fp) === sel;
+                });
+                onTreeChangeRef.current(newTree);
                 return;
             }
 
             // Ctrl+Z: Undo
             if ((e.ctrlKey || e.metaKey) && e.key === "z" && !e.shiftKey) {
                 e.preventDefault();
-                const result = undoStack.undo(design);
-                if (result) onDesignChange(result);
+                const result = undoStackRef.current.undo(pcbTreeRef.current);
+                if (result) onTreeChangeRef.current(result);
                 return;
             }
 
@@ -225,12 +252,12 @@ export function useKiPCBDrag({
                 ((e.ctrlKey || e.metaKey) && e.key === "y")
             ) {
                 e.preventDefault();
-                const result = undoStack.redo(design);
-                if (result) onDesignChange(result);
+                const result = undoStackRef.current.redo(pcbTreeRef.current);
+                if (result) onTreeChangeRef.current(result);
                 return;
             }
         },
-        [selectedRef, design, undoStack, onDesignChange],
+        [],
     );
 
     // Attach/detach event listeners

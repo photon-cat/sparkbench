@@ -303,10 +303,14 @@ function buildEdgeCutsExprs(outline: {
  * The KicadPCB constructor expects an S-expression parse tree (nested arrays).
  * We build the full tree synthetically, then pass it to the constructor.
  */
-export function buildKicadPCB(design: PCBDesign): KicadPCB {
+/**
+ * Build the raw S-expression tree from a PCBDesign.
+ * This tree can be serialized to .kicad_pcb text via serializeSExpr().
+ */
+export function buildKicadPCBTree(design: PCBDesign): SExpr {
   const netMap = buildNetMap(design.nets);
 
-  const pcbExpr: SExpr = [
+  return [
     "kicad_pcb",
     ["version", 20240108],
     ["generator", "sparkbench"],
@@ -345,8 +349,14 @@ export function buildKicadPCB(design: PCBDesign): KicadPCB {
     // Zones
     ...design.zones.map((zone) => buildZoneExpr(zone, netMap)),
   ];
+}
 
-  return new KicadPCB("sparkbench.kicad_pcb", pcbExpr);
+/**
+ * Build a KiCanvas KicadPCB object from a sparkbench PCBDesign JSON.
+ */
+export function buildKicadPCB(design: PCBDesign): KicadPCB {
+  const tree = buildKicadPCBTree(design);
+  return new KicadPCB("sparkbench.kicad_pcb", tree);
 }
 
 /**

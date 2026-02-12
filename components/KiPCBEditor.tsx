@@ -1,14 +1,17 @@
 "use client";
 
-import { useState, useRef, useCallback, useEffect, useMemo } from "react";
+import { useState, useRef, useCallback, useEffect } from "react";
 import dynamic from "next/dynamic";
-import type { PCBDesign, CopperLayerId } from "@/lib/pcb-types";
-import { PCBUndoStack } from "@/lib/pcb-undo";
-import { runDRC, type DRCViolation } from "@/lib/pcb-drc";
-import { computeRatsnest, type RatsnestLine } from "@/lib/ratsnest";
+import type { List } from "@kicanvas/kicad/tokenizer";
+import { listify } from "@kicanvas/kicad/tokenizer";
+import { findChildren } from "@/lib/sexpr-mutate";
+import { SExprUndoStack } from "@/lib/sexpr-undo";
+import { serializeSExpr } from "@/lib/sexpr-serializer";
+import { useKiPCBDrag } from "@/hooks/useKiPCBDrag";
+import type { KiPCBCanvasHandle } from "./KiPCBCanvas";
 import KiPCBToolPalette, { type PCBTool } from "./KiPCBToolPalette";
 import KiPCBLayerPanel from "./KiPCBLayerPanel";
-import KiPCBPropertiesPanel from "./KiPCBPropertiesPanel";
+import type { CopperLayerId } from "@/lib/pcb-types";
 
 // Dynamic import for the WebGL canvas (no SSR)
 const KiPCBCanvas = dynamic(() => import("./KiPCBCanvas"), {
@@ -30,18 +33,21 @@ const KiPCBCanvas = dynamic(() => import("./KiPCBCanvas"), {
 });
 
 interface KiPCBEditorProps {
-    initialDesign: PCBDesign;
-    onSave?: (design: PCBDesign) => void;
+    initialPcbText: string;
+    onSave?: (text: string) => void;
 }
 
 export default function KiPCBEditor({
-    initialDesign,
+    initialPcbText,
     onSave,
 }: KiPCBEditorProps) {
-    const [design, setDesign] = useState<PCBDesign>(initialDesign);
+    // Parse initial text into S-expr tree
+    // listify() returns a wrapper [root_expr] — unwrap to get the kicad_pcb expression
+    const [pcbTree, setPcbTree] = useState<List>(() => listify(initialPcbText)[0] as List);
     const [activeTool, setActiveTool] = useState<PCBTool>("select");
     const [activeLayer, setActiveLayer] = useState<CopperLayerId>("F.Cu");
     const [selectedItem, setSelectedItem] = useState<unknown>(null);
+    const [selectedRef, setSelectedRef] = useState<string | null>(null);
     const [mousePos, setMousePos] = useState({ x: 0, y: 0 });
     const [layerVisibility, setLayerVisibility] = useState<
         Record<CopperLayerId, boolean>
@@ -50,32 +56,48 @@ export default function KiPCBEditor({
         "B.Cu": true,
     });
 
-    const undoStackRef = useRef(new PCBUndoStack());
+    const canvasHandleRef = useRef<KiPCBCanvasHandle>(null);
+    const undoStackRef = useRef(new SExprUndoStack());
 
-    // Run DRC on design changes (debounced)
-    const [drcViolations, setDrcViolations] = useState<DRCViolation[]>([]);
-    useEffect(() => {
-        const timer = setTimeout(() => {
-            setDrcViolations(runDRC(design));
-        }, 200);
-        return () => clearTimeout(timer);
-    }, [design]);
+    // Extract selected footprint reference from KiCanvas selection
+    const handleSelect = useCallback((item: unknown) => {
+        setSelectedItem(item);
+        // KiCanvas Footprint has a .reference property
+        const any = item as any;
+        if (any?.reference) {
+            setSelectedRef(any.reference);
+        } else if (any?.parent?.reference) {
+            // Pad selected — use parent footprint's ref
+            setSelectedRef(any.parent.reference);
+        } else {
+            setSelectedRef(null);
+        }
+    }, []);
 
-    // Compute ratsnest
-    const ratsnest = useMemo(() => computeRatsnest(design), [design]);
+    // Handle tree changes from editing hooks
+    const handleTreeChange = useCallback((newTree: List) => {
+        setPcbTree(newTree);
+    }, []);
 
-    // Handle design changes from editing hooks
-    const handleDesignChange = useCallback(
-        (newDesign: PCBDesign) => {
-            setDesign(newDesign);
-        },
-        [],
-    );
+    // Wire up drag hook
+    useKiPCBDrag({
+        viewer: canvasHandleRef.current?.viewer ?? null,
+        pcbTree,
+        undoStack: undoStackRef.current,
+        selectedRef,
+        onTreeChange: handleTreeChange,
+        canvasElement: canvasHandleRef.current?.canvas ?? null,
+    });
 
-    // Keyboard shortcuts for tool switching
+    // Board stats from tree
+    const footprintCount = findChildren(pcbTree, "footprint").length;
+    const segmentCount = findChildren(pcbTree, "segment").length;
+    const viaCount = findChildren(pcbTree, "via").length;
+    const netCount = findChildren(pcbTree, "net").length;
+
+    // Keyboard shortcuts for tool switching + save
     useEffect(() => {
         const handler = (e: KeyboardEvent) => {
-            // Don't intercept if in an input
             if (
                 e.target instanceof HTMLInputElement ||
                 e.target instanceof HTMLTextAreaElement
@@ -88,29 +110,29 @@ export default function KiPCBEditor({
                     if (!e.ctrlKey && !e.metaKey) setActiveTool("select");
                     break;
                 case "x":
-                    setActiveTool("route");
+                    if (!e.ctrlKey && !e.metaKey) setActiveTool("route");
                     break;
                 case "z":
                     if (!e.ctrlKey && !e.metaKey) setActiveTool("zone");
                     break;
                 case "o":
-                    setActiveTool("outline");
+                    if (!e.ctrlKey && !e.metaKey) setActiveTool("outline");
                     break;
                 case "m":
-                    setActiveTool("measure");
+                    if (!e.ctrlKey && !e.metaKey) setActiveTool("measure");
                     break;
             }
 
             // Ctrl+S: Save
             if ((e.ctrlKey || e.metaKey) && e.key === "s") {
                 e.preventDefault();
-                onSave?.(design);
+                onSave?.(serializeSExpr(pcbTree));
             }
         };
 
         window.addEventListener("keydown", handler);
         return () => window.removeEventListener("keydown", handler);
-    }, [design, onSave]);
+    }, [pcbTree, onSave]);
 
     return (
         <div
@@ -162,37 +184,27 @@ export default function KiPCBEditor({
                     <span>
                         ({mousePos.x.toFixed(2)}, {mousePos.y.toFixed(2)}) mm
                     </span>
-                    {undoStackRef.current.canUndo && (
-                        <span style={{ color: "#888" }}>
-                            Undo: {undoStackRef.current.undoDescription}
+                    {selectedRef && (
+                        <span style={{ color: "#aaf" }}>
+                            Selected: {selectedRef}
                         </span>
                     )}
                     <span style={{ marginLeft: "auto" }}>
-                        Ratsnest: {ratsnest.length} lines
+                        {footprintCount} fp, {segmentCount} seg, {viaCount} via, {netCount} net
                     </span>
-                    <span
-                        style={{
-                            color:
-                                drcViolations.length > 0
-                                    ? "#d75b6b"
-                                    : "#4a4",
-                        }}
-                    >
-                        DRC:{" "}
-                        {drcViolations.length === 0
-                            ? "OK"
-                            : `${drcViolations.length} issues`}
-                    </span>
+                    {undoStackRef.current.canUndo && (
+                        <span style={{ color: "#888" }}>
+                            Undo available
+                        </span>
+                    )}
                 </div>
 
                 {/* Canvas */}
                 <div style={{ flex: 1, position: "relative" }}>
                     <KiPCBCanvas
-                        design={design}
-                        onDesignChange={handleDesignChange}
-                        activeTool={activeTool}
-                        activeLayer={activeLayer}
-                        onSelect={setSelectedItem}
+                        ref={canvasHandleRef}
+                        pcbTree={pcbTree}
+                        onSelect={handleSelect}
                         onMouseMove={(x, y) => setMousePos({ x, y })}
                     />
                 </div>
@@ -217,16 +229,72 @@ export default function KiPCBEditor({
                         }))
                     }
                 />
-                <div style={{ flex: 1, overflow: "auto" }}>
-                    <KiPCBPropertiesPanel
-                        selectedItem={selectedItem}
-                        design={design}
-                        drcViolations={drcViolations}
-                        mouseX={mousePos.x}
-                        mouseY={mousePos.y}
-                    />
+                <div
+                    style={{
+                        flex: 1,
+                        overflow: "auto",
+                        padding: "8px",
+                        background: "#1a1a2e",
+                        borderLeft: "1px solid #333",
+                        fontSize: 12,
+                        fontFamily: "monospace",
+                        color: "#ccc",
+                    }}
+                >
+                    {/* Cursor position */}
+                    <div style={{ marginBottom: 8 }}>
+                        <div style={{ color: "#888", fontSize: 10 }}>Position</div>
+                        <div>X: {mousePos.x.toFixed(2)} mm</div>
+                        <div>Y: {mousePos.y.toFixed(2)} mm</div>
+                    </div>
+
+                    {/* Selection info */}
+                    <div style={{ marginBottom: 8 }}>
+                        <div style={{ color: "#888", fontSize: 10, marginBottom: 2 }}>
+                            Selection
+                        </div>
+                        {selectedItem ? (
+                            <SelectedItemInfo item={selectedItem} />
+                        ) : (
+                            <div style={{ color: "#666" }}>None</div>
+                        )}
+                    </div>
+
+                    {/* Board info */}
+                    <div>
+                        <div style={{ color: "#888", fontSize: 10, marginBottom: 2 }}>
+                            Board
+                        </div>
+                        <div>Footprints: {footprintCount}</div>
+                        <div>Segments: {segmentCount}</div>
+                        <div>Vias: {viaCount}</div>
+                        <div>Nets: {netCount}</div>
+                    </div>
                 </div>
             </div>
+        </div>
+    );
+}
+
+function SelectedItemInfo({ item }: { item: unknown }) {
+    const any = item as any;
+    const type = any?.constructor?.name ?? "Unknown";
+
+    return (
+        <div>
+            <div style={{ color: "#aaf" }}>{type}</div>
+            {any?.reference && <div>Ref: {any.reference}</div>}
+            {any?.value && <div>Value: {any.value}</div>}
+            {any?.netname && <div>Net: {any.netname}</div>}
+            {any?.at?.position && (
+                <div>
+                    Pos: ({any.at.position.x.toFixed(2)},{" "}
+                    {any.at.position.y.toFixed(2)})
+                </div>
+            )}
+            {any?.number !== undefined && <div>Pad: {any.number}</div>}
+            {any?.width !== undefined && <div>Width: {any.width}mm</div>}
+            {any?.layer && <div>Layer: {any.layer}</div>}
         </div>
     );
 }

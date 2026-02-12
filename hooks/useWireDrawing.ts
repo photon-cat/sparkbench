@@ -56,6 +56,7 @@ export interface UseWireDrawingReturn {
   handlePinClick: (pinRef: string, pinX: number, pinY: number) => void;
   handleCanvasClick: (e: React.MouseEvent) => void;
   handleMouseMove: (e: React.MouseEvent) => void;
+  cancelDrawing: () => void;
 }
 
 export function useWireDrawing({
@@ -158,6 +159,10 @@ export function useWireDrawing({
   const isDrawing = wireDrawing !== null;
   const previewPath = wireDrawing ? buildPreviewPath(wireDrawing.points, cursorPos) : "";
 
+  const cancelDrawing = useCallback(() => {
+    setWireDrawing(null);
+  }, []);
+
   return {
     wireDrawing,
     cursorPos,
@@ -166,5 +171,6 @@ export function useWireDrawing({
     handlePinClick,
     handleCanvasClick,
     handleMouseMove,
+    cancelDrawing,
   };
 }

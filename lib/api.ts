@@ -68,6 +68,30 @@ export interface BuildResult {
   stderr?: string;
 }
 
+// ── PCB (.kicad_pcb) ─────────────────────────────────────────────
+
+export async function fetchPCB(
+  slug: string,
+): Promise<{ pcbText: string; lastModified?: string } | null> {
+  const res = await fetch(`/api/projects/${slug}/pcb`);
+  if (res.status === 404) return null;
+  if (!res.ok) throw new Error(`Failed to fetch PCB: ${res.statusText}`);
+  const pcbText = await res.text();
+  const lastModified = res.headers.get("X-Last-Modified") ?? undefined;
+  return { pcbText, lastModified };
+}
+
+export async function savePCB(slug: string, pcbText: string): Promise<void> {
+  const res = await fetch(`/api/projects/${slug}/pcb`, {
+    method: "PUT",
+    headers: { "Content-Type": "text/plain" },
+    body: pcbText,
+  });
+  if (!res.ok) throw new Error(`Failed to save PCB: ${res.statusText}`);
+}
+
+// ── Build ────────────────────────────────────────────────────────
+
 export async function buildProject(
   slug: string,
   sketch: string,

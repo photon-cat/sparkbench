@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useMemo } from "react";
 import dynamic from "next/dynamic";
 import Tabs from "./Tabs";
 import styles from "./EditorPanel.module.css";
@@ -23,33 +23,40 @@ const MonacoEditor = dynamic(() => import("@monaco-editor/react") as any, {
   ),
 }) as any;
 
-const FILE_TABS = [
-  { id: "sketch", label: "sketch.ino" },
-  { id: "diagram", label: "diagram.json" },
-  { id: "libraries", label: "libraries.txt" },
-];
-
 interface EditorPanelProps {
   sketchCode: string;
   diagramJson: string;
+  pcbText: string | null;
   onSketchChange: (code: string) => void;
   onDiagramChange: (json: string) => void;
+  onPcbChange: (text: string) => void;
 }
 
 export default function EditorPanel({
   sketchCode,
   diagramJson,
+  pcbText,
   onSketchChange,
   onDiagramChange,
+  onPcbChange,
 }: EditorPanelProps) {
   const [activeTab, setActiveTab] = useState("sketch");
+
+  const fileTabs = useMemo(() => [
+    { id: "sketch", label: "sketch.ino" },
+    { id: "diagram", label: "diagram.json" },
+    { id: "pcb", label: "board.kicad_pcb" },
+    { id: "libraries", label: "libraries.txt" },
+  ], []);
 
   const currentValue =
     activeTab === "sketch"
       ? sketchCode
       : activeTab === "diagram"
         ? diagramJson
-        : "";
+        : activeTab === "pcb"
+          ? (pcbText ?? "")
+          : "";
 
   const currentLanguage =
     activeTab === "sketch"
@@ -65,14 +72,16 @@ export default function EditorPanel({
         onSketchChange(value);
       } else if (activeTab === "diagram") {
         onDiagramChange(value);
+      } else if (activeTab === "pcb") {
+        onPcbChange(value);
       }
     },
-    [activeTab, onSketchChange, onDiagramChange],
+    [activeTab, onSketchChange, onDiagramChange, onPcbChange],
   );
 
   return (
     <div className={styles.panel}>
-      <Tabs tabs={FILE_TABS} activeId={activeTab} onTabChange={setActiveTab} />
+      <Tabs tabs={fileTabs} activeId={activeTab} onTabChange={setActiveTab} />
       <div className={styles.editorWrap}>
         <MonacoEditor
           height="100%"
@@ -88,6 +97,7 @@ export default function EditorPanel({
             automaticLayout: true,
             tabSize: 2,
             wordWrap: "on",
+            readOnly: activeTab === "pcb" ? false : undefined,
           }}
         />
       </div>
