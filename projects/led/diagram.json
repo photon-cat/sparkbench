@@ -1,0 +1,33 @@
+{
+  "version": 1,
+  "author": "",
+  "editor": "sparkbench",
+  "parts": [
+    {
+      "type": "wokwi-arduino-uno",
+      "id": "uno",
+      "top": 0,
+      "left": 0,
+      "attrs": {}
+    },
+    {
+      "type": "wokwi-led",
+      "id": "led1",
+      "top": -172.8000000000011,
+      "left": 153.60000000000036,
+      "attrs": {
+        "color": "red"
+      }
+    },
+    {
+      "type": "wokwi-led",
+      "id": "led2",
+      "top": -182.39999999999964,
+      "left": 96,
+      "attrs": {
+        "color": "red"
+      }
+    }
+  ],
+  "connections": []
+}
