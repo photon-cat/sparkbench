@@ -66,7 +66,7 @@ export default function ToolPalette({ activeTool, onToolChange }: ToolPalettePro
       <Fab size="small" sx={fabSx(activeTool === "wire")} onClick={() => onToolChange("wire")} title="Wire (W)">
         <WireIcon />
       </Fab>
-      <Fab size="small" sx={fabSx(activeTool === "label")} onClick={() => onToolChange("label")} title="Label (L)">
+      <Fab size="small" sx={fabSx(activeTool === "label")} onClick={() => onToolChange("label")} title="Global Netlabel (L)">
         <LabelIcon />
       </Fab>
     </div>

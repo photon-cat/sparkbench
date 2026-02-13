@@ -17,10 +17,11 @@ export interface KiPCBCanvasProps {
     pcbTree: List;
     onSelect?: (item: unknown) => void;
     onMouseMove?: (x: number, y: number) => void;
+    onBoardLoaded?: () => void;
 }
 
 const KiPCBCanvas = forwardRef<KiPCBCanvasHandle, KiPCBCanvasProps>(
-    function KiPCBCanvas({ pcbTree, onSelect, onMouseMove }, ref) {
+    function KiPCBCanvas({ pcbTree, onSelect, onMouseMove, onBoardLoaded }, ref) {
         const canvasRef = useRef<HTMLCanvasElement>(null);
         const viewerRef = useRef<EditableBoardViewer | null>(null);
         const loadedRef = useRef(false);
@@ -30,6 +31,8 @@ const KiPCBCanvas = forwardRef<KiPCBCanvasHandle, KiPCBCanvasProps>(
         onSelectRef.current = onSelect;
         const onMouseMoveRef = useRef(onMouseMove);
         onMouseMoveRef.current = onMouseMove;
+        const onBoardLoadedRef = useRef(onBoardLoaded);
+        onBoardLoadedRef.current = onBoardLoaded;
 
         // Expose viewer + canvas to parent
         useImperativeHandle(ref, () => ({
@@ -75,6 +78,7 @@ const KiPCBCanvas = forwardRef<KiPCBCanvasHandle, KiPCBCanvasProps>(
                         console.log("[KiPCBCanvas] Board loaded, zooming to board...");
                         viewer.zoom_to_board();
                         viewer.draw();
+                        onBoardLoadedRef.current?.();
                     });
                 } catch (err) {
                     console.error("[KiPCBCanvas] Failed to parse PCB tree:", err);

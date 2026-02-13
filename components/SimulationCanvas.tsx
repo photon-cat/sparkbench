@@ -11,8 +11,10 @@ import {
 } from "@/lib/wire-components";
 import {
   renderWires,
+  pathToHints,
   type RenderedWire,
   type PinPosition,
+  type Point,
 } from "@/lib/wire-renderer";
 import { useWireDrawing } from "@/hooks/useWireDrawing";
 import { useDragParts } from "@/hooks/useDragParts";
@@ -46,13 +48,24 @@ interface SimulationCanvasProps {
   onToolChange: (tool: ToolType) => void;
   onPartMove?: (partId: string, top: number, left: number) => void;
   onAddConnection?: (conn: DiagramConnection) => void;
+  onUpdateConnection?: (index: number, conn: DiagramConnection) => void;
+  onDeleteConnection?: (index: number) => void;
+  onWireSelect?: (connectionIndex: number | null) => void;
   onAddLabel?: (label: DiagramLabel) => void;
+  onDeleteLabel?: (labelId: string) => void;
+  onMoveLabel?: (labelId: string, x: number, y: number) => void;
   selectedPartId: string | null;
+  selectedLabelId: string | null;
   onPartSelect?: (partId: string | null) => void;
+  onLabelSelect?: (labelId: string | null) => void;
   onDeletePart?: (partId: string) => void;
   onPartRotate?: (partId: string, angle: number) => void;
   placingPartId?: string | null;
   onFinishPlacing?: () => void;
+  placingLabelId?: string | null;
+  onFinishPlacingLabel?: () => void;
+  onCancelPlacingLabel?: () => void;
+  onPlaceLabelAt?: (labelId: string, pinRef: string, x: number, y: number) => void;
 }
 
 function pinToCanvas(
@@ -70,14 +83,17 @@ function pinToCanvas(
     return { x: ox + pin.x, y: oy + pin.y };
   }
 
+  // CSS rotate() is clockwise-positive, so the transform matrix is:
+  //   x' = cx + dx*cos(θ) + dy*sin(θ)
+  //   y' = cy - dx*sin(θ) + dy*cos(θ)
   const dx = pin.x - elWidth / 2;
   const dy = pin.y - elHeight / 2;
   const cos = Math.cos(θ);
   const sin = Math.sin(θ);
 
   return {
-    x: ox + elWidth / 2 + (dx * cos - dy * sin),
-    y: oy + elHeight / 2 + (dx * sin + dy * cos),
+    x: ox + elWidth / 2 + (dx * cos + dy * sin),
+    y: oy + elHeight / 2 + (-dx * sin + dy * cos),
   };
 }
 
@@ -88,13 +104,24 @@ export default function SimulationCanvas({
   onToolChange,
   onPartMove,
   onAddConnection,
+  onUpdateConnection,
+  onDeleteConnection,
+  onWireSelect,
   onAddLabel,
+  onDeleteLabel,
+  onMoveLabel,
   selectedPartId,
+  selectedLabelId,
   onPartSelect,
+  onLabelSelect,
   onDeletePart,
   onPartRotate,
   placingPartId,
   onFinishPlacing,
+  placingLabelId,
+  onFinishPlacingLabel,
+  onCancelPlacingLabel,
+  onPlaceLabelAt,
 }: SimulationCanvasProps) {
   const viewportRef = useRef<HTMLDivElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -127,6 +154,21 @@ export default function SimulationCanvas({
   const onFinishPlacingRef = useRef(onFinishPlacing);
   onFinishPlacingRef.current = onFinishPlacing;
 
+  // Label placement mode refs + ghost position
+  const placingLabelIdRef = useRef<string | null>(null);
+  placingLabelIdRef.current = placingLabelId ?? null;
+  const onFinishPlacingLabelRef = useRef(onFinishPlacingLabel);
+  onFinishPlacingLabelRef.current = onFinishPlacingLabel;
+  const onCancelPlacingLabelRef = useRef(onCancelPlacingLabel);
+  onCancelPlacingLabelRef.current = onCancelPlacingLabel;
+  const onMoveLabelRef = useRef(onMoveLabel);
+  onMoveLabelRef.current = onMoveLabel;
+  const onPlaceLabelAtRef = useRef(onPlaceLabelAt);
+  onPlaceLabelAtRef.current = onPlaceLabelAt;
+  const [ghostLabelPos, setGhostLabelPos] = useState<{ x: number; y: number } | null>(null);
+  const ghostLabelPosRef = useRef(ghostLabelPos);
+  ghostLabelPosRef.current = ghostLabelPos;
+
   const {
     wireDrawing,
     isDrawing,
@@ -136,6 +178,25 @@ export default function SimulationCanvas({
     handleMouseMove,
     cancelDrawing,
   } = useWireDrawing({ containerRef, onAddConnection, zoomRef, panRef: panStateRef, activeTool });
+
+  // Wire drawing ref (for pan handler to check without re-creating callback)
+  const isDrawingRef = useRef(false);
+  isDrawingRef.current = isDrawing;
+
+  // --- Wire selection & handle dragging ---
+  const [selectedWireIdx, setSelectedWireIdx] = useState<number | null>(null);
+  const dragStateRef = useRef<{
+    wireIdx: number;
+    segIdx: number;
+    axis: "h" | "v";
+    origPoints: Point[];
+    startContent: { x: number; y: number };
+  } | null>(null);
+  // Live-preview points during drag (overrides wires[selectedWireIdx].points)
+  const [dragPreviewPoints, setDragPreviewPoints] = useState<Point[] | null>(null);
+  const dragPreviewRef = useRef<Point[] | null>(null);
+  const onUpdateConnectionRef = useRef(onUpdateConnection);
+  onUpdateConnectionRef.current = onUpdateConnection;
 
   // Wrapper: useDragParts reports positions including ORIGIN_PX offset;
   // subtract it so diagram coordinates stay origin-relative.
@@ -148,29 +209,165 @@ export default function SimulationCanvas({
   const handlePartSelectFromDrag = useCallback(
     (partId: string) => {
       onPartSelect?.(partId);
+      setSelectedWireIdx(null);
     },
     [onPartSelect],
   );
   const { attachDragHandlers } = useDragParts({ onPartMove: handlePartMove, onPartSelect: handlePartSelectFromDrag, zoomRef });
 
+  // --- Wire handle drag helpers ---
+  const screenToContentForHandle = useCallback((clientX: number, clientY: number) => {
+    const vp = viewportRef.current;
+    if (!vp) return { x: 0, y: 0 };
+    const rect = vp.getBoundingClientRect();
+    const sx = clientX - rect.left - RULER_SIZE;
+    const sy = clientY - rect.top - RULER_SIZE;
+    const z = zoomRef.current;
+    return {
+      x: sx / z + panStateRef.current.x,
+      y: sy / z + panStateRef.current.y,
+    };
+  }, []);
+
+  /** Split a segment into 3 by shifting it perpendicular by `offset`. */
+  const splitSegment = useCallback((points: Point[], segIdx: number, offset: number): Point[] => {
+    const p0 = points[segIdx];
+    const p1 = points[segIdx + 1];
+    const dx = Math.abs(p1.x - p0.x);
+    const dy = Math.abs(p1.y - p0.y);
+    const isHorizontal = dx > dy;
+
+    const snappedOffset = Math.round(offset / UNIT_PX) * UNIT_PX;
+    if (Math.abs(snappedOffset) < 0.5) return points;
+
+    const before = points.slice(0, segIdx + 1);
+    const after = points.slice(segIdx + 1);
+
+    if (isHorizontal) {
+      // Horizontal segment → shift vertically
+      before.push({ x: p0.x, y: p0.y + snappedOffset });
+      after.unshift({ x: p1.x, y: p1.y + snappedOffset });
+    } else {
+      // Vertical segment → shift horizontally
+      before.push({ x: p0.x + snappedOffset, y: p0.y });
+      after.unshift({ x: p1.x + snappedOffset, y: p1.y });
+    }
+
+    return [...before, ...after];
+  }, []);
+
+  const handleHandlePointerDown = useCallback((e: React.PointerEvent, wireIdx: number, segIdx: number) => {
+    e.stopPropagation();
+    e.preventDefault();
+    const wire = wires[wireIdx];
+    if (!wire) return;
+
+    const p0 = wire.points[segIdx];
+    const p1 = wire.points[segIdx + 1];
+    const dx = Math.abs(p1.x - p0.x);
+    const dy = Math.abs(p1.y - p0.y);
+    const axis: "h" | "v" = dx > dy ? "h" : "v";
+
+    const contentPos = screenToContentForHandle(e.clientX, e.clientY);
+    dragStateRef.current = {
+      wireIdx,
+      segIdx,
+      axis,
+      origPoints: [...wire.points],
+      startContent: contentPos,
+    };
+
+    (e.target as HTMLElement).setPointerCapture(e.pointerId);
+  }, [wires, screenToContentForHandle]);
+
+  const handleHandlePointerMove = useCallback((e: React.PointerEvent) => {
+    const ds = dragStateRef.current;
+    if (!ds) return;
+    const contentPos = screenToContentForHandle(e.clientX, e.clientY);
+
+    // Compute perpendicular offset (horizontal seg → vertical offset, and vice versa)
+    const offset = ds.axis === "h"
+      ? contentPos.y - ds.startContent.y
+      : contentPos.x - ds.startContent.x;
+
+    const newPoints = splitSegment(ds.origPoints, ds.segIdx, offset);
+    dragPreviewRef.current = newPoints;
+    setDragPreviewPoints(newPoints);
+  }, [screenToContentForHandle, splitSegment]);
+
+  const handleHandlePointerUp = useCallback(() => {
+    const ds = dragStateRef.current;
+    const preview = dragPreviewRef.current;
+    if (!ds || !preview) {
+      dragStateRef.current = null;
+      dragPreviewRef.current = null;
+      setDragPreviewPoints(null);
+      return;
+    }
+
+    // Commit: convert preview points to hints and update the connection
+    const wire = wires[ds.wireIdx];
+    if (wire && diagram) {
+      const conn = diagram.connections[wire.connectionIndex];
+      if (conn) {
+        const hints = pathToHints(preview);
+        const newConn: DiagramConnection = [conn[0], conn[1], conn[2], hints];
+        onUpdateConnectionRef.current?.(wire.connectionIndex, newConn);
+      }
+    }
+
+    dragStateRef.current = null;
+    dragPreviewRef.current = null;
+    setDragPreviewPoints(null);
+  }, [wires, diagram]);
+
+  // Deselect wire when tool changes or wire drawing starts
+  useEffect(() => {
+    if (isDrawing) setSelectedWireIdx(null);
+  }, [isDrawing]);
+
+  // Notify parent about wire selection changes
+  useEffect(() => {
+    if (selectedWireIdx !== null) {
+      const wire = wires[selectedWireIdx];
+      onWireSelect?.(wire ? wire.connectionIndex : null);
+    } else {
+      onWireSelect?.(null);
+    }
+  }, [selectedWireIdx, wires, onWireSelect]);
+
   // --- Placement mode: part follows cursor ---
   const handlePlacementMove = useCallback((e: React.PointerEvent) => {
+    // Part placement
     const pid = placingPartIdRef.current;
-    if (!pid || !containerRef.current || !viewportRef.current) return;
-    const rect = viewportRef.current.getBoundingClientRect();
-    const sx = e.clientX - rect.left - RULER_SIZE;
-    const sy = e.clientY - rect.top - RULER_SIZE;
-    const z = zoomRef.current;
-    const contentX = sx / z + panStateRef.current.x;
-    const contentY = sy / z + panStateRef.current.y;
-    const snapX = Math.round(contentX / UNIT_PX) * UNIT_PX;
-    const snapY = Math.round(contentY / UNIT_PX) * UNIT_PX;
+    if (pid && containerRef.current && viewportRef.current) {
+      const rect = viewportRef.current.getBoundingClientRect();
+      const sx = e.clientX - rect.left - RULER_SIZE;
+      const sy = e.clientY - rect.top - RULER_SIZE;
+      const z = zoomRef.current;
+      const contentX = sx / z + panStateRef.current.x;
+      const contentY = sy / z + panStateRef.current.y;
+      const snapX = Math.round(contentX / UNIT_PX) * UNIT_PX;
+      const snapY = Math.round(contentY / UNIT_PX) * UNIT_PX;
 
-    const wrapper = containerRef.current.querySelector(`[data-part-id="${pid}"]`) as HTMLElement | null;
-    if (wrapper) {
-      wrapper.style.top = `${snapY}px`;
-      wrapper.style.left = `${snapX}px`;
-      wrapper.style.opacity = "0.7";
+      const wrapper = containerRef.current.querySelector(`[data-part-id="${pid}"]`) as HTMLElement | null;
+      if (wrapper) {
+        wrapper.style.top = `${snapY}px`;
+        wrapper.style.left = `${snapX}px`;
+        wrapper.style.opacity = "0.7";
+      }
+    }
+
+    // Label placement: update ghost position
+    const lid = placingLabelIdRef.current;
+    if (lid && viewportRef.current) {
+      const rect = viewportRef.current.getBoundingClientRect();
+      const sx = e.clientX - rect.left - RULER_SIZE;
+      const sy = e.clientY - rect.top - RULER_SIZE;
+      const z = zoomRef.current;
+      const contentX = sx / z + panStateRef.current.x;
+      const contentY = sy / z + panStateRef.current.y;
+      setGhostLabelPos({ x: contentX, y: contentY });
     }
   }, []);
 
@@ -201,19 +398,35 @@ export default function SimulationCanvas({
       } else if (e.key === "l" || e.key === "L") {
         onToolChange("label");
       } else if (e.key === "Escape") {
-        if (placingPartIdRef.current) {
+        if (placingLabelIdRef.current) {
+          onCancelPlacingLabelRef.current?.();
+          setGhostLabelPos(null);
+        } else if (placingPartIdRef.current) {
           onDeletePart?.(placingPartIdRef.current);
           onFinishPlacingRef.current?.();
+          onToolChange("cursor");
         } else if (isDrawing) {
+          // Cancel wire but stay in wire mode so user can start a new wire
           cancelDrawing();
         } else {
           onPartSelect?.(null);
+          onLabelSelect?.(null);
+          setSelectedWireIdx(null);
+          onToolChange("cursor");
         }
-        onToolChange("cursor");
       } else if ((e.key === "Delete" || e.key === "Backspace") && selectedPartId) {
         e.preventDefault();
         onDeletePart?.(selectedPartId);
         onPartSelect?.(null);
+      } else if ((e.key === "Delete" || e.key === "Backspace") && selectedLabelId) {
+        e.preventDefault();
+        onDeleteLabel?.(selectedLabelId);
+        onLabelSelect?.(null);
+      } else if ((e.key === "Delete" || e.key === "Backspace") && selectedWireIdx !== null) {
+        e.preventDefault();
+        const wire = wires[selectedWireIdx];
+        if (wire) onDeleteConnection?.(wire.connectionIndex);
+        setSelectedWireIdx(null);
       } else if ((e.key === "r" || e.key === "R") && selectedPartId && !e.ctrlKey && !e.metaKey) {
         e.preventDefault();
         onPartRotate?.(selectedPartId, 90);
@@ -221,7 +434,7 @@ export default function SimulationCanvas({
     };
     window.addEventListener("keydown", handleKey);
     return () => window.removeEventListener("keydown", handleKey);
-  }, [onToolChange, selectedPartId, onDeletePart, onPartSelect, onPartRotate, isDrawing, cancelDrawing]);
+  }, [onToolChange, selectedPartId, onDeletePart, onPartSelect, onPartRotate, isDrawing, cancelDrawing, selectedWireIdx, wires, onDeleteConnection, selectedLabelId, onDeleteLabel, onLabelSelect]);
 
   // --- Zoom with scroll wheel ---
   useEffect(() => {
@@ -259,11 +472,13 @@ export default function SimulationCanvas({
 
   // --- Pan handler: middle-click always pans; left-click only in cursor mode on empty space ---
   const handlePanStart = useCallback((e: React.PointerEvent) => {
-    if (placingPartIdRef.current) return; // Don't pan during placement
+    if (placingPartIdRef.current || placingLabelIdRef.current) return; // Don't pan during placement
     if (e.button === 1) {
       // Middle button always pans
       e.preventDefault();
     } else if (e.button === 0) {
+      // Don't pan during wire drawing — clicks should place corners
+      if (isDrawingRef.current) return;
       // Left button: only pan in cursor mode on empty space
       if (activeToolRef.current !== "cursor") return;
       const target = e.target as HTMLElement;
@@ -305,6 +520,22 @@ export default function SimulationCanvas({
     panDragRef.current = null;
   }, []);
 
+  // Auto-incrementing netlabel counter
+  const labelCounterRef = useRef(1);
+
+  /** Place a netlabel at a pin position with auto-generated name. */
+  const placeNetlabel = useCallback(
+    (pinRef: string, pinX: number, pinY: number) => {
+      const id = `label-${Date.now()}`;
+      const name = `NET${labelCounterRef.current++}`;
+      onAddLabel?.({ id, name, pinRef, x: pinX - 20, y: pinY });
+      onLabelSelect?.(id);
+      onPartSelect?.(null);
+      setSelectedWireIdx(null);
+    },
+    [onAddLabel, onLabelSelect, onPartSelect],
+  );
+
   // --- Pin click dispatch: wire mode → wire handler, label mode → place label ---
   const handlePinClickDispatch = useCallback(
     (pinRef: string, pinX: number, pinY: number) => {
@@ -312,16 +543,13 @@ export default function SimulationCanvas({
       if (tool === "wire") {
         handlePinClick(pinRef, pinX, pinY);
       } else if (tool === "label") {
-        const name = window.prompt("Label name (net name):");
-        if (!name) return;
-        const id = `label-${Date.now()}`;
-        onAddLabel?.({ id, name, pinRef, x: pinX, y: pinY });
+        placeNetlabel(pinRef, pinX, pinY);
       } else {
         // cursor mode: still allow wire start/complete for convenience
         handlePinClick(pinRef, pinX, pinY);
       }
     },
-    [handlePinClick, onAddLabel],
+    [handlePinClick, placeNetlabel],
   );
 
   // --- Compute pins & wires ---
@@ -481,6 +709,11 @@ export default function SimulationCanvas({
     });
   }, [placingPartId]);
 
+  // Clear ghost label when label placement ends
+  useEffect(() => {
+    if (!placingLabelId) setGhostLabelPos(null);
+  }, [placingLabelId]);
+
   // --- Selection highlight on part wrappers ---
   useEffect(() => {
     const container = containerRef.current;
@@ -535,10 +768,10 @@ export default function SimulationCanvas({
   const screenY = (u: number) => ((u * UNIT_PX + ORIGIN_PX) - panY) * zoom;
 
   // Cursor style based on active tool
-  const cursorStyle = placingPartId
+  const cursorStyle = placingPartId || placingLabelId
     ? "crosshair"
     : activeTool === "cursor"
-      ? (isDrawing ? "crosshair" : "grab")
+      ? (isDrawing ? "crosshair" : "default")
       : "crosshair";
 
   // Labels from diagram
@@ -627,7 +860,37 @@ export default function SimulationCanvas({
           <div
             ref={containerRef}
             onClick={(e) => {
-              // Finalize placement on click
+              // Finalize label placement on click — snap to nearest pin
+              if (placingLabelIdRef.current) {
+                const lid = placingLabelIdRef.current;
+                const rect = containerRef.current?.getBoundingClientRect();
+                if (rect && allPins.length > 0) {
+                  const z = zoomRef.current;
+                  const cx = (e.clientX - rect.left) / z;
+                  const cy = (e.clientY - rect.top) / z;
+                  let best: CanvasPin | null = null;
+                  let bestDist = 80; // slightly larger snap radius for placement
+                  for (const pin of allPins) {
+                    const dist = Math.hypot(pin.x - cx, pin.y - cy);
+                    if (dist < bestDist) { bestDist = dist; best = pin; }
+                  }
+                  if (best) {
+                    onPlaceLabelAtRef.current?.(lid, best.ref, best.x - 20, best.y);
+                    onFinishPlacingLabelRef.current?.();
+                    setGhostLabelPos(null);
+                    return;
+                  }
+                }
+                // No nearby pin — place at cursor position without pinRef
+                const gPos = ghostLabelPosRef.current;
+                if (gPos) {
+                  onPlaceLabelAtRef.current?.(lid, "", gPos.x - 20, gPos.y);
+                  onFinishPlacingLabelRef.current?.();
+                  setGhostLabelPos(null);
+                }
+                return;
+              }
+              // Finalize part placement on click
               if (placingPartIdRef.current && containerRef.current) {
                 const pid = placingPartIdRef.current;
                 const wrapper = containerRef.current.querySelector(`[data-part-id="${pid}"]`) as HTMLElement | null;
@@ -640,11 +903,33 @@ export default function SimulationCanvas({
                 onFinishPlacingRef.current?.();
                 return;
               }
+              // Label mode: clicking empty canvas → find nearest pin and place netlabel
+              if (activeToolRef.current === "label") {
+                const rect = containerRef.current?.getBoundingClientRect();
+                if (rect && allPins.length > 0) {
+                  const z = zoomRef.current;
+                  const cx = (e.clientX - rect.left) / z;
+                  const cy = (e.clientY - rect.top) / z;
+                  // Find nearest pin within 50px
+                  let best: CanvasPin | null = null;
+                  let bestDist = 50;
+                  for (const pin of allPins) {
+                    const dist = Math.hypot(pin.x - cx, pin.y - cy);
+                    if (dist < bestDist) { bestDist = dist; best = pin; }
+                  }
+                  if (best) {
+                    placeNetlabel(best.ref, best.x, best.y);
+                    return;
+                  }
+                }
+              }
               handleCanvasClick(e as any);
-              // Deselect if clicking empty space (not on a part)
+              // Deselect if clicking empty space (not on a part or wire)
               const target = e.target as HTMLElement;
               if (!target.closest("[data-part-id]")) {
                 onPartSelect?.(null);
+                onLabelSelect?.(null);
+                setSelectedWireIdx(null);
               }
             }}
             onMouseMove={handleMouseMove}
@@ -664,56 +949,160 @@ export default function SimulationCanvas({
             <svg style={{ position: "absolute", top: 0, left: 0, width: "100%", height: "100%", pointerEvents: "none", zIndex: 5, overflow: "visible" }}>
               {wires.map((wire, i) => {
                 const isHighlighted = highlightedWireIndices.has(i);
+                const isSelected = selectedWireIdx === i;
+                const pts = (isSelected && dragPreviewPoints) ? dragPreviewPoints : wire.points;
                 return (
-                  <polyline
-                    key={i}
-                    points={wire.points.map((p) => `${p.x},${p.y}`).join(" ")}
-                    fill="none"
-                    stroke={wire.color}
-                    strokeWidth={isHighlighted ? 3 : 1.5}
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    opacity={hoveredPin ? (isHighlighted ? 1 : 0.2) : 0.85}
-                    style={{ transition: "opacity 0.15s, stroke-width 0.15s" }}
-                  />
+                  <g key={i}>
+                    {/* Invisible fat hit area for clicking */}
+                    <polyline
+                      points={pts.map((p) => `${p.x},${p.y}`).join(" ")}
+                      fill="none"
+                      stroke="transparent"
+                      strokeWidth={12}
+                      style={{ pointerEvents: "stroke", cursor: "pointer" }}
+                      onClick={(e) => { e.stopPropagation(); setSelectedWireIdx(i); onPartSelect?.(null); }}
+                    />
+                    {/* Visible wire — pointerEvents none so clicks fall through to hit area */}
+                    <polyline
+                      points={pts.map((p) => `${p.x},${p.y}`).join(" ")}
+                      fill="none"
+                      stroke={isSelected ? "#4af" : wire.color}
+                      strokeWidth={isSelected ? 2.5 : (isHighlighted ? 3 : 1.5)}
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      opacity={hoveredPin ? (isHighlighted ? 1 : 0.2) : (isSelected ? 1 : 0.85)}
+                      style={{ transition: "opacity 0.15s, stroke-width 0.15s", pointerEvents: "none" }}
+                    />
+                    {/* Segment midpoint handles for selected wire */}
+                    {isSelected && pts.length >= 2 && pts.slice(0, -1).map((p0, segIdx) => {
+                      const p1 = pts[segIdx + 1];
+                      const mx = (p0.x + p1.x) / 2;
+                      const my = (p0.y + p1.y) / 2;
+                      const segDx = Math.abs(p1.x - p0.x);
+                      const segDy = Math.abs(p1.y - p0.y);
+                      const isHoriz = segDx > segDy;
+                      // Skip very short segments (< 5px)
+                      if (Math.max(segDx, segDy) < 5) return null;
+                      return (
+                        <g key={`h${segIdx}`}>
+                          {/* Handle background */}
+                          <rect
+                            x={mx - 5} y={my - 5} width={10} height={10} rx={2}
+                            fill="#fff" stroke="#06f" strokeWidth={1.5}
+                            style={{ pointerEvents: "all", cursor: isHoriz ? "ns-resize" : "ew-resize" }}
+                            onPointerDown={(e) => handleHandlePointerDown(e, i, segIdx)}
+                            onPointerMove={handleHandlePointerMove}
+                            onPointerUp={handleHandlePointerUp}
+                          />
+                          {/* Grip lines */}
+                          {isHoriz ? (
+                            <>
+                              <line x1={mx - 3} y1={my - 1.5} x2={mx + 3} y2={my - 1.5} stroke="#06f" strokeWidth={0.8} style={{ pointerEvents: "none" }} />
+                              <line x1={mx - 3} y1={my + 1.5} x2={mx + 3} y2={my + 1.5} stroke="#06f" strokeWidth={0.8} style={{ pointerEvents: "none" }} />
+                            </>
+                          ) : (
+                            <>
+                              <line x1={mx - 1.5} y1={my - 3} x2={mx - 1.5} y2={my + 3} stroke="#06f" strokeWidth={0.8} style={{ pointerEvents: "none" }} />
+                              <line x1={mx + 1.5} y1={my - 3} x2={mx + 1.5} y2={my + 3} stroke="#06f" strokeWidth={0.8} style={{ pointerEvents: "none" }} />
+                            </>
+                          )}
+                        </g>
+                      );
+                    })}
+                  </g>
                 );
               })}
               {wireDrawing && (
                 <polyline points={previewPath} fill="none" stroke="#0f0" strokeWidth={2}
-                  strokeLinecap="round" strokeLinejoin="round" strokeDasharray="6 3" opacity={0.9} />
+                  strokeLinecap="round" strokeLinejoin="round" strokeDasharray="6 3" opacity={0.9}
+                  style={{ pointerEvents: "none" }} />
               )}
             </svg>
 
-            {/* Global labels SVG overlay */}
-            {labels.length > 0 && (
+            {/* Global netlabels SVG overlay */}
+            {(labels.length > 0 || ghostLabelPos) && (
               <svg style={{ position: "absolute", top: 0, left: 0, width: "100%", height: "100%", pointerEvents: "none", zIndex: 8, overflow: "visible" }}>
-                {labels.map((label) => (
-                  <g key={label.id}>
-                    {/* Flag shape */}
-                    <path
-                      d={`M${label.x},${label.y} l-8,-12 l-${Math.max(label.name.length * 7, 20)},0 l0,24 l${Math.max(label.name.length * 7, 20)},0 Z`}
-                      fill="rgba(0, 180, 80, 0.15)"
-                      stroke="#00b450"
-                      strokeWidth={1.5}
-                      strokeLinejoin="round"
-                    />
-                    {/* Label name */}
-                    <text
-                      x={label.x - 12 - Math.max(label.name.length * 7, 20) / 2}
-                      y={label.y + 4}
-                      fill="#00e060"
-                      fontSize={11}
-                      fontFamily="'Cascadia Code', 'Fira Code', monospace"
-                      fontWeight={600}
-                      textAnchor="middle"
-                      style={{ pointerEvents: "none" }}
-                    >
-                      {label.name}
-                    </text>
-                    {/* Connection dot */}
-                    <circle cx={label.x} cy={label.y} r={3} fill="#00b450" />
-                  </g>
-                ))}
+                {/* Ghost netlabel during placement */}
+                {ghostLabelPos && placingLabelId && (() => {
+                  const placingLabel = labels.find((l) => l.id === placingLabelId);
+                  const name = placingLabel?.name ?? "NET";
+                  const textW = Math.max(name.length * 7, 20);
+                  const gx = ghostLabelPos.x;
+                  const gy = ghostLabelPos.y;
+                  return (
+                    <g opacity={0.6}>
+                      <path
+                        d={`M${gx},${gy} l-8,-12 l-${textW},0 l0,24 l${textW},0 Z`}
+                        fill="rgba(0, 180, 80, 0.25)"
+                        stroke="#00b450"
+                        strokeWidth={1.5}
+                        strokeLinejoin="round"
+                        strokeDasharray="4 2"
+                        style={{ pointerEvents: "none" }}
+                      />
+                      <text
+                        x={gx - 12 - textW / 2}
+                        y={gy + 4}
+                        fill="#00e060"
+                        fontSize={11}
+                        fontFamily="'Cascadia Code', 'Fira Code', monospace"
+                        fontWeight={600}
+                        textAnchor="middle"
+                        style={{ pointerEvents: "none" }}
+                      >
+                        {name}
+                      </text>
+                      <circle cx={gx} cy={gy} r={3} fill="#00b450" style={{ pointerEvents: "none" }} />
+                    </g>
+                  );
+                })()}
+                {labels.filter((l) => (l.x !== 0 || l.y !== 0) && l.id !== placingLabelId).map((label) => {
+                  const isLabelSelected = selectedLabelId === label.id;
+                  const textW = Math.max(label.name.length * 7, 20);
+                  return (
+                    <g key={label.id}>
+                      {/* Clickable hit area */}
+                      <path
+                        d={`M${label.x},${label.y} l-8,-12 l-${textW},0 l0,24 l${textW},0 Z`}
+                        fill="transparent"
+                        style={{ pointerEvents: "fill", cursor: "pointer" }}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onLabelSelect?.(label.id);
+                          onPartSelect?.(null);
+                          setSelectedWireIdx(null);
+                        }}
+                      />
+                      {/* Flag shape */}
+                      <path
+                        d={`M${label.x},${label.y} l-8,-12 l-${textW},0 l0,24 l${textW},0 Z`}
+                        fill={isLabelSelected ? "rgba(0, 180, 80, 0.3)" : "rgba(0, 180, 80, 0.15)"}
+                        stroke={isLabelSelected ? "#4af" : "#00b450"}
+                        strokeWidth={isLabelSelected ? 2 : 1.5}
+                        strokeLinejoin="round"
+                        style={{ pointerEvents: "none" }}
+                      />
+                      {/* Label name */}
+                      <text
+                        x={label.x - 12 - textW / 2}
+                        y={label.y + 4}
+                        fill={isLabelSelected ? "#6cf" : "#00e060"}
+                        fontSize={11}
+                        fontFamily="'Cascadia Code', 'Fira Code', monospace"
+                        fontWeight={600}
+                        textAnchor="middle"
+                        style={{ pointerEvents: "none" }}
+                      >
+                        {label.name}
+                      </text>
+                      {/* Connection dot */}
+                      <circle cx={label.x} cy={label.y} r={3}
+                        fill={isLabelSelected ? "#4af" : "#00b450"}
+                        style={{ pointerEvents: "none" }}
+                      />
+                    </g>
+                  );
+                })}
               </svg>
             )}
 

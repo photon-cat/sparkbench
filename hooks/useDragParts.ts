@@ -29,7 +29,7 @@ export function useDragParts({ onPartMove, onPartSelect, zoomRef }: UseDragParts
   } | null>(null);
 
   const attachDragHandlers = useCallback((wrapper: HTMLElement, partId: string) => {
-    wrapper.style.cursor = "grab";
+    wrapper.style.cursor = "pointer";
 
     wrapper.addEventListener("pointerdown", (e: PointerEvent) => {
       if (e.button !== 0) return;
@@ -48,7 +48,7 @@ export function useDragParts({ onPartMove, onPartSelect, zoomRef }: UseDragParts
       };
 
       wrapper.setPointerCapture(e.pointerId);
-      wrapper.style.cursor = "grabbing";
+      wrapper.style.cursor = "move";
       wrapper.style.zIndex = "100";
     });
 
@@ -73,7 +73,7 @@ export function useDragParts({ onPartMove, onPartSelect, zoomRef }: UseDragParts
       const dy = (e.clientY - drag.startY) / zoom;
 
       wrapper.releasePointerCapture(e.pointerId);
-      wrapper.style.cursor = "grab";
+      wrapper.style.cursor = "pointer";
       wrapper.style.zIndex = "1";
       dragRef.current = null;
 

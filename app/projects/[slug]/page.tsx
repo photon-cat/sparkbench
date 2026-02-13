@@ -7,6 +7,7 @@ import Workbench from "@/components/Workbench";
 import { parseDiagram, type Diagram, type DiagramPart, type DiagramConnection, type DiagramLabel } from "@/lib/diagram-parser";
 import { useSimulation } from "@/hooks/useSimulation";
 import { fetchDiagram, fetchSketch, saveDiagram, saveSketch, fetchPCB, savePCB } from "@/lib/api";
+import { importWokwi, exportToWokwi } from "@/lib/diagram-io";
 
 export default function ProjectPage() {
   const { slug } = useParams<{ slug: string }>();
@@ -19,7 +20,10 @@ export default function ProjectPage() {
   const [lastSaved, setLastSaved] = useState<Date | null>(null);
   const [dirty, setDirty] = useState(false);
   const [selectedPartId, setSelectedPartId] = useState<string | null>(null);
+  const [selectedLabelId, setSelectedLabelId] = useState<string | null>(null);
   const [placingPartId, setPlacingPartId] = useState<string | null>(null);
+  const [placingLabelId, setPlacingLabelId] = useState<string | null>(null);
+  const labelCounterRef = useRef(1);
 
   const loadedRef = useRef(false);
 
@@ -68,6 +72,35 @@ export default function ProjectPage() {
   }, []);
 
   const handleAddPart = useCallback((partType: string) => {
+    // Handle netlabel placement separately
+    if (partType === "netlabel") {
+      const id = `label-${Date.now()}`;
+      const name = `NET${labelCounterRef.current++}`;
+      const label: DiagramLabel = { id, name, pinRef: "", x: -9999, y: -9999 };
+
+      setDiagram((prev) => {
+        if (!prev) return prev;
+        return { ...prev, labels: [...(prev.labels ?? []), label] };
+      });
+
+      setDiagramJson((prev) => {
+        try {
+          const obj = JSON.parse(prev);
+          if (!obj.labels) obj.labels = [];
+          obj.labels.push(label);
+          return JSON.stringify(obj, null, 2);
+        } catch {
+          return prev;
+        }
+      });
+
+      setPlacingLabelId(id);
+      setSelectedLabelId(id);
+      setSelectedPartId(null);
+      setDirty(true);
+      return;
+    }
+
     const base = partType.replace(/^wokwi-/, "").replace(/-/g, "");
 
     const defaultAttrs: Record<string, Record<string, string>> = {
@@ -163,6 +196,106 @@ export default function ProjectPage() {
     setDirty(true);
   }, []);
 
+  const handleDeleteConnection = useCallback((index: number) => {
+    setDiagram((prev) => {
+      if (!prev) return prev;
+      const conns = [...prev.connections];
+      conns.splice(index, 1);
+      return { ...prev, connections: conns };
+    });
+
+    setDiagramJson((prev) => {
+      try {
+        const obj = JSON.parse(prev);
+        if (obj.connections) {
+          obj.connections.splice(index, 1);
+        }
+        return JSON.stringify(obj, null, 2);
+      } catch {
+        return prev;
+      }
+    });
+
+    setDirty(true);
+  }, []);
+
+  const handleUpdateConnection = useCallback((index: number, conn: DiagramConnection) => {
+    setDiagram((prev) => {
+      if (!prev) return prev;
+      const conns = [...prev.connections];
+      conns[index] = conn;
+      return { ...prev, connections: conns };
+    });
+
+    setDiagramJson((prev) => {
+      try {
+        const obj = JSON.parse(prev);
+        if (obj.connections && index < obj.connections.length) {
+          obj.connections[index] = conn;
+        }
+        return JSON.stringify(obj, null, 2);
+      } catch {
+        return prev;
+      }
+    });
+
+    setDirty(true);
+  }, []);
+
+  const handleWireColorChange = useCallback((index: number, color: string) => {
+    setDiagram((prev) => {
+      if (!prev) return prev;
+      const conns = [...prev.connections];
+      if (index < conns.length) {
+        const conn = [...conns[index]] as DiagramConnection;
+        conn[2] = color;
+        conns[index] = conn;
+      }
+      return { ...prev, connections: conns };
+    });
+
+    setDiagramJson((prev) => {
+      try {
+        const obj = JSON.parse(prev);
+        if (obj.connections && index < obj.connections.length) {
+          obj.connections[index][2] = color;
+        }
+        return JSON.stringify(obj, null, 2);
+      } catch {
+        return prev;
+      }
+    });
+
+    setDirty(true);
+  }, []);
+
+  const handleUpdateLabel = useCallback((labelId: string, name: string) => {
+    setDiagram((prev) => {
+      if (!prev) return prev;
+      return {
+        ...prev,
+        labels: (prev.labels ?? []).map((l) =>
+          l.id === labelId ? { ...l, name } : l,
+        ),
+      };
+    });
+
+    setDiagramJson((prev) => {
+      try {
+        const obj = JSON.parse(prev);
+        if (obj.labels) {
+          const label = obj.labels.find((l: any) => l.id === labelId);
+          if (label) label.name = name;
+        }
+        return JSON.stringify(obj, null, 2);
+      } catch {
+        return prev;
+      }
+    });
+
+    setDirty(true);
+  }, []);
+
   const handleAddLabel = useCallback((label: DiagramLabel) => {
     setDiagram((prev) => {
       if (!prev) return prev;
@@ -199,6 +332,61 @@ export default function ProjectPage() {
 
   const handlePartSelect = useCallback((partId: string | null) => {
     setSelectedPartId(partId);
+    if (partId) setSelectedLabelId(null);
+  }, []);
+
+  const handleLabelSelect = useCallback((labelId: string | null) => {
+    setSelectedLabelId(labelId);
+    if (labelId) setSelectedPartId(null);
+  }, []);
+
+  const handleDeleteLabel = useCallback((labelId: string) => {
+    setDiagram((prev) => {
+      if (!prev) return prev;
+      return { ...prev, labels: (prev.labels ?? []).filter((l) => l.id !== labelId) };
+    });
+
+    setDiagramJson((prev) => {
+      try {
+        const obj = JSON.parse(prev);
+        if (obj.labels) {
+          obj.labels = obj.labels.filter((l: any) => l.id !== labelId);
+        }
+        return JSON.stringify(obj, null, 2);
+      } catch {
+        return prev;
+      }
+    });
+
+    setSelectedLabelId(null);
+    setDirty(true);
+  }, []);
+
+  const handleMoveLabel = useCallback((labelId: string, x: number, y: number) => {
+    setDiagram((prev) => {
+      if (!prev) return prev;
+      return {
+        ...prev,
+        labels: (prev.labels ?? []).map((l) =>
+          l.id === labelId ? { ...l, x, y } : l,
+        ),
+      };
+    });
+
+    setDiagramJson((prev) => {
+      try {
+        const obj = JSON.parse(prev);
+        if (obj.labels) {
+          const label = obj.labels.find((l: any) => l.id === labelId);
+          if (label) { label.x = x; label.y = y; }
+        }
+        return JSON.stringify(obj, null, 2);
+      } catch {
+        return prev;
+      }
+    });
+
+    setDirty(true);
   }, []);
 
   const handleDeletePart = useCallback((partId: string) => {
@@ -260,6 +448,38 @@ export default function ProjectPage() {
   }, []);
 
   const handlePartAttrChange = useCallback((partId: string, attr: string, value: string) => {
+    // Handle first-class fields: __value and __footprint
+    if (attr === "__value" || attr === "__footprint") {
+      const field = attr === "__value" ? "value" : "footprint";
+      setDiagram((prev) => {
+        if (!prev) return prev;
+        return {
+          ...prev,
+          parts: prev.parts.map((p) =>
+            p.id === partId ? { ...p, [field]: value || undefined } : p,
+          ),
+        };
+      });
+      setDiagramJson((prev) => {
+        try {
+          const obj = JSON.parse(prev);
+          const part = (obj.parts ?? []).find((p: any) => p.id === partId);
+          if (part) {
+            if (value) {
+              part[field] = value;
+            } else {
+              delete part[field];
+            }
+          }
+          return JSON.stringify(obj, null, 2);
+        } catch {
+          return prev;
+        }
+      });
+      setDirty(true);
+      return;
+    }
+
     setDiagram((prev) => {
       if (!prev) return prev;
       return {
@@ -317,6 +537,58 @@ export default function ProjectPage() {
     setPlacingPartId(null);
   }, []);
 
+  const handleFinishPlacingLabel = useCallback(() => {
+    setPlacingLabelId(null);
+  }, []);
+
+  const handlePlaceLabelAt = useCallback((labelId: string, pinRef: string, x: number, y: number) => {
+    setDiagram((prev) => {
+      if (!prev) return prev;
+      return {
+        ...prev,
+        labels: (prev.labels ?? []).map((l) =>
+          l.id === labelId ? { ...l, pinRef, x, y } : l,
+        ),
+      };
+    });
+
+    setDiagramJson((prev) => {
+      try {
+        const obj = JSON.parse(prev);
+        if (obj.labels) {
+          const label = obj.labels.find((l: any) => l.id === labelId);
+          if (label) { label.pinRef = pinRef; label.x = x; label.y = y; }
+        }
+        return JSON.stringify(obj, null, 2);
+      } catch {
+        return prev;
+      }
+    });
+
+    setDirty(true);
+  }, []);
+
+  const handleCancelPlacingLabel = useCallback(() => {
+    // Delete the temporary label
+    const lid = placingLabelId;
+    if (!lid) return;
+    setDiagram((prev) => {
+      if (!prev) return prev;
+      return { ...prev, labels: (prev.labels ?? []).filter((l) => l.id !== lid) };
+    });
+    setDiagramJson((prev) => {
+      try {
+        const obj = JSON.parse(prev);
+        if (obj.labels) obj.labels = obj.labels.filter((l: any) => l.id !== lid);
+        return JSON.stringify(obj, null, 2);
+      } catch {
+        return prev;
+      }
+    });
+    setPlacingLabelId(null);
+    setSelectedLabelId(null);
+  }, [placingLabelId]);
+
   const handleInitPCB = useCallback(async () => {
     if (!diagram) return;
     // Dynamic imports to avoid SSR issues with KiCanvas window access
@@ -358,9 +630,29 @@ export default function ProjectPage() {
     }
   }, [slug, diagramJson, sketchCode, pcbText]);
 
+  const handleImportWokwi = useCallback((json: unknown) => {
+    const imported = importWokwi(json);
+    setDiagram(imported);
+    setDiagramJson(JSON.stringify(json, null, 2));
+    setDirty(true);
+  }, []);
+
+  const handleExportWokwi = useCallback(() => {
+    if (!diagram) return;
+    const wokwi = exportToWokwi(diagram);
+    const json = JSON.stringify(wokwi, null, 2);
+    const blob = new Blob([json], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "diagram.json";
+    a.click();
+    URL.revokeObjectURL(url);
+  }, [diagram]);
+
   return (
     <div style={{ height: "100vh", display: "flex", flexDirection: "column" }}>
-      <Toolbar projectName={slug} onSave={handleSave} lastSaved={lastSaved} dirty={dirty} />
+      <Toolbar projectName={slug} onSave={handleSave} onImportWokwi={handleImportWokwi} onExportWokwi={handleExportWokwi} lastSaved={lastSaved} dirty={dirty} />
       <Workbench
         diagram={diagram}
         runner={runner}
@@ -381,14 +673,26 @@ export default function ProjectPage() {
         onAddPart={handleAddPart}
         onPartMove={handlePartMove}
         onAddConnection={handleAddConnection}
+        onUpdateConnection={handleUpdateConnection}
+        onDeleteConnection={handleDeleteConnection}
+        onWireColorChange={handleWireColorChange}
         onAddLabel={handleAddLabel}
+        onUpdateLabel={handleUpdateLabel}
+        onDeleteLabel={handleDeleteLabel}
+        onMoveLabel={handleMoveLabel}
         selectedPartId={selectedPartId}
+        selectedLabelId={selectedLabelId}
         onPartSelect={handlePartSelect}
+        onLabelSelect={handleLabelSelect}
         onDeletePart={handleDeletePart}
         onPartRotate={handlePartRotate}
         onPartAttrChange={handlePartAttrChange}
         placingPartId={placingPartId}
         onFinishPlacing={handleFinishPlacing}
+        placingLabelId={placingLabelId}
+        onFinishPlacingLabel={handleFinishPlacingLabel}
+        onCancelPlacingLabel={handleCancelPlacingLabel}
+        onPlaceLabelAt={handlePlaceLabelAt}
         onInitPCB={handleInitPCB}
       />
     </div>

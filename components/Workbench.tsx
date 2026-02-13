@@ -30,14 +30,26 @@ interface WorkbenchProps {
   onAddPart: (partType: string) => void;
   onPartMove: (partId: string, top: number, left: number) => void;
   onAddConnection: (conn: DiagramConnection) => void;
+  onUpdateConnection: (index: number, conn: DiagramConnection) => void;
+  onDeleteConnection: (index: number) => void;
+  onWireColorChange: (index: number, color: string) => void;
   onAddLabel?: (label: DiagramLabel) => void;
+  onUpdateLabel?: (labelId: string, name: string) => void;
+  onDeleteLabel?: (labelId: string) => void;
+  onMoveLabel?: (labelId: string, x: number, y: number) => void;
   selectedPartId: string | null;
+  selectedLabelId: string | null;
   onPartSelect: (partId: string | null) => void;
+  onLabelSelect: (labelId: string | null) => void;
   onDeletePart: (partId: string) => void;
   onPartRotate: (partId: string, angle: number) => void;
   onPartAttrChange: (partId: string, attr: string, value: string) => void;
   placingPartId: string | null;
   onFinishPlacing: () => void;
+  placingLabelId: string | null;
+  onFinishPlacingLabel: () => void;
+  onCancelPlacingLabel: () => void;
+  onPlaceLabelAt: (labelId: string, pinRef: string, x: number, y: number) => void;
   onInitPCB: () => void;
 }
 
@@ -61,14 +73,26 @@ export default function Workbench({
   onAddPart,
   onPartMove,
   onAddConnection,
+  onUpdateConnection,
+  onDeleteConnection,
+  onWireColorChange,
   onAddLabel,
+  onUpdateLabel,
+  onDeleteLabel,
+  onMoveLabel,
   selectedPartId,
+  selectedLabelId,
   onPartSelect,
+  onLabelSelect,
   onDeletePart,
   onPartRotate,
   onPartAttrChange,
   placingPartId,
   onFinishPlacing,
+  placingLabelId,
+  onFinishPlacingLabel,
+  onCancelPlacingLabel,
+  onPlaceLabelAt,
   onInitPCB,
 }: WorkbenchProps) {
   return (
@@ -101,14 +125,26 @@ export default function Workbench({
               onAddPart={onAddPart}
               onPartMove={onPartMove}
               onAddConnection={onAddConnection}
+              onUpdateConnection={onUpdateConnection}
+              onDeleteConnection={onDeleteConnection}
+              onWireColorChange={onWireColorChange}
               onAddLabel={onAddLabel}
+              onUpdateLabel={onUpdateLabel}
+              onDeleteLabel={onDeleteLabel}
+              onMoveLabel={onMoveLabel}
               selectedPartId={selectedPartId}
+              selectedLabelId={selectedLabelId}
               onPartSelect={onPartSelect}
+              onLabelSelect={onLabelSelect}
               onDeletePart={onDeletePart}
               onPartRotate={onPartRotate}
               onPartAttrChange={onPartAttrChange}
               placingPartId={placingPartId}
               onFinishPlacing={onFinishPlacing}
+              placingLabelId={placingLabelId}
+              onFinishPlacingLabel={onFinishPlacingLabel}
+              onCancelPlacingLabel={onCancelPlacingLabel}
+              onPlaceLabelAt={onPlaceLabelAt}
               onInitPCB={onInitPCB}
             />
           }

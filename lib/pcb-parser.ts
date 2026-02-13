@@ -5,7 +5,7 @@ import type {
 import { DEFAULT_DESIGN_RULES, DEFAULT_STACKUP, generateUUID } from "./pcb-types";
 import type { Diagram } from "./diagram-parser";
 import type { Netlist } from "./netlist";
-import { getFootprintForType } from "./pcb-footprints";
+import { getFootprintForType, generateFootprintByType } from "./pcb-footprints";
 
 export function parsePCBDesign(json: unknown): PCBDesign {
   const d = json as PCBDesign;
@@ -50,10 +50,15 @@ export function initPCBFromSchematic(
   for (const part of diagram.parts) {
     if (part.type === "wokwi-arduino-uno") continue;
 
+    // Use per-instance footprint if set, otherwise fall back to registry default
+    const instanceFp = part.footprint;
     const mapping = getFootprintForType(part.type);
-    if (!mapping) continue;
+    const fpDef = instanceFp
+      ? generateFootprintByType(part.id, instanceFp)
+      : mapping?.generate(part.id);
+    const fpType = instanceFp ?? mapping?.footprintType;
+    if (!fpDef || !fpType) continue;
 
-    const fpDef = mapping.generate(part.id);
     const col = idx % COLS;
     const row = Math.floor(idx / COLS);
 
@@ -65,8 +70,8 @@ export function initPCBFromSchematic(
     footprints.push({
       uuid: generateUUID(),
       ref: part.id,
-      value: part.attrs?.value,
-      footprintType: mapping.footprintType,
+      value: part.value ?? part.attrs?.value,
+      footprintType: fpType,
       x: OFFSET_X + col * SPACING_X,
       y: OFFSET_Y + row * SPACING_Y,
       rotation: 0,

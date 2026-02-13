@@ -11,7 +11,6 @@ import { useKiPCBDrag } from "@/hooks/useKiPCBDrag";
 import type { KiPCBCanvasHandle } from "./KiPCBCanvas";
 import KiPCBToolPalette, { type PCBTool } from "./KiPCBToolPalette";
 import KiPCBLayerPanel from "./KiPCBLayerPanel";
-import type { CopperLayerId } from "@/lib/pcb-types";
 
 // Dynamic import for the WebGL canvas (no SSR)
 const KiPCBCanvas = dynamic(() => import("./KiPCBCanvas"), {
@@ -45,16 +44,11 @@ export default function KiPCBEditor({
     // listify() returns a wrapper [root_expr] — unwrap to get the kicad_pcb expression
     const [pcbTree, setPcbTree] = useState<List>(() => listify(initialPcbText)[0] as List);
     const [activeTool, setActiveTool] = useState<PCBTool>("select");
-    const [activeLayer, setActiveLayer] = useState<CopperLayerId>("F.Cu");
+    const [activeLayer, setActiveLayer] = useState("F.Cu");
     const [selectedItem, setSelectedItem] = useState<unknown>(null);
     const [selectedRef, setSelectedRef] = useState<string | null>(null);
     const [mousePos, setMousePos] = useState({ x: 0, y: 0 });
-    const [layerVisibility, setLayerVisibility] = useState<
-        Record<CopperLayerId, boolean>
-    >({
-        "F.Cu": true,
-        "B.Cu": true,
-    });
+    const [boardLoaded, setBoardLoaded] = useState(false);
 
     const canvasHandleRef = useRef<KiPCBCanvasHandle>(null);
     const undoStackRef = useRef(new SExprUndoStack());
@@ -170,14 +164,7 @@ export default function KiPCBEditor({
                     </span>
                     <span>
                         Layer:{" "}
-                        <strong
-                            style={{
-                                color:
-                                    activeLayer === "F.Cu"
-                                        ? "#c83434"
-                                        : "#4d7fc4",
-                            }}
-                        >
+                        <strong style={{ color: "#fff" }}>
                             {activeLayer}
                         </strong>
                     </span>
@@ -206,6 +193,7 @@ export default function KiPCBEditor({
                         pcbTree={pcbTree}
                         onSelect={handleSelect}
                         onMouseMove={(x, y) => setMousePos({ x, y })}
+                        onBoardLoaded={() => setBoardLoaded(true)}
                     />
                 </div>
             </div>
@@ -219,15 +207,9 @@ export default function KiPCBEditor({
                 }}
             >
                 <KiPCBLayerPanel
+                    viewer={boardLoaded ? canvasHandleRef.current?.viewer ?? null : null}
                     activeLayer={activeLayer}
                     onLayerChange={setActiveLayer}
-                    layerVisibility={layerVisibility}
-                    onToggleVisibility={(layer) =>
-                        setLayerVisibility((prev) => ({
-                            ...prev,
-                            [layer]: !prev[layer],
-                        }))
-                    }
                 />
                 <div
                     style={{

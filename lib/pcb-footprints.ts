@@ -207,8 +207,70 @@ export const FOOTPRINT_REGISTRY: FootprintMapping[] = [
   },
 ];
 
+/** Available footprint options per part type (for UI dropdown). */
+export const FOOTPRINT_OPTIONS: Record<string, { label: string; value: string }[]> = {
+  "wokwi-resistor": [
+    { label: "Axial THT (0.4in)", value: "Axial-0.4in" },
+    { label: "0805 SMD", value: "0805" },
+    { label: "0603 SMD", value: "0603" },
+    { label: "1206 SMD", value: "1206" },
+  ],
+  "wokwi-led": [
+    { label: "LED THT 3mm", value: "LED-THT-3mm" },
+    { label: "LED THT 5mm", value: "LED-THT-5mm" },
+    { label: "0805 SMD", value: "0805" },
+  ],
+  "wokwi-74hc595": [
+    { label: "DIP-16 THT", value: "DIP-16" },
+    { label: "SOIC-16 SMD", value: "SOIC-16" },
+  ],
+  "wokwi-74hc165": [
+    { label: "DIP-16 THT", value: "DIP-16" },
+    { label: "SOIC-16 SMD", value: "SOIC-16" },
+  ],
+  "wokwi-pushbutton": [
+    { label: "6mm THT", value: "SW-THT-6mm" },
+  ],
+  "wokwi-buzzer": [
+    { label: "12mm THT", value: "Buzzer-12mm" },
+  ],
+  "wokwi-servo": [
+    { label: "Header 1x3", value: "Header-1x3" },
+  ],
+  "wokwi-slide-switch": [
+    { label: "SPDT THT", value: "SW-SPDT-THT" },
+  ],
+};
+
+/** Map footprint type string → generator function */
+const FOOTPRINT_GENERATORS: Record<string, (ref: string) => FootprintDef> = {
+  "Axial-0.4in": (ref) => generateHeader(ref, 1, 2, 10.16),
+  "0805": (ref) => generateChipPassive(ref, "0805"),
+  "0603": (ref) => generateChipPassive(ref, "0603"),
+  "1206": (ref) => generateChipPassive(ref, "1206"),
+  "LED-THT-3mm": (ref) => generateHeader(ref, 1, 2, 2.54),
+  "LED-THT-5mm": (ref) => generateHeader(ref, 1, 2, 2.54),
+  "DIP-16": (ref) => generateDIP(ref, 16),
+  "SOIC-16": (ref) => generateSOIC(ref, 16),
+  "SW-THT-6mm": (ref) => generateHeader(ref, 2, 2, 6.5),
+  "Buzzer-12mm": (ref) => generateHeader(ref, 1, 2, 7.6),
+  "Header-1x3": (ref) => generateHeader(ref, 1, 3),
+  "SW-SPDT-THT": (ref) => generateHeader(ref, 1, 3, 2.54),
+};
+
 export function getFootprintForType(partType: string): FootprintMapping | undefined {
   return FOOTPRINT_REGISTRY.find((m) => m.type === partType);
+}
+
+/** Get the default footprint type string for a part type. */
+export function getDefaultFootprint(partType: string): string | undefined {
+  return FOOTPRINT_REGISTRY.find((m) => m.type === partType)?.footprintType;
+}
+
+/** Generate a footprint by its type string (e.g., "0805", "DIP-16"). */
+export function generateFootprintByType(ref: string, footprintType: string): FootprintDef | undefined {
+  const gen = FOOTPRINT_GENERATORS[footprintType];
+  return gen ? gen(ref) : undefined;
 }
 
 // --- Helpers ---

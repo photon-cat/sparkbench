@@ -5,6 +5,8 @@ export interface DiagramPart {
   left: number;
   rotate?: number;
   attrs: Record<string, string>;
+  value?: string;
+  footprint?: string;
 }
 
 // Each connection: [fromPin, toPin, color, routingHints]
@@ -26,6 +28,7 @@ export interface Diagram {
   parts: DiagramPart[];
   connections: DiagramConnection[];
   labels?: DiagramLabel[];
+  serialMonitor?: { display: string };
 }
 
 export function parseDiagram(json: unknown): Diagram {
@@ -33,10 +36,16 @@ export function parseDiagram(json: unknown): Diagram {
   return {
     version: d.version ?? 1,
     author: d.author ?? "",
-    editor: d.editor ?? "",
-    parts: d.parts ?? [],
+    editor: d.editor ?? "sparkbench",
+    parts: (d.parts ?? []).map((p) => ({
+      ...p,
+      attrs: p.attrs ?? {},
+      value: p.value,
+      footprint: p.footprint,
+    })),
     connections: d.connections ?? [],
     labels: d.labels ?? [],
+    serialMonitor: d.serialMonitor,
   };
 }
 

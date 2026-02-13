@@ -31,7 +31,7 @@ export class Preferences extends EventTarget {
         );
         this.alignControlsWithKiCad = this.storage.get(
             "alignControlsWithKiCad",
-            false,
+            true,
         );
     }
 }

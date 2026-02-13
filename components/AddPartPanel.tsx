@@ -19,6 +19,12 @@ interface Category {
 
 const CATALOG: Category[] = [
   {
+    name: "Schematic",
+    parts: [
+      { type: "netlabel", label: "Global Netlabel" },
+    ],
+  },
+  {
     name: "Basic",
     parts: [
       { type: "wokwi-led", label: "LED", thumbAttrs: { color: "red" } },
@@ -85,6 +91,31 @@ const CATALOG: Category[] = [
     ],
   },
 ];
+
+/** SVG thumbnail for the global netlabel entry. */
+function NetlabelThumbnail() {
+  return (
+    <div
+      style={{
+        width: 40,
+        height: 40,
+        overflow: "hidden",
+        borderRadius: 4,
+        background: "#2a2a2a",
+        position: "relative",
+        flexShrink: 0,
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+      }}
+    >
+      <svg width={32} height={20} viewBox="0 0 32 20">
+        <path d="M2 2L20 2L28 10L20 18L2 18Z" fill="rgba(0,180,80,0.25)" stroke="#00b450" strokeWidth={1.5} strokeLinejoin="round" />
+        <circle cx={28} cy={10} r={2} fill="#00b450" />
+      </svg>
+    </div>
+  );
+}
 
 /** Renders a scaled-down Wokwi custom element as a 40x40 thumbnail. */
 function PartThumbnail({ type, attrs }: { type: string; attrs?: Record<string, string> }) {
@@ -208,7 +239,9 @@ export default function AddPartPanel({ onSelect }: AddPartPanelProps) {
                   "&:hover": { bgcolor: "#2a2a2a" },
                 }}
               >
-                {ready ? (
+                {part.type === "netlabel" ? (
+                  <NetlabelThumbnail />
+                ) : ready ? (
                   <PartThumbnail type={part.type} attrs={part.thumbAttrs} />
                 ) : (
                   <div style={{ width: 40, height: 40, borderRadius: 4, background: "#2a2a2a", flexShrink: 0 }} />

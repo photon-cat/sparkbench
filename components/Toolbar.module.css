@@ -132,3 +132,24 @@
 .settingsBtn:hover {
   opacity: 1;
 }
+
+.ioBtn {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 8px;
+  background: #333;
+  color: #ccc;
+  border: 1px solid #555;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 500;
+  cursor: pointer;
+  height: 26px;
+  font-family: inherit;
+}
+
+.ioBtn:hover {
+  background: #444;
+  color: #fff;
+}

@@ -8,9 +8,12 @@ import SimulationControls from "./SimulationControls";
 import SerialMonitor from "./SerialMonitor";
 import ToolPalette, { type ToolType } from "./ToolPalette";
 import PartAttributePanel from "./PartAttributePanel";
+import WireAttributePanel from "./WireAttributePanel";
+import NetlabelAttributePanel from "./NetlabelAttributePanel";
 import styles from "./SimulationPanel.module.css";
 import { Diagram, DiagramConnection, DiagramLabel } from "@/lib/diagram-parser";
 import { AVRRunner } from "@/lib/avr-runner";
+import { extractNetlist } from "@/lib/netlist";
 
 // Dynamic import for PCB editor (no SSR — WebGL)
 const KiPCBEditor = dynamic(() => import("./KiPCBEditor"), {
@@ -37,14 +40,26 @@ interface SimulationPanelProps {
   onAddPart: (partType: string) => void;
   onPartMove: (partId: string, top: number, left: number) => void;
   onAddConnection: (conn: DiagramConnection) => void;
+  onUpdateConnection: (index: number, conn: DiagramConnection) => void;
+  onDeleteConnection: (index: number) => void;
+  onWireColorChange: (index: number, color: string) => void;
   onAddLabel?: (label: DiagramLabel) => void;
+  onUpdateLabel?: (labelId: string, name: string) => void;
+  onDeleteLabel?: (labelId: string) => void;
+  onMoveLabel?: (labelId: string, x: number, y: number) => void;
   selectedPartId: string | null;
+  selectedLabelId: string | null;
   onPartSelect: (partId: string | null) => void;
+  onLabelSelect: (labelId: string | null) => void;
   onDeletePart: (partId: string) => void;
   onPartRotate: (partId: string, angle: number) => void;
   onPartAttrChange: (partId: string, attr: string, value: string) => void;
   placingPartId: string | null;
   onFinishPlacing: () => void;
+  placingLabelId: string | null;
+  onFinishPlacingLabel: () => void;
+  onCancelPlacingLabel: () => void;
+  onPlaceLabelAt: (labelId: string, pinRef: string, x: number, y: number) => void;
   onInitPCB: () => void;
 }
 
@@ -63,18 +78,31 @@ export default function SimulationPanel({
   onAddPart,
   onPartMove,
   onAddConnection,
+  onUpdateConnection,
+  onDeleteConnection,
+  onWireColorChange,
   onAddLabel,
+  onUpdateLabel,
+  onDeleteLabel,
+  onMoveLabel,
   selectedPartId,
+  selectedLabelId,
   onPartSelect,
+  onLabelSelect,
   onDeletePart,
   onPartRotate,
   onPartAttrChange,
   placingPartId,
   onFinishPlacing,
+  placingLabelId,
+  onFinishPlacingLabel,
+  onCancelPlacingLabel,
+  onPlaceLabelAt,
   onInitPCB,
 }: SimulationPanelProps) {
   const [activeTab, setActiveTab] = useState("simulation");
   const [activeTool, setActiveTool] = useState<ToolType>("cursor");
+  const [selectedConnectionIdx, setSelectedConnectionIdx] = useState<number | null>(null);
 
   const simTabs = useMemo(() => [
     { id: "simulation", label: "Diagram" },
@@ -85,6 +113,51 @@ export default function SimulationPanel({
   const handleToolChange = useCallback((tool: ToolType) => {
     setActiveTool(tool);
   }, []);
+
+  const handleWireSelect = useCallback((connectionIndex: number | null) => {
+    setSelectedConnectionIdx(connectionIndex);
+  }, []);
+
+  const handleWireDelete = useCallback((index: number) => {
+    onDeleteConnection(index);
+    setSelectedConnectionIdx(null);
+  }, [onDeleteConnection]);
+
+  // Compute net name for selected connection
+  const selectedWireNetName = useMemo(() => {
+    if (selectedConnectionIdx === null || !diagram) return "";
+    const conn = diagram.connections[selectedConnectionIdx];
+    if (!conn) return "";
+    const netlist = extractNetlist(diagram);
+    return netlist.pinToNet.get(conn[0]) ?? netlist.pinToNet.get(conn[1]) ?? "unconnected";
+  }, [selectedConnectionIdx, diagram]);
+
+  // Handle net name change: add/update a global netlabel on the wire's pin
+  const handleNetNameChange = useCallback((netName: string, pinRef: string) => {
+    if (!diagram) return;
+    // Find existing label on any pin in this net
+    const conn = selectedConnectionIdx !== null ? diagram.connections[selectedConnectionIdx] : null;
+    if (!conn) return;
+
+    // Find existing label attached to either pin of this connection
+    const labels = diagram.labels ?? [];
+    const existing = labels.find((l) =>
+      l.pinRef === conn[0] || l.pinRef === conn[1]
+    );
+
+    if (existing) {
+      onUpdateLabel?.(existing.id, netName);
+    } else {
+      // Create a new global netlabel on the fromRef pin
+      onAddLabel?.({
+        id: `label-${Date.now()}`,
+        name: netName,
+        pinRef,
+        x: 0,
+        y: 0,
+      });
+    }
+  }, [diagram, selectedConnectionIdx, onUpdateLabel, onAddLabel]);
 
   const statusLabel =
     status === "compiling"
@@ -111,13 +184,24 @@ export default function SimulationPanel({
                 onToolChange={handleToolChange}
                 onPartMove={onPartMove}
                 onAddConnection={onAddConnection}
+                onUpdateConnection={onUpdateConnection}
+                onDeleteConnection={onDeleteConnection}
+                onWireSelect={handleWireSelect}
                 onAddLabel={onAddLabel}
+                onDeleteLabel={onDeleteLabel}
+                onMoveLabel={onMoveLabel}
                 selectedPartId={selectedPartId}
+                selectedLabelId={selectedLabelId}
                 onPartSelect={onPartSelect}
+                onLabelSelect={onLabelSelect}
                 onDeletePart={onDeletePart}
                 onPartRotate={onPartRotate}
                 placingPartId={placingPartId}
                 onFinishPlacing={onFinishPlacing}
+                placingLabelId={placingLabelId}
+                onFinishPlacingLabel={onFinishPlacingLabel}
+                onCancelPlacingLabel={onCancelPlacingLabel}
+                onPlaceLabelAt={onPlaceLabelAt}
               />
             </div>
 
@@ -164,6 +248,33 @@ export default function SimulationPanel({
                 onClose={() => onPartSelect(null)}
               />
             )}
+
+            {/* Wire attribute panel */}
+            {selectedConnectionIdx !== null && !selectedPartId && !selectedLabelId && diagram && diagram.connections[selectedConnectionIdx] && (
+              <WireAttributePanel
+                connection={diagram.connections[selectedConnectionIdx]}
+                connectionIndex={selectedConnectionIdx}
+                netName={selectedWireNetName}
+                onColorChange={onWireColorChange}
+                onNetNameChange={handleNetNameChange}
+                onDelete={handleWireDelete}
+                onClose={() => setSelectedConnectionIdx(null)}
+              />
+            )}
+
+            {/* Netlabel attribute panel */}
+            {selectedLabelId && !selectedPartId && diagram && (() => {
+              const label = (diagram.labels ?? []).find((l) => l.id === selectedLabelId);
+              if (!label) return null;
+              return (
+                <NetlabelAttributePanel
+                  label={label}
+                  onNameChange={(name) => onUpdateLabel?.(selectedLabelId, name)}
+                  onDelete={() => { onDeleteLabel?.(selectedLabelId); onLabelSelect(null); }}
+                  onClose={() => onLabelSelect(null)}
+                />
+              );
+            })()}
           </>
         ) : activeTab === "pcb" ? (
           pcbText !== null ? (

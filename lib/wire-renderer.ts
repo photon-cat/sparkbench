@@ -30,6 +30,23 @@ export interface RenderedWire {
   color: string;
   fromRef: string;
   toRef: string;
+  connectionIndex: number;
+}
+
+/**
+ * Convert a full wire path (source pin → ... → target pin) back to
+ * Wokwi h/v hint segments. All segments are encoded source-side
+ * (no `*` separator), so the auto-router bridge is a no-op.
+ */
+export function pathToHints(points: Point[]): string[] {
+  const hints: string[] = [];
+  for (let i = 1; i < points.length; i++) {
+    const dx = points[i].x - points[i - 1].x;
+    const dy = points[i].y - points[i - 1].y;
+    if (Math.abs(dx) > 0.5) hints.push(`h${Math.round(dx)}`);
+    if (Math.abs(dy) > 0.5) hints.push(`v${Math.round(dy)}`);
+  }
+  return hints;
 }
 
 export function parseRef(ref: string): { componentId: string; pinName: string } {
@@ -71,7 +88,8 @@ function trace(origin: Point, segs: Segment[]): Point[] {
 
 /**
  * Auto-route between two loose ends using orthogonal segments.
- * Returns 0–2 intermediate points (forming an L or Z shape).
+ * Returns 0–1 intermediate points (forming an L shape).
+ * Uses bigger-delta-first routing to match the wire drawing preview.
  */
 function autoRoute(a: Point, b: Point): Point[] {
   const dx = b.x - a.x;
@@ -79,13 +97,14 @@ function autoRoute(a: Point, b: Point): Point[] {
 
   // Already same point
   if (Math.abs(dx) < 0.5 && Math.abs(dy) < 0.5) return [];
-  // Already aligned horizontally
+  // Already aligned horizontally or vertically
   if (Math.abs(dy) < 0.5) return [];
-  // Already aligned vertically
   if (Math.abs(dx) < 0.5) return [];
 
-  // L-shape: go horizontal first, then vertical
-  return [{ x: b.x, y: a.y }];
+  // Bigger delta first (matches wire drawing preview L-bend)
+  return Math.abs(dx) >= Math.abs(dy)
+    ? [{ x: b.x, y: a.y }] // horizontal first
+    : [{ x: a.x, y: b.y }]; // vertical first
 }
 
 function buildWirePath(start: Point, end: Point, hints: string[]): Point[] {
@@ -137,13 +156,14 @@ export function renderWires(
 ): RenderedWire[] {
   const wires: RenderedWire[] = [];
 
-  for (const [fromRef, toRef, color, hints] of connections) {
+  for (let ci = 0; ci < connections.length; ci++) {
+    const [fromRef, toRef, color, hints] = connections[ci];
     const s = pinPositions.get(fromRef);
     const e = pinPositions.get(toRef);
     if (!s || !e) continue;
 
     const points = buildWirePath(s, e, hints || []);
-    wires.push({ points, color: mapColor(color), fromRef, toRef });
+    wires.push({ points, color: mapColor(color), fromRef, toRef, connectionIndex: ci });
   }
 
   return wires;
