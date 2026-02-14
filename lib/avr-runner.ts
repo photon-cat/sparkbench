@@ -37,6 +37,8 @@ export class AVRRunner {
   readonly speed = 16e6; // 16 MHz
   readonly workUnitCycles = 500000;
   readonly taskScheduler = new MicroTaskScheduler();
+  private wallStartMs = 0;
+  private simStartCycles = 0;
 
   constructor(hex: string) {
     loadHex(hex, new Uint8Array(this.program.buffer));
@@ -53,16 +55,35 @@ export class AVRRunner {
   }
 
   execute(callback: (cpu: CPU) => void) {
+    if (this.wallStartMs === 0) {
+      this.wallStartMs = performance.now();
+      this.simStartCycles = this.cpu.cycles;
+    }
+
     const cyclesToRun = this.cpu.cycles + this.workUnitCycles;
     while (this.cpu.cycles < cyclesToRun) {
       avrInstruction(this.cpu);
       this.cpu.tick();
     }
     callback(this.cpu);
-    this.taskScheduler.postTask(() => this.execute(callback));
+
+    // Throttle to real-time: compare simulated time vs wall-clock time
+    const simElapsedMs = ((this.cpu.cycles - this.simStartCycles) / this.speed) * 1000;
+    const wallElapsedMs = performance.now() - this.wallStartMs;
+    const aheadMs = simElapsedMs - wallElapsedMs;
+
+    if (aheadMs > 2) {
+      // Simulation is ahead of real-time, delay before next batch
+      setTimeout(() => this.execute(callback), aheadMs);
+    } else {
+      // Simulation is behind or on-time, run immediately
+      this.taskScheduler.postTask(() => this.execute(callback));
+    }
   }
 
   stop() {
     this.taskScheduler.stop();
+    this.wallStartMs = 0;
+    this.simStartCycles = 0;
   }
 }

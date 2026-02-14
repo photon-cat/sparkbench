@@ -1,0 +1,83 @@
+/* stylelint-disable docusaurus/copyright-header */
+/**
+ * Any CSS included here will be global. The classic template
+ * bundles Infima by default. Infima is a CSS framework designed to
+ * work well for content-centric websites.
+ */
+
+/* You can override the default Infima variables here. */
+:root {
+  --ifm-color-primary: #25c2a0;
+  --ifm-color-primary-dark: rgb(33, 175, 144);
+  --ifm-color-primary-darker: rgb(31, 165, 136);
+  --ifm-color-primary-darkest: rgb(26, 136, 112);
+  --ifm-color-primary-light: rgb(70, 203, 174);
+  --ifm-color-primary-lighter: rgb(102, 212, 189);
+  --ifm-color-primary-lightest: rgb(146, 224, 208);
+  --ifm-code-font-size: 95%;
+}
+
+figure {
+  margin-top: 56px;
+}
+
+figure > img {
+  display: block;
+}
+
+figcaption {
+  text-align: center;
+  margin-top: 10px;
+  color: rgb(117, 117, 117);
+  line-height: 20px;
+  font-size: 14px;
+}
+
+.docusaurus-highlight-code-line {
+  background-color: rgb(72, 77, 91);
+  display: block;
+  margin: 0 calc(-1 * var(--ifm-pre-padding));
+  padding: 0 var(--ifm-pre-padding);
+}
+
+.simulator-link {
+  font-weight: bold;
+  color: orange;
+}
+
+html .svg-font-table {
+  fill: currentColor;
+  max-width: 100%;
+  height: auto;
+}
+
+html[data-theme='light'] .svg-font-table #symbols {
+  fill: rgb(0, 0, 255);
+}
+
+html[data-theme='dark'] .svg-font-table #symbols {
+  fill: seagreen;
+}
+
+wokwi-analog-joystick[disabled] {
+  display: inline-block;
+  position: relative;
+}
+
+wokwi-analog-joystick[disabled]:before {
+  position: absolute;
+  content: ' ';
+  top: 0;
+  right: 0;
+  left: 0;
+  bottom: 0;
+}
+
+.led-bullet {
+  display: flex;
+}
+
+.led-bullet span p {
+  display: inline;
+  margin: 0;
+}
