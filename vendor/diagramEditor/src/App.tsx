@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import type { Diagram, DiagramPart, DiagramConnection } from "./lib/diagram-types";
 import { importWokwi, exportToWokwi } from "./lib/diagram-io";
 import { useUndoRedo } from "./hooks/useUndoRedo";
@@ -13,11 +13,32 @@ import EXAMPLE_DIAGRAM from "../diagram.json";
 
 const DEFAULT_DIAGRAM: Diagram = importWokwi(EXAMPLE_DIAGRAM);
 
-let partCounter = 1;
+// Per-prefix counters for generating unique IDs
+const prefixCounters: Record<string, number> = {};
+
+// Short prefix overrides for types where the generic name is too long
+const SHORT_PREFIX: Record<string, string> = {
+  "wokwi-pushbutton": "btn",
+  "wokwi-pushbutton-6mm": "btn",
+  "wokwi-resistor": "r",
+  "wokwi-clock-generator": "clk",
+  "wokwi-junction": "j",
+};
+
+/** Derive a short ID prefix from the part type. */
+function typeToPrefix(type: string): string {
+  if (SHORT_PREFIX[type]) return SHORT_PREFIX[type];
+  return type
+    .replace(/^wokwi-/, "")
+    .replace(/^board-/, "")
+    .replace(/-\d+$/, "")  // drop trailing variant numbers (e.g. -2, -8)
+    .replace(/-/g, "");
+}
 
 function generatePartId(type: string): string {
-  const base = type.replace("wokwi-", "").replace(/-/g, "");
-  return `${base}${partCounter++}`;
+  const prefix = typeToPrefix(type);
+  prefixCounters[prefix] = (prefixCounters[prefix] || 0) + 1;
+  return `${prefix}${prefixCounters[prefix]}`;
 }
 
 export default function App() {
@@ -30,14 +51,16 @@ export default function App() {
   const [placingPartId, setPlacingPartId] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
 
-  // Initialize part counter from existing diagram
+  // Initialize per-prefix counters from existing diagram parts
   useEffect(() => {
-    let max = 0;
     for (const p of diagram.parts) {
-      const match = p.id.match(/(\d+)$/);
-      if (match) max = Math.max(max, parseInt(match[1], 10));
+      const match = p.id.match(/^([a-zA-Z_]+)(\d+)$/);
+      if (match) {
+        const prefix = match[1];
+        const num = parseInt(match[2], 10);
+        prefixCounters[prefix] = Math.max(prefixCounters[prefix] || 0, num);
+      }
     }
-    partCounter = max + 1;
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Part mutations
@@ -167,6 +190,169 @@ export default function App() {
     }
   }, [diagram]);
 
+  // Import diagram.json from file
+  const handleImport = useCallback(() => {
+    const input = document.createElement("input");
+    input.type = "file";
+    input.accept = ".json,application/json";
+    input.onchange = () => {
+      const file = input.files?.[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = () => {
+        try {
+          const json = JSON.parse(reader.result as string);
+          const imported = importWokwi(json);
+          setDiagram(imported);
+          setSelectedPartId(null);
+          setSelectedWireIdx(null);
+          // Re-init prefix counters from imported parts
+          for (const p of imported.parts) {
+            const match = p.id.match(/^([a-zA-Z_]+)(\d+)$/);
+            if (match) {
+              const prefix = match[1];
+              const num = parseInt(match[2], 10);
+              prefixCounters[prefix] = Math.max(prefixCounters[prefix] || 0, num);
+            }
+          }
+        } catch (err) {
+          console.error("Failed to import diagram:", err);
+        }
+      };
+      reader.readAsText(file);
+    };
+    input.click();
+  }, [setDiagram]);
+
+  // Export diagram.json as download
+  const handleExport = useCallback(() => {
+    const exported = exportToWokwi(diagram);
+    const json = JSON.stringify(exported, null, 2);
+    const blob = new Blob([json], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "diagram.json";
+    a.click();
+    URL.revokeObjectURL(url);
+  }, [diagram]);
+
+  // Copy/Paste via native clipboard events — no permission prompt, Wokwi-compatible format
+  const diagramRef = useRef(diagram);
+  diagramRef.current = diagram;
+  const selectedPartIdRef = useRef(selectedPartId);
+  selectedPartIdRef.current = selectedPartId;
+
+  useEffect(() => {
+    const handleCopy = (e: ClipboardEvent) => {
+      const tag = (e.target as HTMLElement).tagName;
+      if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") return;
+
+      const pid = selectedPartIdRef.current;
+      if (!pid) return;
+      const diag = diagramRef.current;
+      const parts = diag.parts.filter((p) => p.id === pid);
+      if (parts.length === 0) return;
+
+      const partIds = new Set(parts.map((p: DiagramPart) => p.id));
+      const connections = diag.connections.filter((c: DiagramConnection) => {
+        const fromId = c[0].split(":")[0];
+        const toId = c[1].split(":")[0];
+        return partIds.has(fromId) && partIds.has(toId);
+      });
+
+      // Match Wokwi clipboard format
+      const payload = JSON.stringify({
+        version: 1,
+        author: diag.author || "",
+        editor: "wokwi",
+        parts: parts.map((p: DiagramPart) => ({
+          type: p.type,
+          id: p.id,
+          top: p.top,
+          left: p.left,
+          rotate: p.rotate ?? 0,
+          hide: false,
+          attrs: p.attrs || {},
+        })),
+        connections,
+        dependencies: {},
+      });
+
+      e.preventDefault();
+      e.clipboardData?.setData("text/plain", payload);
+    };
+
+    const handlePaste = (e: ClipboardEvent) => {
+      const tag = (e.target as HTMLElement).tagName;
+      if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") return;
+
+      const text = e.clipboardData?.getData("text/plain");
+      if (!text) return;
+
+      let parsed: { parts?: any[]; connections?: DiagramConnection[] };
+      try {
+        parsed = JSON.parse(text);
+      } catch {
+        return;
+      }
+      if (!parsed.parts || !Array.isArray(parsed.parts) || parsed.parts.length === 0) return;
+
+      e.preventDefault();
+
+      const diag = diagramRef.current;
+      const idMap = new Map<string, string>();
+      const newParts: DiagramPart[] = [];
+      for (const p of parsed.parts as any[]) {
+        const newId = generatePartId(p.type);
+        idMap.set(p.id, newId);
+        newParts.push({
+          type: p.type,
+          id: newId,
+          top: (p.top ?? 0) + 30,
+          left: (p.left ?? 0) + 30,
+          rotate: p.rotate || undefined,
+          attrs: p.attrs || {},
+          value: p.value,
+        });
+      }
+
+      const newConns: DiagramConnection[] = [];
+      if (parsed.connections) {
+        for (const c of parsed.connections) {
+          const fromParts = c[0].split(":");
+          const toParts = c[1].split(":");
+          const newFrom = idMap.get(fromParts[0]);
+          const newTo = idMap.get(toParts[0]);
+          if (newFrom && newTo) {
+            newConns.push([
+              `${newFrom}:${fromParts.slice(1).join(":")}`,
+              `${newTo}:${toParts.slice(1).join(":")}`,
+              c[2],
+              c[3],
+            ]);
+          }
+        }
+      }
+
+      setDiagram({
+        ...diag,
+        parts: [...diag.parts, ...newParts],
+        connections: [...diag.connections, ...newConns],
+      });
+      if (newParts.length === 1) {
+        setSelectedPartId(newParts[0].id);
+      }
+    };
+
+    document.addEventListener("copy", handleCopy);
+    document.addEventListener("paste", handlePaste);
+    return () => {
+      document.removeEventListener("copy", handleCopy);
+      document.removeEventListener("paste", handlePaste);
+    };
+  }, [setDiagram]);
+
   // Keyboard shortcuts handled at app level
   useEffect(() => {
     const handleKey = (e: KeyboardEvent) => {
@@ -221,6 +407,8 @@ export default function App() {
         onRedo={redo}
         canUndo={canUndo}
         canRedo={canRedo}
+        onImport={handleImport}
+        onExport={handleExport}
       />
 
       <div style={{ position: "absolute", top: 44, left: 0, right: 0, bottom: 0 }}>

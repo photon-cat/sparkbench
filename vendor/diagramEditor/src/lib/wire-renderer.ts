@@ -78,7 +78,7 @@ function trace(origin: Point, segs: Segment[]): Point[] {
 /**
  * Auto-route between two loose ends using orthogonal segments.
  * Returns 0-1 intermediate points (forming an L shape).
- * Uses horizontal-first routing to match Wokwi's behavior.
+ * Wokwi routes horizontal-first for the auto-bridge gap.
  */
 function autoRoute(a: Point, b: Point): Point[] {
   const dx = b.x - a.x;
@@ -88,7 +88,7 @@ function autoRoute(a: Point, b: Point): Point[] {
   if (Math.abs(dy) < 0.5) return [];
   if (Math.abs(dx) < 0.5) return [];
 
-  // Wokwi always routes horizontal-first for the auto-bridge gap
+  // Wokwi routes horizontal-first: go to target X, then vertical
   return [{ x: b.x, y: a.y }];
 }
 
@@ -129,6 +129,7 @@ function buildWirePath(start: Point, end: Point, hints: string[]): Point[] {
     if (Math.abs(start.x - end.x) < 0.5 || Math.abs(start.y - end.y) < 0.5) {
       return [start, end];
     }
+    // Horizontal-first routing to match Wokwi
     return [start, { x: end.x, y: start.y }, end];
   }
 

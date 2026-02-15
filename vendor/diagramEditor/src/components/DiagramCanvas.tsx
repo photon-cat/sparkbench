@@ -16,8 +16,11 @@ import {
   RULER_SIZE,
   MIN_ZOOM,
   MAX_ZOOM,
+  getSnapMode,
+  snapToGrid,
 } from "../lib/constants";
 import { registerDipChips } from "./DipChip";
+import { registerLogicGates } from "./LogicGates";
 
 let elementsLoaded = false;
 function ensureElementsLoaded(): Promise<void> {
@@ -25,6 +28,7 @@ function ensureElementsLoaded(): Promise<void> {
   elementsLoaded = true;
   return import("@wokwi/elements").then(() => {
     registerDipChips();
+    registerLogicGates();
   });
 }
 
@@ -195,7 +199,7 @@ export default function DiagramCanvas({
     const dy = Math.abs(p1.y - p0.y);
     const isHorizontal = dx > dy;
 
-    const snappedOffset = Math.round(offset / UNIT_PX) * UNIT_PX;
+    const snappedOffset = snapToGrid(offset);
     if (Math.abs(snappedOffset) < 0.5) return points;
 
     const before = points.slice(0, segIdx + 1);
@@ -288,7 +292,7 @@ export default function DiagramCanvas({
     }
   }, [selectedWireIdx, wires, onWireSelect]);
 
-  // Placement mode: part follows cursor
+  // Placement mode: part follows cursor, snapping anchor pin to grid
   const handlePlacementMove = useCallback((e: React.PointerEvent) => {
     const pid = placingPartIdRef.current;
     if (pid && containerRef.current && viewportRef.current) {
@@ -298,11 +302,27 @@ export default function DiagramCanvas({
       const z = zoomRef.current;
       const contentX = sx / z + panStateRef.current.x;
       const contentY = sy / z + panStateRef.current.y;
-      const snapX = Math.round(contentX / UNIT_PX) * UNIT_PX;
-      const snapY = Math.round(contentY / UNIT_PX) * UNIT_PX;
 
       const wrapper = containerRef.current.querySelector(`[data-part-id="${pid}"]`) as HTMLElement | null;
       if (wrapper) {
+        // Use first pin as snap anchor so pins land on grid points
+        const el = wrapper.firstElementChild as any;
+        const pins = el?.pinInfo;
+        const pinOx = pins?.[0]?.x ?? 0;
+        const pinOy = pins?.[0]?.y ?? 0;
+
+        const mode = getSnapMode(e);
+        const step = mode === "none" ? 0 : (mode === "fine" ? UNIT_PX / 2 : UNIT_PX);
+        let snapX: number, snapY: number;
+        if (step === 0) {
+          snapX = contentX;
+          snapY = contentY;
+        } else {
+          // Snap so that (partPos + pinOffset) is on grid
+          snapX = Math.round((contentX + pinOx) / step) * step - pinOx;
+          snapY = Math.round((contentY + pinOy) / step) * step - pinOy;
+        }
+
         wrapper.style.top = `${snapY}px`;
         wrapper.style.left = `${snapX}px`;
         wrapper.style.opacity = "0.7";

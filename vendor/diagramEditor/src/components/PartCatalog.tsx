@@ -1,4 +1,5 @@
 import { useState, useMemo, useEffect, useRef } from "react";
+import { registerLogicGates } from "./LogicGates";
 
 interface PartEntry {
   type: string;
@@ -59,6 +60,7 @@ const CATALOG: Category[] = [
       { type: "wokwi-pir-motion-sensor", label: "PIR Motion" },
       { type: "wokwi-photoresistor-sensor", label: "Photoresistor" },
       { type: "wokwi-ntc-temperature-sensor", label: "NTC Temperature" },
+      { type: "wokwi-mpu6050", label: "MPU6050 IMU" },
     ],
   },
   {
@@ -75,10 +77,41 @@ const CATALOG: Category[] = [
     ],
   },
   {
+    name: "Logic",
+    parts: [
+      { type: "wokwi-gate-not", label: "NOT gate (inverter)" },
+      { type: "wokwi-gate-and-2", label: "AND gate" },
+      { type: "wokwi-gate-or-2", label: "OR gate" },
+      { type: "wokwi-gate-xor-2", label: "XOR gate" },
+      { type: "wokwi-gate-nand-2", label: "NAND gate" },
+      { type: "wokwi-gate-nor-2", label: "NOR gate" },
+      { type: "wokwi-gate-xnor-2", label: "XNOR gate" },
+      { type: "wokwi-mux-2", label: "MUX (2:1)" },
+      { type: "wokwi-flip-flop-d", label: "Flip-Flop D" },
+      { type: "wokwi-flip-flop-dr", label: "Flip-Flop DR" },
+      { type: "wokwi-flip-flop-dsr", label: "Flip-Flop DSR" },
+      { type: "wokwi-clock-generator", label: "Clock Generator" },
+    ],
+  },
+  {
     name: "ICs",
     parts: [
       { type: "wokwi-74hc595", label: "74HC595 Shift Register" },
       { type: "wokwi-74hc165", label: "74HC165 Shift Register" },
+    ],
+  },
+  {
+    name: "Power & Wiring",
+    parts: [
+      { type: "wokwi-vcc", label: "VCC" },
+      { type: "wokwi-gnd", label: "GND" },
+      { type: "wokwi-junction", label: "Junction" },
+    ],
+  },
+  {
+    name: "Annotation",
+    parts: [
+      { type: "wokwi-text", label: "Text Label", thumbAttrs: { text: "Abc" } },
     ],
   },
   {
@@ -88,6 +121,8 @@ const CATALOG: Category[] = [
       { type: "wokwi-neopixel-matrix", label: "NeoPixel Matrix" },
       { type: "wokwi-led-ring", label: "LED Ring" },
       { type: "wokwi-led-bar-graph", label: "LED Bar Graph" },
+      { type: "wokwi-relay-module", label: "Relay Module" },
+      { type: "wokwi-dip-switch-8", label: "DIP Switch (8)" },
     ],
   },
 ];
@@ -143,7 +178,7 @@ export default function PartCatalog({ onSelect, onClose }: PartCatalogProps) {
   const [ready, setReady] = useState(false);
 
   useEffect(() => {
-    import("@wokwi/elements").then(() => setReady(true));
+    import("@wokwi/elements").then(() => { registerLogicGates(); setReady(true); });
   }, []);
 
   const filtered = useMemo(() => {

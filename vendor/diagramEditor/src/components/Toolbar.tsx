@@ -11,6 +11,8 @@ interface ToolbarProps {
   onRedo: () => void;
   canUndo: boolean;
   canRedo: boolean;
+  onImport: () => void;
+  onExport: () => void;
 }
 
 const btnStyle: React.CSSProperties = {
@@ -38,6 +40,8 @@ export default function Toolbar({
   onRedo,
   canUndo,
   canRedo,
+  onImport,
+  onExport,
 }: ToolbarProps) {
   return (
     <div
@@ -66,6 +70,13 @@ export default function Toolbar({
       </button>
 
       <div style={{ width: 1, height: 20, background: "#444" }} />
+
+      <button onClick={onImport} style={btnStyle} title="Import diagram.json">
+        Import
+      </button>
+      <button onClick={onExport} style={btnStyle} title="Export diagram.json">
+        Export
+      </button>
 
       <button
         onClick={onSave}

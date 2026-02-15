@@ -67,6 +67,12 @@ const PART_ATTR_DEFS: Record<string, AttrDef[]> = {
     { label: "Digits", attr: "digits", type: "select", options: ["1", "2", "3", "4"] },
     { label: "Colon", attr: "colon", type: "select", options: ["", "1"] },
   ],
+  "wokwi-text": [
+    { label: "Text", attr: "text", type: "text", placeholder: "Enter text..." },
+  ],
+  "wokwi-clock-generator": [
+    { label: "Frequency (Hz)", attr: "frequency", type: "text", placeholder: "10" },
+  ],
   "wokwi-neopixel": [],
   "wokwi-ssd1306": [],
   "wokwi-arduino-uno": [],

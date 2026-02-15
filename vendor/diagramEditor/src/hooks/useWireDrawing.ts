@@ -1,10 +1,6 @@
 import { useState, useCallback, useEffect, useRef, MutableRefObject } from "react";
 import type { DiagramConnection } from "../lib/diagram-types";
-import { UNIT_PX } from "../lib/constants";
-
-function snapToGrid(v: number): number {
-  return Math.round(v / UNIT_PX) * UNIT_PX;
-}
+import { snapToGrid, getSnapMode, type SnapMode } from "../lib/constants";
 
 export type ToolType = "cursor" | "wire";
 
@@ -65,9 +61,8 @@ function buildPreviewPath(
   if (points.length === 0) return "";
 
   const last = points[points.length - 1];
-  const snapped = { x: snapToGrid(cursor.x), y: snapToGrid(cursor.y) };
-  const bend = lBend(last, snapped);
-  const allPts = [...points, ...bend, snapped];
+  const bend = lBend(last, cursor);
+  const allPts = [...points, ...bend, cursor];
   return dedup(allPts).map((p) => `${p.x},${p.y}`).join(" ");
 }
 
@@ -167,8 +162,9 @@ export function useWireDrawing({
       if (target.tagName === "circle") return;
 
       const pt = screenToContent(e);
-      const x = snapToGrid(pt.x);
-      const y = snapToGrid(pt.y);
+      const mode = getSnapMode(e);
+      const x = snapToGrid(pt.x, mode);
+      const y = snapToGrid(pt.y, mode);
 
       const last = wireDrawing.points[wireDrawing.points.length - 1];
       const bend = lBend(last, { x, y });
@@ -186,7 +182,8 @@ export function useWireDrawing({
     (e: React.MouseEvent) => {
       if (!wireDrawing) return;
       const pt = screenToContent(e);
-      setCursorPos({ x: snapToGrid(pt.x), y: snapToGrid(pt.y) });
+      const mode = getSnapMode(e);
+      setCursorPos({ x: snapToGrid(pt.x, mode), y: snapToGrid(pt.y, mode) });
     },
     [wireDrawing, screenToContent],
   );
