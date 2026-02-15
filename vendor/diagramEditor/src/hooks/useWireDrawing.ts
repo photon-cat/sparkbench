@@ -16,9 +16,7 @@ function autoWireColor(fromRef: string): string {
   const pinUpper = pin.toUpperCase();
   if (pinUpper.startsWith("GND")) return "black";
   if (pinUpper === "5V" || pinUpper === "VCC" || pinUpper === "3.3V" || pinUpper === "3V3") return "red";
-  const color = WIRE_COLOR_CYCLE[wireColorIdx % WIRE_COLOR_CYCLE.length];
-  wireColorIdx++;
-  return color;
+  return "green";
 }
 
 interface WireDrawingState {

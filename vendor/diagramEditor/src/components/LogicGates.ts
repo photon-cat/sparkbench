@@ -389,7 +389,7 @@ const JUNC_PINS: PinInfo[] = [
   { name: "J", x: 0, y: 0, number: 1, signals: [] },
 ];
 function juncSvg(): string {
-  return `<svg width="${JUNC_SIZE}" height="${JUNC_SIZE}" style="overflow:visible" xmlns="http://www.w3.org/2000/svg">
+  return `<svg width="${JUNC_SIZE}" height="${JUNC_SIZE}" style="overflow:visible;display:block" xmlns="http://www.w3.org/2000/svg">
     <circle cx="0" cy="0" r="3" fill="#4ade80"/>
   </svg>`;
 }
@@ -528,7 +528,7 @@ export function registerLogicGates() {
       constructor() {
         super();
         this._shadow = this.attachShadow({ mode: "open" });
-        this._shadow.innerHTML = `<style>:host { display: block; width: ${w}px; height: ${h}px; overflow: visible; }</style>${svgContent}`;
+        this._shadow.innerHTML = `<style>:host { display: block; width: ${w}px; height: ${h}px; overflow: visible; line-height: 0; } svg { display: block; }</style>${svgContent}`;
       }
       get pinInfo(): PinInfo[] { return pins; }
       get chipWidth(): number { return w; }

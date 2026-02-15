@@ -5,7 +5,6 @@ import { useUndoRedo } from "./hooks/useUndoRedo";
 import type { ToolType } from "./hooks/useWireDrawing";
 import DiagramCanvas from "./components/DiagramCanvas";
 import Toolbar from "./components/Toolbar";
-import ToolPalette from "./components/ToolPalette";
 import PartCatalog from "./components/PartCatalog";
 import PartAttributePanel from "./components/PartAttributePanel";
 import WireAttributePanel from "./components/WireAttributePanel";
@@ -431,8 +430,6 @@ export default function App() {
           showGrid={showGrid}
           onWireColorChange={handleWireColorChange}
         />
-
-        <ToolPalette activeTool={activeTool} onToolChange={setActiveTool} />
 
         {showPartCatalog && (
           <PartCatalog

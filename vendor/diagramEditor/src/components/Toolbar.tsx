@@ -62,7 +62,7 @@ export default function Toolbar({
       }}
     >
       <span style={{ color: "#888", fontSize: 14, fontWeight: 600, marginRight: 8 }}>
-        Wokwi Editor
+        Sparkbench Editor
       </span>
 
       <button onClick={onAddPart} style={{ ...btnStyle, background: "#2563eb", borderColor: "#2563eb", color: "#fff" }} title="Add Part (A)">
