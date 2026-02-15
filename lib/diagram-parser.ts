@@ -31,6 +31,21 @@ export interface Diagram {
   serialMonitor?: { display: string };
 }
 
+/**
+ * Wokwi renamed some part types from wokwi-* to board-*.
+ * Normalize them so all downstream code uses the wokwi-* form.
+ */
+const TYPE_ALIASES: Record<string, string> = {
+  "board-ssd1306": "wokwi-ssd1306",
+  "board-lcd1602": "wokwi-lcd1602",
+  "board-lcd2004": "wokwi-lcd2004",
+  "board-ili9341": "wokwi-ili9341",
+};
+
+function normalizePartType(type: string): string {
+  return TYPE_ALIASES[type] || type;
+}
+
 /** MCU part type → metadata for simulation. */
 export interface MCUInfo {
   id: string;           // part id from diagram (e.g. "uno", "u1")
@@ -71,6 +86,7 @@ export function parseDiagram(json: unknown): Diagram {
     editor: d.editor ?? "sparkbench",
     parts: (d.parts ?? []).map((p) => ({
       ...p,
+      type: normalizePartType(p.type),
       attrs: p.attrs ?? {},
       value: p.value,
       footprint: p.footprint,
