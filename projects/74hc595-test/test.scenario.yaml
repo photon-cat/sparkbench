@@ -1,0 +1,8 @@
+name: '74HC595 shift register output test'
+version: 1
+steps:
+  - wait-serial: 'OUT: 00000000'
+  - wait-serial: 'OUT: 00000001'
+  - wait-serial: 'OUT: 10000000'
+  - wait-serial: 'OUT: 10101010'
+  - wait-serial: 'OUT: 11111111'

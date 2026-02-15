@@ -83,6 +83,20 @@ export class AVRRunner {
     }
   }
 
+  /** Run a specific number of CPU cycles synchronously (for headless/test use). */
+  runCycles(count: number) {
+    const target = this.cpu.cycles + count;
+    while (this.cpu.cycles < target) {
+      avrInstruction(this.cpu);
+      this.cpu.tick();
+    }
+  }
+
+  /** Run simulation for a given number of milliseconds worth of CPU cycles synchronously. */
+  runMs(ms: number) {
+    this.runCycles(Math.round((ms / 1000) * this.speed));
+  }
+
   stop() {
     this.stopped = true;
     this.taskScheduler.stop();

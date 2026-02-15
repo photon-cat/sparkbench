@@ -49,7 +49,9 @@ export function useSimulation({
 
       if (!buildResult.success) {
         setStatus("error");
-        setSerialOutput(`Build error: ${buildResult.error}\n`);
+        let errMsg = `Build error: ${buildResult.error}\n`;
+        if (buildResult.stderr) errMsg += `\n${buildResult.stderr}\n`;
+        setSerialOutput(errMsg);
         return;
       }
 

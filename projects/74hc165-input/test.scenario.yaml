@@ -1,0 +1,14 @@
+name: '74HC165 shift register input test'
+version: 1
+steps:
+  - wait-serial: 'Bits: 00000000'
+  - set-control:
+      part-id: sw1
+      control: state
+      value: 1
+  - wait-serial: 'Bits: 00000001'
+  - set-control:
+      part-id: sw8
+      control: state
+      value: 1
+  - wait-serial: 'Bits: 10000001'

@@ -70,7 +70,7 @@ function pinToCanvas(
 
 // Wire color shortcut map per Wokwi spec
 const WIRE_COLOR_SHORTCUTS: Record<string, string> = {
-  "0": "black", "1": "brown", "2": "red", "3": "orange", "4": "gold",
+  "0": "#333", "1": "brown", "2": "red", "3": "orange", "4": "gold",
   "5": "green", "6": "blue", "7": "violet", "8": "gray", "9": "white",
   "c": "cyan", "l": "limegreen", "m": "magenta", "p": "purple", "y": "yellow",
 };
@@ -97,6 +97,7 @@ export interface DiagramCanvasProps {
   onZoomOut?: () => void;
   runner: AVRRunner | null;
   mcuId?: string;
+  simRunning?: boolean;
 }
 
 export default function DiagramCanvas({
@@ -121,6 +122,7 @@ export default function DiagramCanvas({
   onZoomOut,
   runner,
   mcuId,
+  simRunning,
 }: DiagramCanvasProps) {
   const viewportRef = useRef<HTMLDivElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -143,6 +145,9 @@ export default function DiagramCanvas({
 
   const activeToolRef = useRef(activeTool);
   activeToolRef.current = activeTool;
+
+  const lockedRef = useRef(false);
+  lockedRef.current = !!simRunning;
 
   const placingPartIdRef = useRef<string | null>(null);
   placingPartIdRef.current = placingPartId ?? null;
@@ -189,7 +194,7 @@ export default function DiagramCanvas({
     },
     [onPartSelect],
   );
-  const { attachDragHandlers } = useDragParts({ onPartMove: handlePartMove, onPartSelect: handlePartSelectFromDrag, zoomRef });
+  const { attachDragHandlers } = useDragParts({ onPartMove: handlePartMove, onPartSelect: handlePartSelectFromDrag, zoomRef, lockedRef });
 
   // Wire handle drag helpers
   const screenToContentForHandle = useCallback((clientX: number, clientY: number) => {
@@ -434,7 +439,10 @@ export default function DiagramCanvas({
         }
       }
 
-      if (e.key === "w" || e.key === "W") {
+      // Block editing shortcuts while simulation is running (allow zoom/fit/escape)
+      const locked = lockedRef.current;
+
+      if ((e.key === "w" || e.key === "W") && !locked) {
         onToolChange("wire");
       } else if (e.key === "Escape") {
         if (placingPartIdRef.current) {
@@ -448,19 +456,19 @@ export default function DiagramCanvas({
           setSelectedWireIdx(null);
           onToolChange("cursor");
         }
-      } else if ((e.key === "Delete" || e.key === "Backspace") && selectedPartId) {
+      } else if ((e.key === "Delete" || e.key === "Backspace") && selectedPartId && !locked) {
         e.preventDefault();
         onDeletePart?.(selectedPartId);
         onPartSelect?.(null);
-      } else if ((e.key === "Delete" || e.key === "Backspace") && selectedWireIdx !== null) {
+      } else if ((e.key === "Delete" || e.key === "Backspace") && selectedWireIdx !== null && !locked) {
         e.preventDefault();
         const wire = wires[selectedWireIdx];
         if (wire) onDeleteConnection?.(wire.connectionIndex);
         setSelectedWireIdx(null);
-      } else if ((e.key === "r" || e.key === "R") && selectedPartId && !e.ctrlKey && !e.metaKey) {
+      } else if ((e.key === "r" || e.key === "R") && selectedPartId && !e.ctrlKey && !e.metaKey && !locked) {
         e.preventDefault();
         onPartRotate?.(selectedPartId, 90);
-      } else if ((e.key === "d" || e.key === "D") && selectedPartId && !e.ctrlKey && !e.metaKey) {
+      } else if ((e.key === "d" || e.key === "D") && selectedPartId && !e.ctrlKey && !e.metaKey && !locked) {
         e.preventDefault();
         onDuplicatePart?.(selectedPartId);
       } else if (e.key === "=" || e.key === "+") {
@@ -559,6 +567,7 @@ export default function DiagramCanvas({
   // Pin click dispatch — find the closest pin to the click point
   const handlePinClickDispatch = useCallback(
     (clickX: number, clickY: number) => {
+      if (lockedRef.current) return;
       let bestDist = Infinity;
       let bestPin: CanvasPin | null = null;
       for (const pin of allPins) {
@@ -709,6 +718,25 @@ export default function DiagramCanvas({
       }
     }
 
+    // Slide switch toggle handling
+    for (const [id, wc] of wired) {
+      if (wc.part.type !== "wokwi-slide-switch" || !wc.setState) continue;
+      const el = elementsRef.current.get(id);
+      if (!el) continue;
+      let toggled = false;
+      const onClick = (e: Event) => {
+        e.stopPropagation();
+        toggled = !toggled;
+        (el as any).value = toggled ? 1 : 0;
+        wc.setState!(toggled);
+      };
+      const wrapper = el.parentElement;
+      if (wrapper) {
+        wrapper.addEventListener("click", onClick);
+        wrapper.style.cursor = "pointer";
+      }
+    }
+
     const keyMap = new Map<string, WiredComponent>();
     for (const [, wc] of wired) {
       if (wc.part.type !== "wokwi-pushbutton") continue;
@@ -733,6 +761,7 @@ export default function DiagramCanvas({
         if (wc.part.type === "wokwi-led") (el as any).value = false;
         else if (wc.part.type === "wokwi-buzzer") (el as any).hasSignal = false;
         else if (wc.part.type === "wokwi-arduino-uno") (el as any).ledPower = false;
+        else if (wc.part.type === "wokwi-slide-switch") (el as any).value = 0;
       }
       cleanupWiring(wiredRef.current);
     };

@@ -159,6 +159,7 @@ export default function SimulationPanel({
                 onFinishPlacing={onFinishPlacing}
                 showGrid={showGrid}
                 mcuId={mcuId}
+                simRunning={status === "running" || status === "paused"}
               />
             </div>
 
@@ -262,7 +263,7 @@ export default function SimulationPanel({
           </div>
         )}
       </div>
-      <SerialMonitor output={serialOutput} visible={activeTab === "simulation" && (status === "running" || status === "paused")} />
+      <SerialMonitor output={serialOutput} visible={activeTab === "simulation" && (status === "running" || status === "paused" || status === "error")} />
     </div>
   );
 }
