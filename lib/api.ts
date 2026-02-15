@@ -90,6 +90,24 @@ export async function savePCB(slug: string, pcbText: string): Promise<void> {
   if (!res.ok) throw new Error(`Failed to save PCB: ${res.statusText}`);
 }
 
+// ── Board outline (outline.svg) ──────────────────────────────────
+
+export async function fetchOutlineSVG(slug: string): Promise<string | null> {
+  const res = await fetch(`/api/projects/${slug}/outline`);
+  if (res.status === 404) return null;
+  if (!res.ok) throw new Error(`Failed to fetch outline: ${res.statusText}`);
+  return res.text();
+}
+
+export async function saveOutlineSVG(slug: string, svgText: string): Promise<void> {
+  const res = await fetch(`/api/projects/${slug}/outline`, {
+    method: "PUT",
+    headers: { "Content-Type": "image/svg+xml" },
+    body: svgText,
+  });
+  if (!res.ok) throw new Error(`Failed to save outline: ${res.statusText}`);
+}
+
 // ── Build ────────────────────────────────────────────────────────
 
 export async function buildProject(

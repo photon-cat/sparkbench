@@ -46,6 +46,7 @@ export default function KiPCBLayerPanel({
             const layer = layerSet.by_name(layerName);
             if (layer) {
                 layer.visible = !layer.visible;
+                viewer.paint();
                 viewer.draw();
                 setTick((t) => t + 1);
             }

@@ -7,6 +7,74 @@
 
 import type { List } from "@kicanvas/kicad/tokenizer";
 
+/**
+ * Generate a simple rectangular SVG string (dimensions in mm).
+ */
+export function rectangleToSVG(widthMm: number, heightMm: number): string {
+  return [
+    `<svg xmlns="http://www.w3.org/2000/svg" width="${widthMm}mm" height="${heightMm}mm" viewBox="0 0 ${widthMm} ${heightMm}">`,
+    `  <rect x="0" y="0" width="${widthMm}" height="${heightMm}" fill="none" stroke="black" stroke-width="0.1"/>`,
+    `</svg>`,
+  ].join("\n");
+}
+
+/**
+ * Parse a full SVG document string and extract Edge.Cuts nodes from all
+ * shape elements (<path>, <rect>, <line>, <polygon>, <polyline>).
+ */
+export function parseSVGString(svgText: string, options?: ImportOptions): List[] {
+  const parser = new DOMParser();
+  const doc = parser.parseFromString(svgText, "image/svg+xml");
+  const svg = doc.querySelector("svg");
+  if (!svg) return [];
+
+  // Determine scale from viewBox vs width/height if needed
+  const nodes: List[] = [];
+
+  // <path> elements
+  for (const path of svg.querySelectorAll("path")) {
+    const d = path.getAttribute("d");
+    if (d) nodes.push(...svgPathToEdgeCuts(d, options));
+  }
+
+  // <rect> elements
+  for (const rect of svg.querySelectorAll("rect")) {
+    const x = parseFloat(rect.getAttribute("x") ?? "0");
+    const y = parseFloat(rect.getAttribute("y") ?? "0");
+    const w = parseFloat(rect.getAttribute("width") ?? "0");
+    const h = parseFloat(rect.getAttribute("height") ?? "0");
+    if (w > 0 && h > 0) {
+      const d = `M${x},${y} L${x + w},${y} L${x + w},${y + h} L${x},${y + h} Z`;
+      nodes.push(...svgPathToEdgeCuts(d, options));
+    }
+  }
+
+  // <line> elements
+  for (const line of svg.querySelectorAll("line")) {
+    const x1 = parseFloat(line.getAttribute("x1") ?? "0");
+    const y1 = parseFloat(line.getAttribute("y1") ?? "0");
+    const x2 = parseFloat(line.getAttribute("x2") ?? "0");
+    const y2 = parseFloat(line.getAttribute("y2") ?? "0");
+    const scale = options?.scale ?? 1;
+    const ox = options?.offsetX ?? 0;
+    const oy = options?.offsetY ?? 0;
+    nodes.push(makeGrLine(x1, y1, x2, y2, scale, ox, oy));
+  }
+
+  // <polygon> and <polyline> elements
+  for (const poly of svg.querySelectorAll("polygon, polyline")) {
+    const points = poly.getAttribute("points");
+    if (!points) continue;
+    const isPolygon = poly.tagName.toLowerCase() === "polygon";
+    // Convert points to path d: "x1,y1 x2,y2 ..." → "M x1,y1 L x2,y2 ... Z"
+    const coords = points.trim().split(/\s+/).join(" L ");
+    const d = `M ${coords}${isPolygon ? " Z" : ""}`;
+    nodes.push(...svgPathToEdgeCuts(d, options));
+  }
+
+  return nodes;
+}
+
 interface ImportOptions {
   /** Scale factor: SVG units → mm. Default 1 (assumes SVG is already in mm). */
   scale?: number;

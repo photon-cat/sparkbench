@@ -205,9 +205,64 @@ export const FOOTPRINT_REGISTRY: FootprintMapping[] = [
     footprintType: "SW-SPDT-THT",
     generate: (ref) => generateHeader(ref, 1, 3, 2.54),
   },
+  {
+    type: "sb-atmega328",
+    footprintType: "DIP-28",
+    generate: (ref) => generateDIP(ref, 28),
+  },
 ];
 
-/** Available footprint options per part type (for UI dropdown). */
+/** Complete footprint library — every entry here can be selected from any part's dropdown. */
+export const FOOTPRINT_LIBRARY: { label: string; value: string; group: string }[] = [
+  // DIP through-hole ICs
+  { label: "DIP-8", value: "DIP-8", group: "DIP" },
+  { label: "DIP-14", value: "DIP-14", group: "DIP" },
+  { label: "DIP-16", value: "DIP-16", group: "DIP" },
+  { label: "DIP-18", value: "DIP-18", group: "DIP" },
+  { label: "DIP-20", value: "DIP-20", group: "DIP" },
+  { label: "DIP-28", value: "DIP-28", group: "DIP" },
+  { label: "DIP-28 wide", value: "DIP-28W", group: "DIP" },
+  { label: "DIP-40", value: "DIP-40", group: "DIP" },
+  // SOIC SMD ICs
+  { label: "SOIC-8", value: "SOIC-8", group: "SOIC" },
+  { label: "SOIC-14", value: "SOIC-14", group: "SOIC" },
+  { label: "SOIC-16", value: "SOIC-16", group: "SOIC" },
+  { label: "SOIC-20", value: "SOIC-20", group: "SOIC" },
+  { label: "SOIC-28", value: "SOIC-28", group: "SOIC" },
+  // THT passives
+  { label: "Axial THT (0.4in)", value: "Axial-0.4in", group: "THT" },
+  { label: "Axial THT (0.3in)", value: "Axial-0.3in", group: "THT" },
+  { label: "Radial THT (5mm)", value: "Radial-5mm", group: "THT" },
+  { label: "Radial THT (2.5mm)", value: "Radial-2.5mm", group: "THT" },
+  // SMD passives
+  { label: "0402 SMD", value: "0402", group: "SMD" },
+  { label: "0603 SMD", value: "0603", group: "SMD" },
+  { label: "0805 SMD", value: "0805", group: "SMD" },
+  { label: "1206 SMD", value: "1206", group: "SMD" },
+  // LEDs
+  { label: "LED THT 3mm", value: "LED-THT-3mm", group: "LED" },
+  { label: "LED THT 5mm", value: "LED-THT-5mm", group: "LED" },
+  // Pin headers
+  { label: "Header 1x02", value: "Header-1x02", group: "Header" },
+  { label: "Header 1x03", value: "Header-1x03", group: "Header" },
+  { label: "Header 1x04", value: "Header-1x04", group: "Header" },
+  { label: "Header 1x05", value: "Header-1x05", group: "Header" },
+  { label: "Header 1x06", value: "Header-1x06", group: "Header" },
+  { label: "Header 1x08", value: "Header-1x08", group: "Header" },
+  { label: "Header 1x10", value: "Header-1x10", group: "Header" },
+  { label: "Header 2x03", value: "Header-2x03", group: "Header" },
+  { label: "Header 2x04", value: "Header-2x04", group: "Header" },
+  { label: "Header 2x05", value: "Header-2x05", group: "Header" },
+  { label: "Header 2x08", value: "Header-2x08", group: "Header" },
+  { label: "Header 2x10", value: "Header-2x10", group: "Header" },
+  // Switches
+  { label: "Switch 6mm THT", value: "SW-THT-6mm", group: "Switch" },
+  { label: "Switch SPDT THT", value: "SW-SPDT-THT", group: "Switch" },
+  // Misc
+  { label: "Buzzer 12mm", value: "Buzzer-12mm", group: "Misc" },
+];
+
+/** Available footprint options per part type (for UI dropdown — shown first, before generic library). */
 export const FOOTPRINT_OPTIONS: Record<string, { label: string; value: string }[]> = {
   "wokwi-resistor": [
     { label: "Axial THT (0.4in)", value: "Axial-0.4in" },
@@ -240,22 +295,61 @@ export const FOOTPRINT_OPTIONS: Record<string, { label: string; value: string }[
   "wokwi-slide-switch": [
     { label: "SPDT THT", value: "SW-SPDT-THT" },
   ],
+  "sb-atmega328": [
+    { label: "DIP-28 THT", value: "DIP-28" },
+    { label: "DIP-28 wide", value: "DIP-28W" },
+  ],
 };
 
 /** Map footprint type string → generator function */
 const FOOTPRINT_GENERATORS: Record<string, (ref: string) => FootprintDef> = {
+  // THT passives
   "Axial-0.4in": (ref) => generateHeader(ref, 1, 2, 10.16),
-  "0805": (ref) => generateChipPassive(ref, "0805"),
+  "Axial-0.3in": (ref) => generateHeader(ref, 1, 2, 7.62),
+  "Radial-5mm": (ref) => generateHeader(ref, 1, 2, 5.0),
+  "Radial-2.5mm": (ref) => generateHeader(ref, 1, 2, 2.5),
+  // SMD passives
+  "0402": (ref) => generateChipPassive(ref, "0402"),
   "0603": (ref) => generateChipPassive(ref, "0603"),
+  "0805": (ref) => generateChipPassive(ref, "0805"),
   "1206": (ref) => generateChipPassive(ref, "1206"),
+  // LEDs
   "LED-THT-3mm": (ref) => generateHeader(ref, 1, 2, 2.54),
   "LED-THT-5mm": (ref) => generateHeader(ref, 1, 2, 2.54),
+  // DIP ICs
+  "DIP-8": (ref) => generateDIP(ref, 8),
+  "DIP-14": (ref) => generateDIP(ref, 14),
   "DIP-16": (ref) => generateDIP(ref, 16),
+  "DIP-18": (ref) => generateDIP(ref, 18),
+  "DIP-20": (ref) => generateDIP(ref, 20),
+  "DIP-28": (ref) => generateDIP(ref, 28),
+  "DIP-28W": (ref) => generateDIP(ref, 28, 2.54, 15.24),
+  "DIP-40": (ref) => generateDIP(ref, 40),
+  // SOIC ICs
+  "SOIC-8": (ref) => generateSOIC(ref, 8),
+  "SOIC-14": (ref) => generateSOIC(ref, 14),
   "SOIC-16": (ref) => generateSOIC(ref, 16),
-  "SW-THT-6mm": (ref) => generateHeader(ref, 2, 2, 6.5),
-  "Buzzer-12mm": (ref) => generateHeader(ref, 1, 2, 7.6),
+  "SOIC-20": (ref) => generateSOIC(ref, 20),
+  "SOIC-28": (ref) => generateSOIC(ref, 28),
+  // Pin headers
+  "Header-1x02": (ref) => generateHeader(ref, 1, 2),
+  "Header-1x03": (ref) => generateHeader(ref, 1, 3),
   "Header-1x3": (ref) => generateHeader(ref, 1, 3),
+  "Header-1x04": (ref) => generateHeader(ref, 1, 4),
+  "Header-1x05": (ref) => generateHeader(ref, 1, 5),
+  "Header-1x06": (ref) => generateHeader(ref, 1, 6),
+  "Header-1x08": (ref) => generateHeader(ref, 1, 8),
+  "Header-1x10": (ref) => generateHeader(ref, 1, 10),
+  "Header-2x03": (ref) => generateHeader(ref, 2, 3),
+  "Header-2x04": (ref) => generateHeader(ref, 2, 4),
+  "Header-2x05": (ref) => generateHeader(ref, 2, 5),
+  "Header-2x08": (ref) => generateHeader(ref, 2, 8),
+  "Header-2x10": (ref) => generateHeader(ref, 2, 10),
+  // Switches
+  "SW-THT-6mm": (ref) => generateHeader(ref, 2, 2, 6.5),
   "SW-SPDT-THT": (ref) => generateHeader(ref, 1, 3, 2.54),
+  // Misc
+  "Buzzer-12mm": (ref) => generateHeader(ref, 1, 2, 7.6),
 };
 
 export function getFootprintForType(partType: string): FootprintMapping | undefined {

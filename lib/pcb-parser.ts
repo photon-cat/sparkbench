@@ -80,6 +80,7 @@ export function initPCBFromSchematic(
       silkscreen: fpDef.silkLines.length > 0
         ? { layer: "F.SilkS", lines: fpDef.silkLines, text: { x: 0, y: -2, value: part.id, size: 1 } }
         : undefined,
+      courtyard: fpDef.courtyard,
     });
     idx++;
   }

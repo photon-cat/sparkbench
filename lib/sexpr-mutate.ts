@@ -277,3 +277,140 @@ export function flipFootprint(fp: List): void {
     }
   }
 }
+
+// ── Courtyard / overlap helpers ───────────────────────────────────
+
+export interface BBoxRect {
+  x1: number;
+  y1: number;
+  x2: number;
+  y2: number;
+}
+
+/**
+ * Extract the courtyard bounding box of a footprint in board-space.
+ * Looks for fp_rect on F.CrtYd or B.CrtYd layers.
+ * Falls back to computing bbox from pads if no courtyard rect exists.
+ */
+export function getFootprintCourtyard(fp: List): BBoxRect | null {
+  const at = getAt(fp);
+  if (!at) return null;
+
+  // Look for fp_rect on CrtYd layer
+  const rects = findChildren(fp, "fp_rect");
+  for (const rect of rects) {
+    const layer = getLayer(rect);
+    if (layer === "F.CrtYd" || layer === "B.CrtYd") {
+      const startNode = findChild(rect, "start");
+      const endNode = findChild(rect, "end");
+      if (startNode && endNode) {
+        const sx = typeof startNode[1] === "number" ? startNode[1] : 0;
+        const sy = typeof startNode[2] === "number" ? startNode[2] : 0;
+        const ex = typeof endNode[1] === "number" ? endNode[1] : 0;
+        const ey = typeof endNode[2] === "number" ? endNode[2] : 0;
+        return {
+          x1: at.x + Math.min(sx, ex),
+          y1: at.y + Math.min(sy, ey),
+          x2: at.x + Math.max(sx, ex),
+          y2: at.y + Math.max(sy, ey),
+        };
+      }
+    }
+  }
+
+  // Fallback: compute from pads with 0.25mm margin
+  const pads = findChildren(fp, "pad");
+  if (pads.length === 0) return null;
+  let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+  for (const pad of pads) {
+    const padAt = getAt(pad);
+    if (!padAt) continue;
+    const sizeNode = findChild(pad, "size");
+    const w = sizeNode && typeof sizeNode[1] === "number" ? sizeNode[1] : 1;
+    const h = sizeNode && typeof sizeNode[2] === "number" ? sizeNode[2] : 1;
+    minX = Math.min(minX, padAt.x - w / 2);
+    minY = Math.min(minY, padAt.y - h / 2);
+    maxX = Math.max(maxX, padAt.x + w / 2);
+    maxY = Math.max(maxY, padAt.y + h / 2);
+  }
+  const margin = 0.25;
+  return {
+    x1: at.x + minX - margin,
+    y1: at.y + minY - margin,
+    x2: at.x + maxX + margin,
+    y2: at.y + maxY + margin,
+  };
+}
+
+/**
+ * Check if two bounding boxes overlap.
+ */
+export function bboxOverlaps(a: BBoxRect, b: BBoxRect): boolean {
+  return a.x1 < b.x2 && a.x2 > b.x1 && a.y1 < b.y2 && a.y2 > b.y1;
+}
+
+/**
+ * Check if moving a footprint to a new position would cause courtyard overlap
+ * with any other footprint in the board.
+ * Returns the ref of the first overlapping footprint, or null if no overlap.
+ */
+export function checkCourtyardOverlap(
+  tree: List,
+  movedRef: string,
+  newX: number,
+  newY: number,
+): string | null {
+  // Get moved footprint's courtyard at new position
+  const movedFp = findFootprintByRef(tree, movedRef);
+  if (!movedFp) return null;
+
+  const movedCy = getFootprintCourtyard(movedFp);
+  if (!movedCy) return null;
+
+  // Recompute courtyard at new position
+  const currentAt = getAt(movedFp);
+  if (!currentAt) return null;
+  const dx = newX - currentAt.x;
+  const dy = newY - currentAt.y;
+  const movedBox: BBoxRect = {
+    x1: movedCy.x1 + dx,
+    y1: movedCy.y1 + dy,
+    x2: movedCy.x2 + dx,
+    y2: movedCy.y2 + dy,
+  };
+
+  // Check against all other footprints
+  const footprints = findChildren(tree, "footprint");
+  for (const fp of footprints) {
+    const ref = getFootprintRef(fp);
+    if (ref === movedRef) continue;
+
+    const otherCy = getFootprintCourtyard(fp);
+    if (!otherCy) continue;
+
+    if (bboxOverlaps(movedBox, otherCy)) {
+      return ref;
+    }
+  }
+
+  return null;
+}
+
+// ── Edge.Cuts helpers ────────────────────────────────────────────
+
+/**
+ * Remove all Edge.Cuts graphical items (gr_line, gr_arc, gr_rect, gr_poly)
+ * and insert new ones.
+ */
+export function replaceEdgeCuts(tree: List, newEdgeCutNodes: List[]): void {
+  const edgeCutsTags = ["gr_line", "gr_arc", "gr_rect", "gr_poly"];
+  for (const tag of edgeCutsTags) {
+    removeChildren(tree, tag, (child) => {
+      const layer = getLayer(child);
+      return layer === "Edge.Cuts";
+    });
+  }
+  for (const node of newEdgeCutNodes) {
+    appendChild(tree, node);
+  }
+}

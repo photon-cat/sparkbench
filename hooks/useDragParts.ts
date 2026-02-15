@@ -5,6 +5,7 @@ export interface UseDragPartsOptions {
   onPartMove?: (partId: string, top: number, left: number) => void;
   onPartSelect?: (partId: string) => void;
   zoomRef: MutableRefObject<number>;
+  lockedRef?: MutableRefObject<boolean>;
 }
 
 /**
@@ -33,7 +34,7 @@ function snapPartPos(partPos: number, pinOffset: number, mode: SnapMode): number
   return snappedAnchor - pinOffset;
 }
 
-export function useDragParts({ onPartMove, onPartSelect, zoomRef }: UseDragPartsOptions) {
+export function useDragParts({ onPartMove, onPartSelect, zoomRef, lockedRef }: UseDragPartsOptions) {
   const onPartMoveRef = useRef(onPartMove);
   onPartMoveRef.current = onPartMove;
   const onPartSelectRef = useRef(onPartSelect);
@@ -55,6 +56,7 @@ export function useDragParts({ onPartMove, onPartSelect, zoomRef }: UseDragParts
 
     wrapper.addEventListener("pointerdown", (e: PointerEvent) => {
       if (e.button !== 0) return;
+      if (lockedRef?.current) return;
       e.stopPropagation();
 
       const currentTop = parseFloat(wrapper.style.top) || 0;

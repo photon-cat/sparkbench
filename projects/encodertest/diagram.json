@@ -1,0 +1,81 @@
+{
+  "version": 1,
+  "author": "Ben Pheth",
+  "editor": "wokwi",
+  "parts": [
+    {
+      "type": "wokwi-arduino-uno",
+      "id": "uno",
+      "top": 0.6,
+      "left": -19.8,
+      "attrs": {}
+    },
+    {
+      "type": "wokwi-ky-040",
+      "id": "encoder1",
+      "top": -94.3,
+      "left": 56.8,
+      "attrs": {}
+    },
+    {
+      "type": "wokwi-dht22",
+      "id": "dht224",
+      "top": 0,
+      "left": 0,
+      "attrs": {}
+    }
+  ],
+  "connections": [
+    [
+      "encoder1:VCC",
+      "uno:5V",
+      "red",
+      [
+        "h220.8",
+        "v298",
+        "h-249.6",
+        "v-19.2",
+        "h-3.8"
+      ]
+    ],
+    [
+      "uno:GND.2",
+      "encoder1:GND",
+      "black",
+      [
+        "v19.1",
+        "h215.1",
+        "v-259.2",
+        "h-192"
+      ]
+    ],
+    [
+      "uno:2",
+      "encoder1:CLK",
+      "green",
+      [
+        "h4",
+        "v-96",
+        "h-48"
+      ]
+    ],
+    [
+      "encoder1:DT",
+      "uno:3",
+      "green",
+      [
+        "h38.4",
+        "v86.5"
+      ]
+    ],
+    [
+      "encoder1:SW",
+      "uno:4",
+      "green",
+      [
+        "h0"
+      ]
+    ]
+  ],
+  "dependencies": {}
+}

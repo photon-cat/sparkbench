@@ -63,6 +63,10 @@ function layerType(name: string): string {
   return "user";
 }
 
+function round4(n: number): number {
+  return Math.round(n * 10000) / 10000;
+}
+
 // ── Individual S-expression builders ──────────────────────────────
 
 function buildNetExpr(net: PCBNet): SExpr {
@@ -188,6 +192,29 @@ function buildFootprintExpr(
         ["stroke", ["width", 0.12], ["type", "solid"]],
       ]);
     }
+  }
+
+  // Courtyard rectangle — always computed from actual pad bounding box
+  if (fp.pads.length > 0) {
+    const crtYdLayer = fp.layer === "F.Cu" ? "F.CrtYd" : "B.CrtYd";
+    // Compute pad bounding box center
+    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+    for (const pad of fp.pads) {
+      const hw = pad.width / 2;
+      const hh = pad.height / 2;
+      minX = Math.min(minX, pad.x - hw);
+      minY = Math.min(minY, pad.y - hh);
+      maxX = Math.max(maxX, pad.x + hw);
+      maxY = Math.max(maxY, pad.y + hh);
+    }
+    const margin = 0.25;
+    expr.push([
+      "fp_rect",
+      ["start", round4(minX - margin), round4(minY - margin)],
+      ["end", round4(maxX + margin), round4(maxY + margin)],
+      ["layer", crtYdLayer],
+      ["stroke", ["width", 0.05], ["type", "solid"]],
+    ]);
   }
 
   // Pads
@@ -332,6 +359,11 @@ export function buildKicadPCBTree(design: PCBDesign): SExpr {
         ["outputformat", 1],
         ["outputdirectory", ""],
       ],
+    ],
+    // Title block
+    [
+      "title_block",
+      ["title", "Sparkbench PCB Editor Alpha"],
     ],
     // Nets
     ["net", 0, ""],

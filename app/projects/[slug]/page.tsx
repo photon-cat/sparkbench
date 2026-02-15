@@ -607,7 +607,7 @@ export default function ProjectPage() {
     setPlacingPartId(null);
   }, []);
 
-  const handleInitPCB = useCallback(async () => {
+  const handleUpdatePCBFromDiagram = useCallback(async () => {
     if (!diagram) return;
     const [{ extractNetlist }, { initPCBFromSchematic }, { buildKicadPCBTree }, { serializeSExpr }] = await Promise.all([
       import("@/lib/netlist"),
@@ -627,6 +627,20 @@ export default function ProjectPage() {
       await savePCB(slug, text);
     }
   }, [diagram, slug]);
+
+  const handleSaveOutline = useCallback(async (svgText: string) => {
+    // Add/update outline.svg in project files so it appears in the sidebar
+    setProjectFiles((prev) => {
+      const existing = prev.findIndex((f) => f.name === "outline.svg");
+      if (existing >= 0) {
+        const updated = [...prev];
+        updated[existing] = { name: "outline.svg", content: svgText };
+        return updated;
+      }
+      return [...prev, { name: "outline.svg", content: svgText }];
+    });
+    setDirty(true);
+  }, []);
 
   const handleSave = useCallback(async () => {
     if (!slug) return;
@@ -898,7 +912,8 @@ export default function ProjectPage() {
         canUndo={canUndo}
         canRedo={canRedo}
         onToggleGrid={() => setShowGrid((v) => !v)}
-        onInitPCB={handleInitPCB}
+        onUpdateFromDiagram={handleUpdatePCBFromDiagram}
+        onSaveOutline={handleSaveOutline}
         mcuId={mcuTarget}
         mcuOptions={mcuOptions}
         onMcuChange={setMcuTarget}

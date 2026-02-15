@@ -62,6 +62,7 @@ export interface PCBFootprint {
     lines: { x1: number; y1: number; x2: number; y2: number }[];
     text?: { x: number; y: number; value: string; size: number };
   };
+  courtyard?: { width: number; height: number };
 }
 
 export interface PCBTraceSegment {

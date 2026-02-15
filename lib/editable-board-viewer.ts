@@ -9,7 +9,7 @@
  */
 
 import { BBox, Vec2 } from "@kicanvas/base/math";
-import { Color, Polyline, Renderer } from "@kicanvas/graphics";
+import { Color, Polygon, Polyline, Renderer } from "@kicanvas/graphics";
 import type { BoardTheme } from "@kicanvas/kicad";
 import * as board_items from "@kicanvas/kicad/board";
 import { BoardViewer } from "@kicanvas/viewers/board/viewer";
@@ -17,6 +17,9 @@ import type { ViewLayer } from "@kicanvas/viewers/board/layers";
 import { LayerNames } from "@kicanvas/viewers/board/layers";
 
 export class EditableBoardViewer extends BoardViewer {
+    /** Persistent overlay callback — called after selection paint to keep ratsnest visible */
+    private _overlayCallback: ((gfx: Renderer) => void) | null = null;
+
     constructor(canvas: HTMLCanvasElement, theme: BoardTheme) {
         super(canvas, true, theme);
     }
@@ -111,6 +114,45 @@ export class EditableBoardViewer extends BoardViewer {
     }
 
     /**
+     * Register a persistent overlay callback (e.g. ratsnest).
+     * This callback is re-invoked whenever `paint_selected()` runs,
+     * so the overlay survives selection changes.
+     */
+    setOverlayCallback(cb: ((gfx: Renderer) => void) | null) {
+        this._overlayCallback = cb;
+    }
+
+    /**
+     * Override paint_selected to also render the persistent overlay (ratsnest)
+     * so it doesn't vanish when clicking a component.
+     */
+    protected override paint_selected() {
+        const overlay = this.layers.overlay;
+        overlay.clear();
+
+        this.renderer.start_layer(overlay.name);
+
+        // Selection highlight
+        const sel = this.selected;
+        if (sel) {
+            const bb = sel.copy().grow(sel.w * 0.1);
+            this.renderer.line(
+                Polyline.from_BBox(bb, 0.254, this.selection_color),
+            );
+            this.renderer.polygon(Polygon.from_BBox(bb, this.selection_color));
+        }
+
+        // Persistent overlay (ratsnest, etc.)
+        if (this._overlayCallback) {
+            this._overlayCallback(this.renderer);
+        }
+
+        overlay.graphics = this.renderer.end_layer();
+        overlay.graphics.composite_operation = "overlay";
+        this.draw();
+    }
+
+    /**
      * Paint transient items on the overlay layer.
      * Used for drag previews, routing rubber-bands, DRC markers, etc.
      *
@@ -133,6 +175,23 @@ export class EditableBoardViewer extends BoardViewer {
     clearOverlay() {
         const overlay = this.layers.overlay;
         overlay.clear();
+
+        // Re-paint persistent overlay + selection even when "clearing"
+        this.renderer.start_layer(overlay.name);
+        const sel = this.selected;
+        if (sel) {
+            const bb = sel.copy().grow(sel.w * 0.1);
+            this.renderer.line(
+                Polyline.from_BBox(bb, 0.254, this.selection_color),
+            );
+            this.renderer.polygon(Polygon.from_BBox(bb, this.selection_color));
+        }
+        if (this._overlayCallback) {
+            this._overlayCallback(this.renderer);
+        }
+        overlay.graphics = this.renderer.end_layer();
+        overlay.graphics.composite_operation = "overlay";
+
         this.draw();
     }
 

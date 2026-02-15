@@ -1,5 +1,6 @@
 "use client";
 import type { DiagramPart } from "@/lib/diagram-parser";
+import { FOOTPRINT_OPTIONS, FOOTPRINT_LIBRARY } from "@/lib/pcb-footprints";
 
 interface PartAttributePanelProps {
   part: DiagramPart | null;
@@ -227,12 +228,10 @@ export default function PartAttributePanel({
 
       <div style={{ marginBottom: 6 }}>
         <label style={{ color: "#999", fontSize: 10, display: "block", marginBottom: 2 }}>Footprint</label>
-        <input
-          type="text"
-          value={part.attrs.footprint ?? ""}
-          placeholder="e.g. 0805, DIP-28"
-          onChange={(e) => onAttrChange("footprint", e.target.value)}
-          style={inputStyle}
+        <FootprintDropdown
+          partType={part.type}
+          value={part.footprint ?? ""}
+          onChange={(v) => onAttrChange("__footprint", v)}
         />
       </div>
 
@@ -249,5 +248,60 @@ export default function PartAttributePanel({
         </button>
       </div>
     </div>
+  );
+}
+
+function FootprintDropdown({
+  partType,
+  value,
+  onChange,
+}: {
+  partType: string;
+  value: string;
+  onChange: (value: string) => void;
+}) {
+  const suggested = FOOTPRINT_OPTIONS[partType] ?? [];
+  const suggestedValues = new Set(suggested.map((o) => o.value));
+
+  // Group remaining library entries by group, excluding already-suggested ones
+  const groups = new Map<string, typeof FOOTPRINT_LIBRARY>();
+  for (const entry of FOOTPRINT_LIBRARY) {
+    if (suggestedValues.has(entry.value)) continue;
+    if (!groups.has(entry.group)) groups.set(entry.group, []);
+    groups.get(entry.group)!.push(entry);
+  }
+
+  return (
+    <select
+      value={value}
+      onChange={(e) => onChange(e.target.value)}
+      style={{
+        background: "#2a2a2a",
+        border: "1px solid #555",
+        borderRadius: 3,
+        color: "#eee",
+        padding: "3px 6px",
+        fontSize: 12,
+        fontFamily: "monospace",
+        width: "100%",
+        boxSizing: "border-box",
+      }}
+    >
+      <option value="">(default)</option>
+      {suggested.length > 0 && (
+        <optgroup label="Suggested">
+          {suggested.map((o) => (
+            <option key={o.value} value={o.value}>{o.label}</option>
+          ))}
+        </optgroup>
+      )}
+      {[...groups.entries()].map(([group, entries]) => (
+        <optgroup key={group} label={group}>
+          {entries.map((o) => (
+            <option key={o.value} value={o.value}>{o.label}</option>
+          ))}
+        </optgroup>
+      ))}
+    </select>
   );
 }

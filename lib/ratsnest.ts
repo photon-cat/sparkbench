@@ -6,6 +6,7 @@
  */
 
 import type { PCBDesign, PCBFootprint } from "./pcb-types";
+import type { KicadPCB } from "@kicanvas/kicad/board";
 
 export interface RatsnestLine {
     x1: number;
@@ -167,6 +168,142 @@ export function computeRatsnest(design: PCBDesign): RatsnestLine[] {
                                 y2: b.y,
                                 net,
                             };
+                        }
+                    }
+                }
+            }
+
+            if (bestLine) lines.push(bestLine);
+        }
+    }
+
+    return lines;
+}
+
+/**
+ * Compute ratsnest lines from a KiCanvas KicadPCB board model.
+ * Works with the parsed board object (viewer.board) rather than our PCBDesign type.
+ */
+export function computeRatsnestFromBoard(board: KicadPCB): RatsnestLine[] {
+    const lines: RatsnestLine[] = [];
+
+    // Build net → pads map with absolute positions
+    const netPads = new Map<
+        string,
+        { id: string; x: number; y: number }[]
+    >();
+
+    for (const fp of board.footprints) {
+        const fpPos = fp.at?.position;
+        const fpRot = fp.at?.rotation ?? 0;
+        if (!fpPos) continue;
+
+        const rad = (fpRot * Math.PI) / 180;
+        const cos = Math.cos(rad);
+        const sin = Math.sin(rad);
+
+        for (const pad of fp.pads) {
+            const netName = pad.net?.name;
+            if (!netName) continue;
+
+            // Pad position is relative to footprint, rotate by footprint angle
+            const px = pad.at?.position?.x ?? 0;
+            const py = pad.at?.position?.y ?? 0;
+            const absX = fpPos.x + px * cos - py * sin;
+            const absY = fpPos.y + px * sin + py * cos;
+
+            const padId = `${fp.reference}:${pad.number}`;
+            const pads = netPads.get(netName) ?? [];
+            pads.push({ id: padId, x: absX, y: absY });
+            netPads.set(netName, pads);
+        }
+    }
+
+    // Build connectivity from traces
+    const CONNECT_THRESHOLD = 0.5; // mm
+
+    for (const [net, pads] of netPads) {
+        if (pads.length <= 1) continue;
+
+        const uf = new UnionFind();
+        for (const pad of pads) {
+            uf.find(pad.id);
+        }
+
+        // Check trace segment connectivity
+        for (const seg of board.segments) {
+            const segNet = seg.netname;
+            if (segNet !== net) continue;
+
+            // LineSegment has start/end as Vec2
+            const s = seg as any;
+            const sx = s.start?.x ?? 0;
+            const sy = s.start?.y ?? 0;
+            const ex = s.end?.x ?? 0;
+            const ey = s.end?.y ?? 0;
+
+            const nearStart: string[] = [];
+            const nearEnd: string[] = [];
+
+            for (const pad of pads) {
+                if (Math.hypot(pad.x - sx, pad.y - sy) < CONNECT_THRESHOLD) {
+                    nearStart.push(pad.id);
+                }
+                if (Math.hypot(pad.x - ex, pad.y - ey) < CONNECT_THRESHOLD) {
+                    nearEnd.push(pad.id);
+                }
+            }
+
+            // Union pads near start with each other and with pads near end
+            const connected = [...nearStart, ...nearEnd];
+            for (let i = 1; i < connected.length; i++) {
+                uf.union(connected[0]!, connected[i]!);
+            }
+        }
+
+        // Via connectivity: union pads near via position
+        for (const via of board.vias) {
+            const viaNet = via.netname;
+            if (viaNet !== net) continue;
+
+            const viaPos = via.at?.position;
+            if (!viaPos) continue;
+
+            const nearVia: string[] = [];
+            for (const pad of pads) {
+                if (Math.hypot(pad.x - viaPos.x, pad.y - viaPos.y) < CONNECT_THRESHOLD) {
+                    nearVia.push(pad.id);
+                }
+            }
+            for (let i = 1; i < nearVia.length; i++) {
+                uf.union(nearVia[0]!, nearVia[i]!);
+            }
+        }
+
+        // Find disconnected groups
+        const groups = new Map<string, typeof pads>();
+        for (const pad of pads) {
+            const root = uf.find(pad.id);
+            const group = groups.get(root) ?? [];
+            group.push(pad);
+            groups.set(root, group);
+        }
+
+        if (groups.size <= 1) continue;
+
+        // Ratsnest: closest pad pair between disconnected groups
+        const groupList = Array.from(groups.values());
+        for (let i = 0; i < groupList.length - 1; i++) {
+            let bestDist = Infinity;
+            let bestLine: RatsnestLine | null = null;
+
+            for (let j = i + 1; j < groupList.length; j++) {
+                for (const a of groupList[i]!) {
+                    for (const b of groupList[j]!) {
+                        const dist = Math.hypot(a.x - b.x, a.y - b.y);
+                        if (dist < bestDist) {
+                            bestDist = dist;
+                            bestLine = { x1: a.x, y1: a.y, x2: b.x, y2: b.y, net };
                         }
                     }
                 }

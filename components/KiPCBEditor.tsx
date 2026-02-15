@@ -4,9 +4,10 @@ import { useState, useRef, useCallback, useEffect } from "react";
 import dynamic from "next/dynamic";
 import type { List } from "@kicanvas/kicad/tokenizer";
 import { listify } from "@kicanvas/kicad/tokenizer";
-import { findChildren } from "@/lib/sexpr-mutate";
+import { findChildren, replaceEdgeCuts } from "@/lib/sexpr-mutate";
 import { SExprUndoStack } from "@/lib/sexpr-undo";
 import { serializeSExpr } from "@/lib/sexpr-serializer";
+import { parseSVGString, rectangleToSVG, svgPathToEdgeCuts } from "@/lib/svg-outline-import";
 import { useKiPCBDrag } from "@/hooks/useKiPCBDrag";
 import type { KiPCBCanvasHandle } from "./KiPCBCanvas";
 import KiPCBToolPalette, { type PCBTool } from "./KiPCBToolPalette";
@@ -31,37 +32,97 @@ const KiPCBCanvas = dynamic(() => import("./KiPCBCanvas"), {
     ),
 });
 
+/** Minimal empty KiCad PCB with a 100x80mm board outline */
+const EMPTY_PCB_TEXT = `(kicad_pcb
+  (version 20240108)
+  (generator sparkbench)
+  (generator_version "1.0")
+  (general
+    (thickness 1.6)
+  )
+  (paper A4)
+  (layers
+    (0 F.Cu signal)
+    (31 B.Cu signal)
+    (36 B.SilkS user)
+    (37 F.SilkS user)
+    (38 B.Mask user)
+    (39 F.Mask user)
+    (40 Dwgs.User user)
+    (41 Cmts.User user)
+    (44 Edge.Cuts user)
+    (46 B.CrtYd user)
+    (47 F.CrtYd user)
+    (48 B.Fab user)
+    (49 F.Fab user)
+  )
+  (setup
+    (pad_to_mask_clearance 0)
+    (pcbplotparams
+      (layerselection 18678812770303)
+      (outputformat 1)
+      (outputdirectory "")
+    )
+  )
+  (title_block
+    (title "Sparkbench PCB Editor Alpha")
+  )
+  (net 0 "")
+  (gr_line (start 0 0) (end 100 0) (layer Edge.Cuts) (stroke (width 0.05) (type solid)))
+  (gr_line (start 100 0) (end 100 80) (layer Edge.Cuts) (stroke (width 0.05) (type solid)))
+  (gr_line (start 100 80) (end 0 80) (layer Edge.Cuts) (stroke (width 0.05) (type solid)))
+  (gr_line (start 0 80) (end 0 0) (layer Edge.Cuts) (stroke (width 0.05) (type solid)))
+)`;
+
 interface KiPCBEditorProps {
-    initialPcbText: string;
+    initialPcbText: string | null;
     onSave?: (text: string) => void;
+    onUpdateFromDiagram?: () => void;
+    onSaveOutline?: (svgText: string) => void;
 }
 
 export default function KiPCBEditor({
     initialPcbText,
     onSave,
+    onUpdateFromDiagram,
+    onSaveOutline,
 }: KiPCBEditorProps) {
-    // Parse initial text into S-expr tree
-    // listify() returns a wrapper [root_expr] — unwrap to get the kicad_pcb expression
-    const [pcbTree, setPcbTree] = useState<List>(() => listify(initialPcbText)[0] as List);
+    // Parse initial text into S-expr tree, using empty board if null
+    const [pcbTree, setPcbTree] = useState<List>(() =>
+        listify(initialPcbText ?? EMPTY_PCB_TEXT)[0] as List,
+    );
     const [activeTool, setActiveTool] = useState<PCBTool>("select");
     const [activeLayer, setActiveLayer] = useState("F.Cu");
     const [selectedItem, setSelectedItem] = useState<unknown>(null);
     const [selectedRef, setSelectedRef] = useState<string | null>(null);
     const [mousePos, setMousePos] = useState({ x: 0, y: 0 });
     const [boardLoaded, setBoardLoaded] = useState(false);
+    const [showRatsnest, setShowRatsnest] = useState(true);
+
+    // Board outline dimension inputs
+    const [outlineWidth, setOutlineWidth] = useState("100");
+    const [outlineHeight, setOutlineHeight] = useState("80");
 
     const canvasHandleRef = useRef<KiPCBCanvasHandle>(null);
     const undoStackRef = useRef(new SExprUndoStack());
+    const fileInputRef = useRef<HTMLInputElement>(null);
+
+    // When initialPcbText changes externally (e.g. after "Update from Diagram"),
+    // re-parse the tree
+    useEffect(() => {
+        if (initialPcbText !== null) {
+            const newTree = listify(initialPcbText)[0] as List;
+            setPcbTree(newTree);
+        }
+    }, [initialPcbText]);
 
     // Extract selected footprint reference from KiCanvas selection
     const handleSelect = useCallback((item: unknown) => {
         setSelectedItem(item);
-        // KiCanvas Footprint has a .reference property
         const any = item as any;
         if (any?.reference) {
             setSelectedRef(any.reference);
         } else if (any?.parent?.reference) {
-            // Pad selected — use parent footprint's ref
             setSelectedRef(any.parent.reference);
         } else {
             setSelectedRef(null);
@@ -88,6 +149,50 @@ export default function KiPCBEditor({
     const segmentCount = findChildren(pcbTree, "segment").length;
     const viaCount = findChildren(pcbTree, "via").length;
     const netCount = findChildren(pcbTree, "net").length;
+
+    // Apply board outline from dimensions
+    const handleSetOutlineDimensions = useCallback(() => {
+        const w = parseFloat(outlineWidth);
+        const h = parseFloat(outlineHeight);
+        if (isNaN(w) || isNaN(h) || w <= 0 || h <= 0) return;
+
+        const svgText = rectangleToSVG(w, h);
+        const pathD = `M0,0 L${w},0 L${w},${h} L0,${h} Z`;
+        const edgeCutNodes = svgPathToEdgeCuts(pathD);
+
+        undoStackRef.current.pushSnapshot(pcbTree);
+        const newTree = structuredClone(pcbTree) as List;
+        replaceEdgeCuts(newTree, edgeCutNodes);
+        setPcbTree(newTree);
+
+        onSaveOutline?.(svgText);
+        onSave?.(serializeSExpr(newTree));
+    }, [outlineWidth, outlineHeight, pcbTree, onSaveOutline, onSave]);
+
+    // Upload SVG outline
+    const handleUploadSVG = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+
+        const reader = new FileReader();
+        reader.onload = () => {
+            const svgText = reader.result as string;
+            const edgeCutNodes = parseSVGString(svgText);
+            if (edgeCutNodes.length === 0) return;
+
+            undoStackRef.current.pushSnapshot(pcbTree);
+            const newTree = structuredClone(pcbTree) as List;
+            replaceEdgeCuts(newTree, edgeCutNodes);
+            setPcbTree(newTree);
+
+            onSaveOutline?.(svgText);
+            onSave?.(serializeSExpr(newTree));
+        };
+        reader.readAsText(file);
+
+        // Reset input so the same file can be re-selected
+        e.target.value = "";
+    }, [pcbTree, onSaveOutline, onSave]);
 
     // Keyboard shortcuts for tool switching + save
     useEffect(() => {
@@ -127,6 +232,30 @@ export default function KiPCBEditor({
         window.addEventListener("keydown", handler);
         return () => window.removeEventListener("keydown", handler);
     }, [pcbTree, onSave]);
+
+    const btnStyle: React.CSSProperties = {
+        padding: "4px 8px",
+        background: "#1a5c2a",
+        border: "1px solid #2a8a42",
+        borderRadius: 3,
+        color: "#fff",
+        fontSize: 10,
+        cursor: "pointer",
+        fontFamily: "monospace",
+        fontWeight: 600,
+        width: "100%",
+    };
+
+    const inputStyle: React.CSSProperties = {
+        width: "100%",
+        padding: "3px 6px",
+        background: "#111",
+        border: "1px solid #444",
+        borderRadius: 3,
+        color: "#ccc",
+        fontSize: 11,
+        fontFamily: "monospace",
+    };
 
     return (
         <div
@@ -176,7 +305,16 @@ export default function KiPCBEditor({
                             Selected: {selectedRef}
                         </span>
                     )}
-                    <span style={{ marginLeft: "auto" }}>
+                    <label style={{ marginLeft: "auto", cursor: "pointer", display: "flex", alignItems: "center", gap: 3 }}>
+                        <input
+                            type="checkbox"
+                            checked={showRatsnest}
+                            onChange={(e) => setShowRatsnest(e.target.checked)}
+                            style={{ accentColor: "#4af" }}
+                        />
+                        Ratsnest
+                    </label>
+                    <span>
                         {footprintCount} fp, {segmentCount} seg, {viaCount} via, {netCount} net
                     </span>
                     {undoStackRef.current.canUndo && (
@@ -191,6 +329,7 @@ export default function KiPCBEditor({
                     <KiPCBCanvas
                         ref={canvasHandleRef}
                         pcbTree={pcbTree}
+                        showRatsnest={showRatsnest}
                         onSelect={handleSelect}
                         onMouseMove={(x, y) => setMousePos({ x, y })}
                         onBoardLoaded={() => setBoardLoaded(true)}
@@ -198,7 +337,7 @@ export default function KiPCBEditor({
                 </div>
             </div>
 
-            {/* Right panel: layers + properties */}
+            {/* Right panel: layers + properties + board outline */}
             <div
                 style={{
                     display: "flex",
@@ -223,8 +362,64 @@ export default function KiPCBEditor({
                         color: "#ccc",
                     }}
                 >
+                    {/* Update from Diagram */}
+                    <div style={{ marginBottom: 10 }}>
+                        <button
+                            onClick={onUpdateFromDiagram}
+                            style={btnStyle}
+                        >
+                            Update from Diagram
+                        </button>
+                    </div>
+
+                    {/* Board Outline */}
+                    <div style={{ marginBottom: 10, borderTop: "1px solid #333", paddingTop: 8 }}>
+                        <div style={{ color: "#888", fontSize: 10, marginBottom: 4 }}>
+                            Board Outline
+                        </div>
+                        <div style={{ display: "flex", gap: 4, marginBottom: 4 }}>
+                            <div style={{ flex: 1 }}>
+                                <div style={{ color: "#666", fontSize: 9 }}>W (mm)</div>
+                                <input
+                                    type="number"
+                                    value={outlineWidth}
+                                    onChange={(e) => setOutlineWidth(e.target.value)}
+                                    style={inputStyle}
+                                />
+                            </div>
+                            <div style={{ flex: 1 }}>
+                                <div style={{ color: "#666", fontSize: 9 }}>H (mm)</div>
+                                <input
+                                    type="number"
+                                    value={outlineHeight}
+                                    onChange={(e) => setOutlineHeight(e.target.value)}
+                                    style={inputStyle}
+                                />
+                            </div>
+                        </div>
+                        <button
+                            onClick={handleSetOutlineDimensions}
+                            style={{ ...btnStyle, marginBottom: 4 }}
+                        >
+                            Set Rectangle Outline
+                        </button>
+                        <input
+                            ref={fileInputRef}
+                            type="file"
+                            accept=".svg"
+                            onChange={handleUploadSVG}
+                            style={{ display: "none" }}
+                        />
+                        <button
+                            onClick={() => fileInputRef.current?.click()}
+                            style={{ ...btnStyle, background: "#2a3a5c", borderColor: "#3a5a8a" }}
+                        >
+                            Upload SVG Outline
+                        </button>
+                    </div>
+
                     {/* Cursor position */}
-                    <div style={{ marginBottom: 8 }}>
+                    <div style={{ marginBottom: 8, borderTop: "1px solid #333", paddingTop: 8 }}>
                         <div style={{ color: "#888", fontSize: 10 }}>Position</div>
                         <div>X: {mousePos.x.toFixed(2)} mm</div>
                         <div>Y: {mousePos.y.toFixed(2)} mm</div>

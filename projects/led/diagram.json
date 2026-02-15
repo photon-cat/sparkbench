@@ -12,22 +12,42 @@
     },
     {
       "type": "wokwi-led",
-      "id": "led1",
-      "top": -172.8000000000011,
-      "left": 153.60000000000036,
+      "id": "led2",
+      "top": -176.39999999999964,
+      "left": 99.79999999999927,
       "attrs": {
         "color": "red"
       }
     },
     {
-      "type": "wokwi-led",
-      "id": "led2",
-      "top": -182.39999999999964,
-      "left": 96,
-      "attrs": {
-        "color": "red"
-      }
+      "type": "wokwi-gnd",
+      "id": "gnd4",
+      "top": 0,
+      "left": 0,
+      "attrs": {}
+    },
+    {
+      "type": "wokwi-gnd",
+      "id": "gnd8",
+      "top": 0,
+      "left": 0,
+      "attrs": {}
     }
   ],
-  "connections": []
+  "connections": [
+    [
+      "led2:C",
+      "gnd5:GND",
+      "black",
+      []
+    ],
+    [
+      "led2:A",
+      "uno:13",
+      "red",
+      [
+        "v106"
+      ]
+    ]
+  ]
 }

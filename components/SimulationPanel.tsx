@@ -55,7 +55,8 @@ interface SimulationPanelProps {
   canUndo?: boolean;
   canRedo?: boolean;
   onToggleGrid?: () => void;
-  onInitPCB: () => void;
+  onUpdateFromDiagram: () => void;
+  onSaveOutline: (svgText: string) => void;
   mcuId?: string;
   mcuOptions?: { id: string; label: string }[];
   onMcuChange?: (id: string) => void;
@@ -93,7 +94,8 @@ export default function SimulationPanel({
   canUndo,
   canRedo,
   onToggleGrid,
-  onInitPCB,
+  onUpdateFromDiagram,
+  onSaveOutline,
   mcuId,
   mcuOptions,
   onMcuChange,
@@ -231,33 +233,12 @@ export default function SimulationPanel({
             )}
           </>
         ) : activeTab === "pcb" ? (
-          pcbText !== null ? (
             <KiPCBEditor
               initialPcbText={pcbText}
               onSave={onPcbSave}
+              onUpdateFromDiagram={onUpdateFromDiagram}
+              onSaveOutline={onSaveOutline}
             />
-          ) : (
-            <div style={{
-              display: "flex", flexDirection: "column", alignItems: "center",
-              justifyContent: "center", height: "100%", gap: 16, color: "#999",
-              fontFamily: "monospace",
-            }}>
-              <div style={{ fontSize: 14, color: "#ccc" }}>No PCB layout yet</div>
-              <div style={{ fontSize: 12, maxWidth: 280, textAlign: "center", lineHeight: 1.5 }}>
-                Generate an initial board layout from your schematic diagram with footprints placed in a grid.
-              </div>
-              <button
-                onClick={onInitPCB}
-                style={{
-                  padding: "8px 20px", background: "#1a5c2a", border: "1px solid #2a8a42",
-                  borderRadius: 4, color: "#fff", fontSize: 13, cursor: "pointer",
-                  fontFamily: "monospace", fontWeight: 600,
-                }}
-              >
-                Initialize from Schematic
-              </button>
-            </div>
-          )
         ) : (
           <div style={{ padding: 16, color: "#999" }}>
             <h3 style={{ color: "#ccc", marginBottom: 8 }}>

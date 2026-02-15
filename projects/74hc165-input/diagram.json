@@ -3,7 +3,7 @@
   "author": "Uri Shaked",
   "editor": "wokwi",
   "parts": [
-    { "type": "wokwi-arduino-uno", "id": "uno", "top": 179, "left": 33, "attrs": {} },
+    { "type": "wokwi-arduino-uno", "id": "uno", "top": 183, "left": 28.2, "attrs": {} },
     { "type": "wokwi-74hc165", "id": "sr1", "top": 99, "left": 145, "attrs": {} },
     { "type": "wokwi-slide-switch", "id": "sw8", "top": 19, "left": 0, "attrs": {} },
     { "type": "wokwi-slide-switch", "id": "sw7", "top": 19, "left": 40, "attrs": {} },

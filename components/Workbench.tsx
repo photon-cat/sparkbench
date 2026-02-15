@@ -52,7 +52,8 @@ interface WorkbenchProps {
   canUndo?: boolean;
   canRedo?: boolean;
   onToggleGrid?: () => void;
-  onInitPCB: () => void;
+  onUpdateFromDiagram: () => void;
+  onSaveOutline: (svgText: string) => void;
   mcuId?: string;
   mcuOptions?: { id: string; label: string }[];
   onMcuChange?: (id: string) => void;
@@ -100,7 +101,8 @@ export default function Workbench({
   canUndo,
   canRedo,
   onToggleGrid,
-  onInitPCB,
+  onUpdateFromDiagram,
+  onSaveOutline,
   mcuId,
   mcuOptions,
   onMcuChange,
@@ -157,7 +159,8 @@ export default function Workbench({
               canUndo={canUndo}
               canRedo={canRedo}
               onToggleGrid={onToggleGrid}
-              onInitPCB={onInitPCB}
+              onUpdateFromDiagram={onUpdateFromDiagram}
+              onSaveOutline={onSaveOutline}
               mcuId={mcuId}
               mcuOptions={mcuOptions}
               onMcuChange={onMcuChange}
