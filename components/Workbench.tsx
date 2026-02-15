@@ -48,6 +48,9 @@ interface WorkbenchProps {
   canRedo?: boolean;
   onToggleGrid?: () => void;
   onInitPCB: () => void;
+  mcuId?: string;
+  mcuOptions?: { id: string; label: string }[];
+  onMcuChange?: (id: string) => void;
 }
 
 export default function Workbench({
@@ -88,6 +91,9 @@ export default function Workbench({
   canRedo,
   onToggleGrid,
   onInitPCB,
+  mcuId,
+  mcuOptions,
+  onMcuChange,
 }: WorkbenchProps) {
   return (
     <div className={styles.workbench}>
@@ -137,6 +143,9 @@ export default function Workbench({
               canRedo={canRedo}
               onToggleGrid={onToggleGrid}
               onInitPCB={onInitPCB}
+              mcuId={mcuId}
+              mcuOptions={mcuOptions}
+              onMcuChange={onMcuChange}
             />
           }
         />

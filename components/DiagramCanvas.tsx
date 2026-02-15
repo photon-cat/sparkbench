@@ -96,6 +96,7 @@ export interface DiagramCanvasProps {
   onZoomIn?: () => void;
   onZoomOut?: () => void;
   runner: AVRRunner | null;
+  mcuId?: string;
 }
 
 export default function DiagramCanvas({
@@ -119,6 +120,7 @@ export default function DiagramCanvas({
   onZoomIn,
   onZoomOut,
   runner,
+  mcuId,
 }: DiagramCanvasProps) {
   const viewportRef = useRef<HTMLDivElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -674,7 +676,7 @@ export default function DiagramCanvas({
   useEffect(() => {
     if (!runner || !diagram || elementsRef.current.size === 0) return;
     cleanupWiring(wiredRef.current);
-    const wired = wireComponents(runner, diagram);
+    const wired = wireComponents(runner, diagram, mcuId);
     wiredRef.current = wired;
 
     for (const [id, wc] of wired) {

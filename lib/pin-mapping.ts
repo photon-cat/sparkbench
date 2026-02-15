@@ -36,6 +36,23 @@ export function mapArduinoPin(pinName: string): PinInfo | null {
   return null;
 }
 
+/**
+ * Map ATmega328P port-style pin names to avr8js port + pin number.
+ *
+ * PD0-PD7 = portD 0-7, PB0-PB7 = portB 0-7, PC0-PC6 = portC 0-6
+ */
+export function mapAtmega328Pin(pinName: string): PinInfo | null {
+  const clean = pinName.replace(/\.\d+$/, "").replace(/\.[lr]$/, "");
+  const match = clean.match(/^P([BCD])(\d)$/);
+  if (!match) return null;
+  const [, portLetter, pinNum] = match;
+  const pin = parseInt(pinNum, 10);
+  if (portLetter === "D" && pin <= 7) return { port: "portD", pin };
+  if (portLetter === "B" && pin <= 7) return { port: "portB", pin };
+  if (portLetter === "C" && pin <= 6) return { port: "portC", pin };
+  return null;
+}
+
 /** Get the AVRIOPort instance from a runner given a port name. */
 export function getPort(runner: AVRRunner, portName: PinInfo["port"]): AVRIOPort {
   return runner[portName];

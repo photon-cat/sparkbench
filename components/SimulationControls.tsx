@@ -41,6 +41,9 @@ interface SimulationControlsProps {
   canUndo?: boolean;
   canRedo?: boolean;
   onToggleGrid?: () => void;
+  mcuId?: string;
+  mcuOptions?: { id: string; label: string }[];
+  onMcuChange?: (id: string) => void;
 }
 
 function formatTime(ms: number): string {
@@ -74,6 +77,9 @@ export default function SimulationControls({
   canUndo,
   canRedo,
   onToggleGrid,
+  mcuId,
+  mcuOptions,
+  onMcuChange,
 }: SimulationControlsProps) {
   const [menuAnchor, setMenuAnchor] = useState<null | HTMLElement>(null);
   const [addAnchor, setAddAnchor] = useState<null | HTMLElement>(null);
@@ -164,6 +170,27 @@ export default function SimulationControls({
         >
           <PlayArrowIcon />
         </Fab>
+        {mcuOptions && mcuOptions.length > 1 && (
+          <select
+            value={mcuId || ""}
+            onChange={(e) => onMcuChange?.(e.target.value)}
+            style={{
+              background: "#2a2a2a",
+              color: "#ccc",
+              border: "1px solid #444",
+              borderRadius: 4,
+              padding: "4px 6px",
+              fontSize: 11,
+              fontFamily: '"Cascadia Code", "Fira Code", monospace',
+              cursor: "pointer",
+              outline: "none",
+            }}
+          >
+            {mcuOptions.map((opt) => (
+              <option key={opt.id} value={opt.id}>{opt.id} ({opt.label})</option>
+            ))}
+          </select>
+        )}
         <Fab size="small" onClick={(e) => setAddAnchor(e.currentTarget)} sx={fabSx("#2563eb", "#1d4ed8")}>
           <AddIcon />
         </Fab>

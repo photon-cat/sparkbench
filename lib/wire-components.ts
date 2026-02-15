@@ -4,8 +4,9 @@ import {
   Diagram,
   DiagramPart,
   findComponentPins,
+  findMCUs,
 } from "./diagram-parser";
-import { mapArduinoPin, getPort } from "./pin-mapping";
+import { mapArduinoPin, mapAtmega328Pin, getPort, PinInfo } from "./pin-mapping";
 import { SSD1306Controller } from "./ssd1306-controller";
 
 export interface WiredComponent {
@@ -24,24 +25,45 @@ export interface WiredComponent {
 
 /**
  * Wire diagram components to avr8js GPIO.
+ * @param mcuId - Override which MCU part to wire to. If omitted, uses the first simulatable MCU in parts order (Wokwi convention).
  * Returns a map of componentId -> WiredComponent for the caller to bind UI callbacks.
  */
 export function wireComponents(
   runner: AVRRunner,
-  diagram: Diagram
+  diagram: Diagram,
+  mcuId?: string
 ): Map<string, WiredComponent> {
-  const pinMap = findComponentPins(diagram);
+  // Auto-detect MCU if not specified: first simulatable MCU in parts order
+  let resolvedMcuId = mcuId;
+  let pinMapper: (name: string) => PinInfo | null = mapArduinoPin;
+  if (!resolvedMcuId) {
+    const mcus = findMCUs(diagram);
+    const target = mcus.find((m) => m.simulatable);
+    if (target) {
+      resolvedMcuId = target.id;
+      pinMapper = target.pinStyle === "avr-port" ? mapAtmega328Pin : mapArduinoPin;
+    } else {
+      resolvedMcuId = "uno"; // fallback for legacy projects
+    }
+  } else {
+    // Determine pin mapper from the specified MCU
+    const mcus = findMCUs(diagram);
+    const target = mcus.find((m) => m.id === resolvedMcuId);
+    if (target?.pinStyle === "avr-port") pinMapper = mapAtmega328Pin;
+  }
+
+  const pinMap = findComponentPins(diagram, resolvedMcuId);
   const wired = new Map<string, WiredComponent>();
 
   for (const part of diagram.parts) {
-    const arduinoPin = pinMap.get(part.id);
-    if (!arduinoPin) {
+    const mcuPin = pinMap.get(part.id);
+    if (!mcuPin) {
       // No MCU connection (e.g. shift register sub-components, 7-segment)
       wired.set(part.id, { part });
       continue;
     }
 
-    const pinInfo = mapArduinoPin(arduinoPin);
+    const pinInfo = pinMapper(mcuPin);
     if (!pinInfo) {
       wired.set(part.id, { part });
       continue;

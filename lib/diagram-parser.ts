@@ -31,6 +31,38 @@ export interface Diagram {
   serialMonitor?: { display: string };
 }
 
+/** MCU part type → metadata for simulation. */
+export interface MCUInfo {
+  id: string;           // part id from diagram (e.g. "uno", "u1")
+  type: string;         // part type (e.g. "wokwi-arduino-uno")
+  boardId: string;      // PlatformIO board env name
+  pinStyle: "arduino" | "avr-port";
+  label: string;
+  simulatable: boolean; // true if avr8js can run this chip
+}
+
+const MCU_REGISTRY: Record<string, { boardId: string; pinStyle: "arduino" | "avr-port"; label: string; simulatable: boolean }> = {
+  "wokwi-arduino-uno":   { boardId: "uno",        pinStyle: "arduino",   label: "Arduino Uno",   simulatable: true },
+  "wokwi-arduino-nano":  { boardId: "uno",        pinStyle: "arduino",   label: "Arduino Nano",  simulatable: true },
+  "wokwi-arduino-mega":  { boardId: "mega",       pinStyle: "arduino",   label: "Arduino Mega",  simulatable: false },
+  "sb-atmega328":        { boardId: "atmega328p",  pinStyle: "avr-port",  label: "ATmega328P",    simulatable: true },
+};
+
+/**
+ * Find all MCU parts in the diagram, in parts-array order.
+ * First simulatable MCU is the default target (Wokwi convention).
+ */
+export function findMCUs(diagram: Diagram): MCUInfo[] {
+  const mcus: MCUInfo[] = [];
+  for (const part of diagram.parts) {
+    const reg = MCU_REGISTRY[part.type];
+    if (reg) {
+      mcus.push({ id: part.id, type: part.type, ...reg });
+    }
+  }
+  return mcus;
+}
+
 export function parseDiagram(json: unknown): Diagram {
   const d = json as Diagram;
   return {
@@ -83,7 +115,8 @@ export function findComponentPins(
     }
 
     if (!mcuPin || !componentId) continue;
-    if (mcuPin.startsWith("GND") || mcuPin === "5V" || mcuPin === "3.3V")
+    if (mcuPin.startsWith("GND") || mcuPin === "5V" || mcuPin === "3.3V"
+        || mcuPin === "VCC" || mcuPin === "AVCC" || mcuPin === "AREF" || mcuPin === "GND2")
       continue;
 
     if (!map.has(componentId)) {

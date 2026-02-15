@@ -12,6 +12,7 @@ export interface UseSimulationOptions {
   diagram: Diagram | null;
   sketchCode: string;
   projectFiles: { name: string; content: string }[];
+  board?: string;
 }
 
 export interface UseSimulationReturn {
@@ -30,6 +31,7 @@ export function useSimulation({
   diagram,
   sketchCode,
   projectFiles,
+  board,
 }: UseSimulationOptions): UseSimulationReturn {
   const [status, setStatus] = useState<SimulationStatus>("idle");
   const [serialOutput, setSerialOutput] = useState("");
@@ -43,7 +45,7 @@ export function useSimulation({
     setSerialOutput("");
 
     try {
-      const buildResult = await buildProject(slug, sketchCode, projectFiles);
+      const buildResult = await buildProject(slug, sketchCode, projectFiles, board || "uno");
 
       if (!buildResult.success) {
         setStatus("error");
@@ -73,7 +75,7 @@ export function useSimulation({
       const msg = err instanceof Error ? err.message : String(err);
       setSerialOutput(`Error: ${msg}\n`);
     }
-  }, [diagram, sketchCode, slug, projectFiles]);
+  }, [diagram, sketchCode, slug, projectFiles, board]);
 
   const handleStop = useCallback(() => {
     if (runnerRef.current) {

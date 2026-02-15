@@ -1,10 +1,15 @@
 "use client";
 
 import { useState, useCallback, useRef } from "react";
+import Menu from "@mui/material/Menu";
+import MenuItem from "@mui/material/MenuItem";
+import ListItemIcon from "@mui/material/ListItemIcon";
+import ListItemText from "@mui/material/ListItemText";
 import SaveIcon from "@mui/icons-material/Save";
 import ArrowDropDownIcon from "@mui/icons-material/ArrowDropDown";
 import FileUploadIcon from "@mui/icons-material/FileUpload";
 import FileDownloadIcon from "@mui/icons-material/FileDownload";
+import FolderZipIcon from "@mui/icons-material/FolderZip";
 import EditIcon from "@mui/icons-material/Edit";
 import SettingsIcon from "@mui/icons-material/Settings";
 import styles from "./Toolbar.module.css";
@@ -14,6 +19,7 @@ interface ToolbarProps {
   onSave?: () => void;
   onImportWokwi?: (json: unknown) => void;
   onExportWokwi?: () => void;
+  onDownloadZip?: () => void;
   lastSaved?: Date | null;
   dirty?: boolean;
 }
@@ -22,8 +28,9 @@ function formatTime(date: Date): string {
   return date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" });
 }
 
-export default function Toolbar({ projectName, onSave, onImportWokwi, onExportWokwi, lastSaved, dirty }: ToolbarProps) {
+export default function Toolbar({ projectName, onSave, onImportWokwi, onExportWokwi, onDownloadZip, lastSaved, dirty }: ToolbarProps) {
   const [saving, setSaving] = useState(false);
+  const [dropdownAnchor, setDropdownAnchor] = useState<null | HTMLElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const handleSave = useCallback(async () => {
@@ -68,10 +75,35 @@ export default function Toolbar({ projectName, onSave, onImportWokwi, onExportWo
             <SaveIcon sx={{ fontSize: 16 }} />
             {saving ? "SAVING..." : "SAVE"}
           </button>
-          <button className={styles.dropdownBtn}>
+          <button className={styles.dropdownBtn} onClick={(e) => setDropdownAnchor(e.currentTarget)}>
             <ArrowDropDownIcon sx={{ fontSize: 18 }} />
           </button>
         </div>
+
+        <Menu
+          anchorEl={dropdownAnchor}
+          open={Boolean(dropdownAnchor)}
+          onClose={() => setDropdownAnchor(null)}
+          anchorOrigin={{ vertical: "bottom", horizontal: "left" }}
+          slotProps={{
+            paper: {
+              sx: {
+                bgcolor: "#2a2a2a",
+                color: "#ccc",
+                minWidth: 180,
+                "& .MuiMenuItem-root": { py: 0.75, px: 2, fontSize: 13 },
+              },
+            },
+          }}
+        >
+          <MenuItem onClick={() => { onDownloadZip?.(); setDropdownAnchor(null); }}>
+            <ListItemIcon sx={{ color: "inherit", minWidth: 28 }}>
+              <FolderZipIcon sx={{ fontSize: 16 }} />
+            </ListItemIcon>
+            <ListItemText>Download ZIP</ListItemText>
+          </MenuItem>
+        </Menu>
+
         <span className={styles.saveStatus}>
           {dirty && <span className={styles.dirtyDot} title="Unsaved changes" />}
           {lastSaved && `Saved at ${formatTime(lastSaved)}`}

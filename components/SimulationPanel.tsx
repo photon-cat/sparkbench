@@ -56,6 +56,9 @@ interface SimulationPanelProps {
   canRedo?: boolean;
   onToggleGrid?: () => void;
   onInitPCB: () => void;
+  mcuId?: string;
+  mcuOptions?: { id: string; label: string }[];
+  onMcuChange?: (id: string) => void;
 }
 
 export default function SimulationPanel({
@@ -91,6 +94,9 @@ export default function SimulationPanel({
   canRedo,
   onToggleGrid,
   onInitPCB,
+  mcuId,
+  mcuOptions,
+  onMcuChange,
 }: SimulationPanelProps) {
   const [activeTab, setActiveTab] = useState("simulation");
   const [activeTool, setActiveTool] = useState<ToolType>("cursor");
@@ -152,6 +158,7 @@ export default function SimulationPanel({
                 placingPartId={placingPartId}
                 onFinishPlacing={onFinishPlacing}
                 showGrid={showGrid}
+                mcuId={mcuId}
               />
             </div>
 
@@ -187,6 +194,9 @@ export default function SimulationPanel({
                 canUndo={canUndo}
                 canRedo={canRedo}
                 onToggleGrid={onToggleGrid}
+                mcuId={mcuId}
+                mcuOptions={mcuOptions}
+                onMcuChange={onMcuChange}
               />
             </div>
 

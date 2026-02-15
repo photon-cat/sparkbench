@@ -4,7 +4,7 @@ import { useState, useRef, useCallback, useEffect } from "react";
 import { useParams } from "next/navigation";
 import Toolbar from "@/components/Toolbar";
 import Workbench from "@/components/Workbench";
-import { parseDiagram, type Diagram, type DiagramPart, type DiagramConnection } from "@/lib/diagram-parser";
+import { parseDiagram, findMCUs, type Diagram, type DiagramPart, type DiagramConnection, type MCUInfo } from "@/lib/diagram-parser";
 import { useSimulation } from "@/hooks/useSimulation";
 import { fetchDiagram, fetchSketch, saveDiagram, saveSketch, fetchPCB, savePCB } from "@/lib/api";
 import { importWokwi, exportToWokwi } from "@/lib/diagram-io";
@@ -62,6 +62,28 @@ export default function ProjectPage() {
   const [selectedPartId, setSelectedPartId] = useState<string | null>(null);
   const [placingPartId, setPlacingPartId] = useState<string | null>(null);
   const [showGrid, setShowGrid] = useState(true);
+  const [mcuTarget, setMcuTarget] = useState<string | undefined>(undefined);
+  const [mcuOptions, setMcuOptions] = useState<{ id: string; label: string }[]>([]);
+
+  // Auto-detect MCUs when diagram changes
+  useEffect(() => {
+    if (!diagram) return;
+    const mcus = findMCUs(diagram);
+    const simulatable = mcus.filter((m) => m.simulatable);
+    setMcuOptions(simulatable.map((m) => ({ id: m.id, label: m.label })));
+    // If current target isn't in the list, pick first simulatable (Wokwi: first in parts order)
+    if (!mcuTarget || !simulatable.find((m) => m.id === mcuTarget)) {
+      setMcuTarget(simulatable[0]?.id);
+    }
+  }, [diagram, mcuTarget]);
+
+  // Get board ID for the selected MCU target
+  const mcuBoardId = (() => {
+    if (!diagram || !mcuTarget) return "uno";
+    const mcus = findMCUs(diagram);
+    const target = mcus.find((m) => m.id === mcuTarget);
+    return target?.boardId || "uno";
+  })();
 
   // Undo/redo history for diagram state
   const MAX_HISTORY = 50;
@@ -140,7 +162,7 @@ export default function ProjectPage() {
     handlePause,
     handleResume,
     handleRestart,
-  } = useSimulation({ slug, diagram, sketchCode, projectFiles });
+  } = useSimulation({ slug, diagram, sketchCode, projectFiles, board: mcuBoardId });
 
   // Load diagram and sketch on mount (or when slug changes)
   useEffect(() => {
@@ -631,6 +653,26 @@ export default function ProjectPage() {
     URL.revokeObjectURL(url);
   }, [diagram]);
 
+  const handleDownloadZip = useCallback(async () => {
+    const JSZip = (await import("jszip")).default;
+    const zip = new JSZip();
+    zip.file("diagram.json", diagramJson);
+    zip.file("sketch.ino", sketchCode);
+    for (const f of projectFiles) {
+      zip.file(f.name, f.content);
+    }
+    if (pcbText) {
+      zip.file("board.kicad_pcb", pcbText);
+    }
+    const blob = await zip.generateAsync({ type: "blob" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `${slug}.zip`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }, [diagramJson, sketchCode, projectFiles, pcbText, slug]);
+
   // Copy/Paste via native clipboard events — Wokwi-compatible format
   const selectedPartIdRef = useRef(selectedPartId);
   selectedPartIdRef.current = selectedPartId;
@@ -789,7 +831,7 @@ export default function ProjectPage() {
 
   return (
     <div style={{ height: "100vh", display: "flex", flexDirection: "column" }}>
-      <Toolbar projectName={slug} onSave={handleSave} onImportWokwi={handleImportWokwi} onExportWokwi={handleExportWokwi} lastSaved={lastSaved} dirty={dirty} />
+      <Toolbar projectName={slug} onSave={handleSave} onImportWokwi={handleImportWokwi} onExportWokwi={handleExportWokwi} onDownloadZip={handleDownloadZip} lastSaved={lastSaved} dirty={dirty} />
       <Workbench
         diagram={diagram}
         runner={runner}
@@ -828,6 +870,9 @@ export default function ProjectPage() {
         canRedo={canRedo}
         onToggleGrid={() => setShowGrid((v) => !v)}
         onInitPCB={handleInitPCB}
+        mcuId={mcuTarget}
+        mcuOptions={mcuOptions}
+        onMcuChange={setMcuTarget}
       />
     </div>
   );
