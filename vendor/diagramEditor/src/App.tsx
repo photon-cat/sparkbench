@@ -22,6 +22,11 @@ const SHORT_PREFIX: Record<string, string> = {
   "wokwi-resistor": "r",
   "wokwi-clock-generator": "clk",
   "wokwi-junction": "j",
+  "sb-atmega328": "u",
+  "sb-capacitor": "c",
+  "sb-crystal": "y",
+  "sb-diode": "d",
+  "sb-usb-c": "j",
 };
 
 /** Derive a short ID prefix from the part type. */
@@ -29,6 +34,7 @@ function typeToPrefix(type: string): string {
   if (SHORT_PREFIX[type]) return SHORT_PREFIX[type];
   return type
     .replace(/^wokwi-/, "")
+    .replace(/^sb-/, "")
     .replace(/^board-/, "")
     .replace(/-\d+$/, "")  // drop trailing variant numbers (e.g. -2, -8)
     .replace(/-/g, "");

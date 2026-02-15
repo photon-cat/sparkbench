@@ -78,6 +78,7 @@ const PART_ATTR_DEFS: Record<string, AttrDef[]> = {
   "wokwi-arduino-uno": [],
   "wokwi-arduino-mega": [],
   "wokwi-arduino-nano": [],
+  "sb-atmega328": [],
 };
 
 const inputStyle: React.CSSProperties = {
@@ -113,7 +114,7 @@ export default function PartAttributePanel({
   if (!part) return null;
 
   const attrDefs = PART_ATTR_DEFS[part.type];
-  const friendlyType = part.type.replace("wokwi-", "").replace(/-/g, " ");
+  const friendlyType = part.type.replace(/^wokwi-/, "").replace(/^sb-/, "").replace(/-/g, " ");
 
   const hasValue = ["wokwi-resistor", "wokwi-led", "wokwi-buzzer"].includes(part.type) ||
     part.value !== undefined;
@@ -130,8 +131,8 @@ export default function PartAttributePanel({
         border: "1px solid #444",
         borderRadius: 6,
         padding: "10px 12px",
-        minWidth: 180,
-        maxWidth: 240,
+        minWidth: 240,
+        maxWidth: 320,
         zIndex: 20,
         fontFamily: "monospace",
         fontSize: 12,
@@ -222,6 +223,17 @@ export default function PartAttributePanel({
           ))}
         </div>
       )}
+
+      <div style={{ marginBottom: 6 }}>
+        <label style={{ color: "#999", fontSize: 10, display: "block", marginBottom: 2 }}>Footprint</label>
+        <input
+          type="text"
+          value={part.attrs.footprint ?? ""}
+          placeholder="e.g. 0805, DIP-28"
+          onChange={(e) => onAttrChange("footprint", e.target.value)}
+          style={inputStyle}
+        />
+      </div>
 
       <div style={{ display: "flex", gap: 6, marginTop: 4 }}>
         <button onClick={() => onRotate(90)} style={btnStyle} title="Rotate 90 (R)">

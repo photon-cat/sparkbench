@@ -431,6 +431,124 @@ function vccSvg(): string {
   return s;
 }
 
+// ──────────────────────────── Capacitor ────────────────────────────
+const CAP_W = 2 * UNIT;
+const CAP_H = 3 * UNIT;
+const CAP_PINS: PinInfo[] = [
+  { name: "1", x: 1 * UNIT, y: 0, number: 1, signals: [] },
+  { name: "2", x: 1 * UNIT, y: 3 * UNIT, number: 2, signals: [] },
+];
+function capSvg(): string {
+  const cx = 1 * UNIT;
+  const topY = 0;
+  const gapTop = 1.2 * UNIT;
+  const gapBot = 1.8 * UNIT;
+  const botY = 3 * UNIT;
+  const plateW = 8;
+  let s = `<svg width="${CAP_W}" height="${CAP_H}" style="overflow:visible" xmlns="http://www.w3.org/2000/svg">`;
+  s += `<line x1="${cx}" y1="${topY}" x2="${cx}" y2="${gapTop}" stroke="${PIN_COLOR}" stroke-width="1"/>`;
+  s += `<line x1="${cx - plateW}" y1="${gapTop}" x2="${cx + plateW}" y2="${gapTop}" stroke="${STROKE}" stroke-width="${STROKE_W}"/>`;
+  s += `<line x1="${cx - plateW}" y1="${gapBot}" x2="${cx + plateW}" y2="${gapBot}" stroke="${STROKE}" stroke-width="${STROKE_W}"/>`;
+  s += `<line x1="${cx}" y1="${gapBot}" x2="${cx}" y2="${botY}" stroke="${PIN_COLOR}" stroke-width="1"/>`;
+  s += `</svg>`;
+  return s;
+}
+
+// ──────────────────────────── Crystal Oscillator ────────────────────────────
+const XTAL_W = 2 * UNIT;
+const XTAL_H = 3 * UNIT;
+const XTAL_PINS: PinInfo[] = [
+  { name: "1", x: 1 * UNIT, y: 0, number: 1, signals: [] },
+  { name: "2", x: 1 * UNIT, y: 3 * UNIT, number: 2, signals: [] },
+];
+function xtalSvg(): string {
+  const cx = 1 * UNIT;
+  const topY = 0;
+  const plateTop = 0.9 * UNIT;
+  const rectTop = 1.1 * UNIT;
+  const rectBot = 1.9 * UNIT;
+  const plateBot = 2.1 * UNIT;
+  const botY = 3 * UNIT;
+  const plateW = 8;
+  const rectW = 6;
+  let s = `<svg width="${XTAL_W}" height="${XTAL_H}" style="overflow:visible" xmlns="http://www.w3.org/2000/svg">`;
+  s += `<line x1="${cx}" y1="${topY}" x2="${cx}" y2="${plateTop}" stroke="${PIN_COLOR}" stroke-width="1"/>`;
+  s += `<line x1="${cx - plateW}" y1="${plateTop}" x2="${cx + plateW}" y2="${plateTop}" stroke="${STROKE}" stroke-width="${STROKE_W}"/>`;
+  s += `<rect x="${cx - rectW}" y="${rectTop}" width="${rectW * 2}" height="${rectBot - rectTop}" fill="none" stroke="${STROKE}" stroke-width="${STROKE_W}"/>`;
+  s += `<line x1="${cx - plateW}" y1="${plateBot}" x2="${cx + plateW}" y2="${plateBot}" stroke="${STROKE}" stroke-width="${STROKE_W}"/>`;
+  s += `<line x1="${cx}" y1="${plateBot}" x2="${cx}" y2="${botY}" stroke="${PIN_COLOR}" stroke-width="1"/>`;
+  s += `</svg>`;
+  return s;
+}
+
+// ──────────────────────────── Diode ────────────────────────────
+const DIODE_W = 2 * UNIT;
+const DIODE_H = 3 * UNIT;
+const DIODE_PINS: PinInfo[] = [
+  { name: "A", x: 1 * UNIT, y: 0, number: 1, signals: [] },
+  { name: "K", x: 1 * UNIT, y: 3 * UNIT, number: 2, signals: [] },
+];
+function diodeSvg(): string {
+  const cx = 1 * UNIT;
+  const topY = 0;
+  const triTop = 1.0 * UNIT;
+  const triBot = 2.0 * UNIT;
+  const botY = 3 * UNIT;
+  const triW = 7;
+  let s = `<svg width="${DIODE_W}" height="${DIODE_H}" style="overflow:visible" xmlns="http://www.w3.org/2000/svg">`;
+  // Anode lead
+  s += `<line x1="${cx}" y1="${topY}" x2="${cx}" y2="${triTop}" stroke="${PIN_COLOR}" stroke-width="1"/>`;
+  // Triangle (points down = conventional current direction)
+  s += `<polygon points="${cx - triW},${triTop} ${cx + triW},${triTop} ${cx},${triBot}" fill="none" stroke="${STROKE}" stroke-width="${STROKE_W}" stroke-linejoin="round"/>`;
+  // Cathode bar
+  s += `<line x1="${cx - triW}" y1="${triBot}" x2="${cx + triW}" y2="${triBot}" stroke="${STROKE}" stroke-width="${STROKE_W}"/>`;
+  // Cathode lead
+  s += `<line x1="${cx}" y1="${triBot}" x2="${cx}" y2="${botY}" stroke="${PIN_COLOR}" stroke-width="1"/>`;
+  s += `</svg>`;
+  return s;
+}
+
+// ──────────────────────────── USB-C Connector ────────────────────────────
+const USBC_W = 4 * UNIT;
+const USBC_H = 5 * UNIT;
+const USBC_PINS: PinInfo[] = [
+  { name: "VBUS", x: 0, y: 1 * UNIT, number: 1, signals: [{ type: "power", signal: "VCC" }] },
+  { name: "D-",   x: 0, y: 2 * UNIT, number: 2, signals: [] },
+  { name: "D+",   x: 0, y: 3 * UNIT, number: 3, signals: [] },
+  { name: "GND",  x: 0, y: 4 * UNIT, number: 4, signals: [{ type: "power", signal: "GND" }] },
+  { name: "CC1",  x: 4 * UNIT, y: 1 * UNIT, number: 5, signals: [] },
+  { name: "CC2",  x: 4 * UNIT, y: 2 * UNIT, number: 6, signals: [] },
+  { name: "SBU1", x: 4 * UNIT, y: 3 * UNIT, number: 7, signals: [] },
+  { name: "SHLD", x: 4 * UNIT, y: 4 * UNIT, number: 8, signals: [{ type: "power", signal: "GND" }] },
+];
+function usbcSvg(): string {
+  const w = USBC_W;
+  const h = USBC_H;
+  const bx = 0.8 * UNIT;
+  const bw = w - 1.6 * UNIT;
+  const by = 0.3 * UNIT;
+  const bh = h - 0.6 * UNIT;
+  const stubLen = 0.8 * UNIT;
+  let s = `<svg width="${w}" height="${h}" style="overflow:visible" xmlns="http://www.w3.org/2000/svg">`;
+  // Body
+  s += `<rect x="${bx}" y="${by}" width="${bw}" height="${bh}" rx="3" fill="#3a3d42" stroke="${STROKE}" stroke-width="${STROKE_W}"/>`;
+  // USB icon
+  s += `<text x="${w / 2}" y="${h / 2 - 2}" text-anchor="middle" dominant-baseline="middle" fill="#aaa" font-size="5" font-family="monospace" font-weight="600">USB-C</text>`;
+  s += `<text x="${w / 2}" y="${h / 2 + 5}" text-anchor="middle" dominant-baseline="middle" fill="#666" font-size="3.5" font-family="monospace">Type-C</text>`;
+  // Left pins
+  for (let i = 1; i <= 4; i++) {
+    const py = i * UNIT;
+    s += `<line x1="0" y1="${py}" x2="${bx}" y2="${py}" stroke="${PIN_COLOR}" stroke-width="1"/>`;
+  }
+  // Right pins
+  for (let i = 1; i <= 4; i++) {
+    const py = i * UNIT;
+    s += `<line x1="${w - bx}" y1="${py}" x2="${w}" y2="${py}" stroke="${PIN_COLOR}" stroke-width="1"/>`;
+  }
+  s += `</svg>`;
+  return s;
+}
+
 // ──────────────────────────── Registration ────────────────────────────
 
 interface GateDef {
@@ -457,6 +575,10 @@ const GATE_DEFS: GateDef[] = [
   { tag: "wokwi-junction",        pins: JUNC_PINS, svgFn: juncSvg,  width: JUNC_SIZE, height: JUNC_SIZE },
   { tag: "wokwi-gnd",             pins: GND_PINS,  svgFn: gndSvg,   width: GND_W,   height: GND_H },
   { tag: "wokwi-vcc",             pins: VCC_PINS,  svgFn: vccSvg,   width: VCC_W,   height: VCC_H },
+  { tag: "sb-capacitor",           pins: CAP_PINS,  svgFn: capSvg,   width: CAP_W,   height: CAP_H },
+  { tag: "sb-crystal",             pins: XTAL_PINS, svgFn: xtalSvg,  width: XTAL_W,  height: XTAL_H },
+  { tag: "sb-diode",               pins: DIODE_PINS, svgFn: diodeSvg, width: DIODE_W, height: DIODE_H },
+  { tag: "sb-usb-c",               pins: USBC_PINS, svgFn: usbcSvg,  width: USBC_W,  height: USBC_H },
 ];
 
 // ──────────────────────────── Text element ────────────────────────────

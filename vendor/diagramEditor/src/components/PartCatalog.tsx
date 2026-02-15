@@ -94,6 +94,16 @@ const CATALOG: Category[] = [
     ],
   },
   {
+    name: "Sparkbench",
+    parts: [
+      { type: "sb-atmega328", label: "ATmega328P" },
+      { type: "sb-capacitor", label: "Capacitor" },
+      { type: "sb-crystal", label: "Crystal Oscillator" },
+      { type: "sb-diode", label: "Diode" },
+      { type: "sb-usb-c", label: "USB-C Connector" },
+    ],
+  },
+  {
     name: "ICs",
     parts: [
       { type: "wokwi-74hc595", label: "74HC595 Shift Register" },
