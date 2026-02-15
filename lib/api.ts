@@ -51,11 +51,11 @@ export async function fetchSketch(slug: string): Promise<SketchResponse> {
   return res.json();
 }
 
-export async function saveSketch(slug: string, code: string): Promise<void> {
+export async function saveSketch(slug: string, code: string, files?: { name: string; content: string }[]): Promise<void> {
   const res = await fetch(`/api/projects/${slug}/sketch`, {
     method: "PUT",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ sketch: code }),
+    body: JSON.stringify({ sketch: code, files }),
   });
   if (!res.ok) throw new Error(`Failed to save sketch: ${res.statusText}`);
 }

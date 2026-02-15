@@ -23,10 +23,15 @@ interface WorkbenchProps {
   onPause: () => void;
   onResume: () => void;
   onRestart: () => void;
+  projectFiles: { name: string; content: string }[];
   onSketchChange: (code: string) => void;
   onDiagramChange: (json: string) => void;
   onPcbChange: (text: string) => void;
   onPcbSave: (text: string) => void;
+  onAddFile: (name: string) => void;
+  onDeleteFile: (name: string) => void;
+  onRenameFile: (oldName: string, newName: string) => void;
+  onFileContentChange: (name: string, content: string) => void;
   onAddPart: (partType: string) => void;
   onPartMove: (partId: string, top: number, left: number) => void;
   onAddConnection: (conn: DiagramConnection) => void;
@@ -66,10 +71,15 @@ export default function Workbench({
   onPause,
   onResume,
   onRestart,
+  projectFiles,
   onSketchChange,
   onDiagramChange,
   onPcbChange,
   onPcbSave,
+  onAddFile,
+  onDeleteFile,
+  onRenameFile,
+  onFileContentChange,
   onAddPart,
   onPartMove,
   onAddConnection,
@@ -104,9 +114,14 @@ export default function Workbench({
               sketchCode={sketchCode}
               diagramJson={diagramJson}
               pcbText={pcbText}
+              projectFiles={projectFiles}
               onSketchChange={onSketchChange}
               onDiagramChange={onDiagramChange}
               onPcbChange={onPcbChange}
+              onAddFile={onAddFile}
+              onDeleteFile={onDeleteFile}
+              onRenameFile={onRenameFile}
+              onFileContentChange={onFileContentChange}
             />
           }
           right={

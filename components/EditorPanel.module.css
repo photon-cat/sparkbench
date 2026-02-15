@@ -9,3 +9,111 @@
   flex: 1;
   overflow: hidden;
 }
+
+/* File tab bar */
+.fileTabs {
+  display: flex;
+  align-items: stretch;
+  background: #2a2a2a;
+  height: 32px;
+  border-bottom: 1px solid var(--separator-border);
+  overflow-x: auto;
+  user-select: none;
+}
+
+.fileTab {
+  display: flex;
+  align-items: center;
+  padding: 0 12px;
+  font-size: 12px;
+  font-weight: 400;
+  color: #999;
+  background: transparent;
+  border: none;
+  border-right: 1px solid var(--separator-border);
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 0.15s, color 0.15s;
+  height: 100%;
+  font-family: inherit;
+}
+
+.fileTab:hover {
+  color: #ccc;
+  background: #333;
+}
+
+.fileTabActive {
+  background: var(--wokwi-green);
+  color: white;
+  font-weight: 500;
+}
+
+.fileTabActive:hover {
+  background: var(--wokwi-green-hover);
+}
+
+.addFileBtn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  font-size: 16px;
+  font-weight: 600;
+  color: #888;
+  background: transparent;
+  border: none;
+  border-right: 1px solid var(--separator-border);
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+  height: 100%;
+}
+
+.addFileBtn:hover {
+  color: #ccc;
+  background: #333;
+}
+
+.renameWrap {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.renameInput {
+  width: 100px;
+  height: 20px;
+  font-size: 11px;
+  font-family: monospace;
+  background: #1e1e1e;
+  color: #ddd;
+  border: 1px solid #555;
+  border-radius: 2px;
+  padding: 0 4px;
+  outline: none;
+}
+
+.renameInput:focus {
+  border-color: var(--wokwi-green);
+}
+
+.deleteBtn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  font-size: 14px;
+  line-height: 1;
+  color: #999;
+  background: transparent;
+  border: none;
+  border-radius: 2px;
+  cursor: pointer;
+  padding: 0;
+}
+
+.deleteBtn:hover {
+  color: #ff4444;
+  background: rgba(255, 68, 68, 0.15);
+}

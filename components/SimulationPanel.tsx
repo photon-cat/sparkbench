@@ -108,6 +108,13 @@ export default function SimulationPanel({
     { id: "description", label: "Description" },
   ], []);
 
+  const handleTabChange = useCallback((tabId: string) => {
+    if (tabId !== "simulation" && (status === "running" || status === "paused")) {
+      onStop();
+    }
+    setActiveTab(tabId);
+  }, [status, onStop]);
+
   const handleToolChange = useCallback((tool: ToolType) => {
     setActiveTool(tool);
   }, []);
@@ -134,7 +141,7 @@ export default function SimulationPanel({
 
   return (
     <div className={styles.panel}>
-      <Tabs tabs={simTabs} activeId={activeTab} onTabChange={setActiveTab} />
+      <Tabs tabs={simTabs} activeId={activeTab} onTabChange={handleTabChange} />
       <div className={styles.body}>
         {activeTab === "simulation" ? (
           <>

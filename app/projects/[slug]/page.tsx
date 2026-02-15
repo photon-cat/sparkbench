@@ -569,6 +569,30 @@ export default function ProjectPage() {
     if (loadedRef.current) setDirty(true);
   }, []);
 
+  const handleAddFile = useCallback((name: string) => {
+    setProjectFiles((prev) => [...prev, { name, content: "" }]);
+    setDirty(true);
+  }, []);
+
+  const handleDeleteFile = useCallback((name: string) => {
+    setProjectFiles((prev) => prev.filter((f) => f.name !== name));
+    setDirty(true);
+  }, []);
+
+  const handleRenameFile = useCallback((oldName: string, newName: string) => {
+    setProjectFiles((prev) =>
+      prev.map((f) => (f.name === oldName ? { ...f, name: newName } : f)),
+    );
+    setDirty(true);
+  }, []);
+
+  const handleFileContentChange = useCallback((name: string, content: string) => {
+    setProjectFiles((prev) =>
+      prev.map((f) => (f.name === name ? { ...f, content } : f)),
+    );
+    if (loadedRef.current) setDirty(true);
+  }, []);
+
   const handlePcbSave = useCallback(async (text: string) => {
     if (!slug) return;
     try {
@@ -610,7 +634,7 @@ export default function ProjectPage() {
     try {
       const promises: Promise<void>[] = [
         saveDiagram(slug, diagramJson),
-        saveSketch(slug, sketchCode),
+        saveSketch(slug, sketchCode, projectFiles),
       ];
       if (pcbText !== null) {
         promises.push(savePCB(slug, pcbText));
@@ -621,7 +645,7 @@ export default function ProjectPage() {
     } catch (err) {
       console.error("Save error:", err);
     }
-  }, [slug, diagramJson, sketchCode, pcbText]);
+  }, [slug, diagramJson, sketchCode, pcbText, projectFiles]);
 
   const handleImportWokwi = useCallback((json: unknown) => {
     const imported = importWokwi(json);
@@ -845,10 +869,15 @@ export default function ProjectPage() {
         onPause={handlePause}
         onResume={handleResume}
         onRestart={handleRestart}
+        projectFiles={projectFiles}
         onSketchChange={handleSketchChange}
         onDiagramChange={handleDiagramChange}
         onPcbChange={handlePcbChange}
         onPcbSave={handlePcbSave}
+        onAddFile={handleAddFile}
+        onDeleteFile={handleDeleteFile}
+        onRenameFile={handleRenameFile}
+        onFileContentChange={handleFileContentChange}
         onAddPart={handleAddPart}
         onPartMove={handlePartMove}
         onAddConnection={handleAddConnection}
