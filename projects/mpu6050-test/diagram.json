@@ -1,0 +1,15 @@
+{
+  "version": 1,
+  "author": "sparkbench",
+  "editor": "sparkbench",
+  "parts": [
+    { "type": "wokwi-arduino-uno", "id": "uno", "top": 200, "left": 15, "attrs": {} },
+    { "type": "wokwi-mpu6050", "id": "mpu1", "top": 20, "left": 100, "attrs": {} }
+  ],
+  "connections": [
+    ["mpu1:SDA", "uno:A4", "green", []],
+    ["mpu1:SCL", "uno:A5", "blue", []],
+    ["mpu1:VCC", "uno:5V", "red", []],
+    ["mpu1:GND", "uno:GND.1", "black", []]
+  ]
+}

@@ -33,16 +33,26 @@ export class SSD1306Controller implements TWIEventHandler {
 
   // Rendering
   private dirty = false;
-  private imageData: ImageData;
+  private imageData: ImageData | null = null;
   private rafId: number | null = null;
 
-  onFrameReady: ((imageData: ImageData) => void) | null = null;
+  private _onFrameReady: ((imageData: ImageData) => void) | null = null;
+
+  get onFrameReady() { return this._onFrameReady; }
+  set onFrameReady(cb: ((imageData: ImageData) => void) | null) {
+    this._onFrameReady = cb;
+    // If GDDRAM has pending data, deliver it now
+    if (cb && this.dirty) this.scheduleRender();
+  }
 
   constructor(
     private twi: AVRTWI,
     private address = SSD1306_DEFAULT_ADDR,
   ) {
-    this.imageData = new ImageData(SCREEN_WIDTH, SCREEN_HEIGHT);
+    // ImageData is only available in browser environments
+    if (typeof ImageData !== "undefined") {
+      this.imageData = new ImageData(SCREEN_WIDTH, SCREEN_HEIGHT);
+    }
   }
 
   // --- TWIEventHandler ---
@@ -206,8 +216,19 @@ export class SSD1306Controller implements TWIEventHandler {
 
   // --- Rendering ---
 
+  /** Read the raw GDDRAM buffer (for headless testing). */
+  get gddramBuffer(): Uint8Array {
+    return this.gddram;
+  }
+
   private scheduleRender(): void {
+    if (!this.imageData) return;
     if (this.rafId !== null) return;
+    if (typeof requestAnimationFrame === "undefined") {
+      // Headless: render synchronously
+      this.renderToImageData();
+      return;
+    }
     this.rafId = requestAnimationFrame(() => {
       this.rafId = null;
       this.renderToImageData();
@@ -215,7 +236,15 @@ export class SSD1306Controller implements TWIEventHandler {
   }
 
   private renderToImageData(): void {
-    if (!this.dirty) return;
+    if (!this.dirty || !this.imageData) return;
+
+    // Don't clear dirty until we can deliver the frame — avoids race
+    // where simulation fills GDDRAM before onFrameReady is wired up.
+    if (!this.onFrameReady) {
+      this.rafId = null;
+      return;
+    }
+
     this.dirty = false;
 
     const data = this.imageData.data;
@@ -235,7 +264,7 @@ export class SSD1306Controller implements TWIEventHandler {
       }
     }
 
-    this.onFrameReady?.(this.imageData);
+    this.onFrameReady(this.imageData);
   }
 
   dispose(): void {

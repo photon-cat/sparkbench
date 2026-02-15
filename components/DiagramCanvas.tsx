@@ -29,6 +29,7 @@ import {
 } from "@/lib/constants";
 import { registerDipChips } from "./DipChip";
 import { registerLogicGates } from "./LogicGates";
+import SensorPanel from "./SensorPanel";
 
 let elementsLoaded = false;
 function ensureElementsLoaded(): Promise<void> {
@@ -128,6 +129,7 @@ export default function DiagramCanvas({
   const containerRef = useRef<HTMLDivElement>(null);
   const elementsRef = useRef<Map<string, HTMLElement>>(new Map());
   const wiredRef = useRef<Map<string, WiredComponent>>(new Map());
+  const [sensorEntries, setSensorEntries] = useState<{ id: string; type: string; wc: WiredComponent }[]>([]);
   const [ready, setReady] = useState(false);
   const [wires, setWires] = useState<RenderedWire[]>([]);
   const [allPins, setAllPins] = useState<CanvasPin[]>([]);
@@ -688,13 +690,24 @@ export default function DiagramCanvas({
     const wired = wireComponents(runner, diagram, mcuId);
     wiredRef.current = wired;
 
+    // Collect sensor parts for SensorPanel
+    const sensors: { id: string; type: string; wc: WiredComponent }[] = [];
+    for (const [id, wc] of wired) {
+      if (wc.part.type === "wokwi-dht22" || wc.part.type === "wokwi-mpu6050") {
+        sensors.push({ id, type: wc.part.type, wc });
+      }
+    }
+    setSensorEntries(sensors);
+
     for (const [id, wc] of wired) {
       const el = elementsRef.current.get(id);
       if (!el) continue;
       if (wc.part.type === "wokwi-led") wc.onStateChange = (high) => { (el as any).value = high; };
       else if (wc.part.type === "wokwi-buzzer") wc.onStateChange = (high) => { (el as any).hasSignal = high; };
       else if (wc.part.type === "wokwi-arduino-uno") (el as any).ledPower = true;
-      else if (wc.part.type === "wokwi-7segment") {
+      else if (wc.part.type === "wokwi-servo") {
+        wc.onAngleChange = (angle) => { (el as any).angle = angle; };
+      } else if (wc.part.type === "wokwi-7segment") {
         wc.onSegmentChange = (values) => { (el as any).values = values; };
       }
       if (wc.ssd1306) {
@@ -740,6 +753,28 @@ export default function DiagramCanvas({
       }
     }
 
+    // Potentiometer input handling
+    for (const [id, wc] of wired) {
+      if ((wc.part.type !== "wokwi-potentiometer" && wc.part.type !== "wokwi-slide-potentiometer") || !wc.setValue) continue;
+      const el = elementsRef.current.get(id);
+      if (!el) continue;
+      const onInput = () => {
+        wc.setValue!(Math.round((el as any).value));
+      };
+      el.addEventListener("input", onInput);
+    }
+
+    // Rotary encoder handling
+    for (const [id, wc] of wired) {
+      if (wc.part.type !== "wokwi-ky-040") continue;
+      const el = elementsRef.current.get(id);
+      if (!el) continue;
+      el.addEventListener("rotate-cw", () => wc.stepCW?.());
+      el.addEventListener("rotate-ccw", () => wc.stepCCW?.());
+      el.addEventListener("button-press", () => wc.pressEncoderButton?.());
+      el.addEventListener("button-release", () => wc.releaseEncoderButton?.());
+    }
+
     const keyMap = new Map<string, WiredComponent>();
     for (const [, wc] of wired) {
       if (wc.part.type !== "wokwi-pushbutton") continue;
@@ -767,6 +802,7 @@ export default function DiagramCanvas({
         else if (wc.part.type === "wokwi-slide-switch") (el as any).value = 0;
       }
       cleanupWiring(wiredRef.current);
+      setSensorEntries([]);
     };
   }, [runner, diagram]);
 
@@ -1101,6 +1137,11 @@ export default function DiagramCanvas({
                 );
               })}
             </svg>
+
+            {/* Sensor sliders during simulation */}
+            {simRunning && sensorEntries.length > 0 && (
+              <SensorPanel sensors={sensorEntries} />
+            )}
 
             {/* Pin tooltip */}
             {hoveredPin && (

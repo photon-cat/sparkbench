@@ -1,0 +1,22 @@
+name: "SSD1306 checkerboard display test"
+version: 1
+steps:
+  # Wait for setup() to complete — it fills the display via I2C
+  - delay: 2000
+
+  # Verify GDDRAM is fully filled (1024 bytes for 128x64 display)
+  - expect-display:
+      part-id: oled1
+      min-filled: 1024
+
+  # Verify checkerboard pattern: alternating 0x55 and 0xAA bytes
+  - expect-display:
+      part-id: oled1
+      pattern: "55 aa 55 aa 55 aa 55 aa"
+      offset: 0
+
+  # Verify pattern continues further in
+  - expect-display:
+      part-id: oled1
+      pattern: "55 aa 55 aa"
+      offset: 512

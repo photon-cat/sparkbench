@@ -1,0 +1,19 @@
+name: "DHT22 temperature/humidity test"
+version: 1
+steps:
+  # Default values: 22.0°C, 50.0%
+  - wait-serial: "T:220 H:500"
+
+  # Change temperature to 30.5°C
+  - set-control:
+      part-id: dht1
+      control: temperature
+      value: 30.5
+  - wait-serial: "T:305 H:500"
+
+  # Change humidity to 75.2%
+  - set-control:
+      part-id: dht1
+      control: humidity
+      value: 75.2
+  - wait-serial: "T:305 H:752"

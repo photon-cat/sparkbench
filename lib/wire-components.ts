@@ -10,6 +10,11 @@ import { mapArduinoPin, mapAtmega328Pin, getPort, PinInfo } from "./pin-mapping"
 import { SSD1306Controller } from "./ssd1306-controller";
 import { HC165Simulator } from "./hc165-sim";
 import { HC595Chip, HC595Chain } from "./hc595-sim";
+import { ServoSimulator } from "./servo-sim";
+import { I2CBus } from "./i2c-bus";
+import { DHT22Simulator } from "./dht22-sim";
+import { MPU6050Controller } from "./mpu6050-sim";
+import { EncoderSimulator } from "./encoder-sim";
 
 export interface WiredComponent {
   part: DiagramPart;
@@ -19,8 +24,28 @@ export interface WiredComponent {
   setPressed?: (pressed: boolean) => void;
   /** Called to set slide switch state (true = toggled/ON position) */
   setState?: (on: boolean) => void;
+  /** Called to set analog value (0-1023) for potentiometers */
+  setValue?: (value: number) => void;
   /** Called with 8-element array for 7-segment display [a,b,c,d,e,f,g,dp] */
   onSegmentChange?: (values: number[]) => void;
+  /** Called when servo angle changes (0-180°) */
+  onAngleChange?: (angle: number) => void;
+  /** Set DHT22 temperature (°C) */
+  setTemperature?: (celsius: number) => void;
+  /** Set DHT22 humidity (%) */
+  setHumidity?: (percent: number) => void;
+  /** Set MPU6050 accelerometer (g) */
+  setAccel?: (x: number, y: number, z: number) => void;
+  /** Set MPU6050 gyroscope (°/s) */
+  setGyro?: (x: number, y: number, z: number) => void;
+  /** Encoder: step clockwise */
+  stepCW?: () => void;
+  /** Encoder: step counter-clockwise */
+  stepCCW?: () => void;
+  /** Encoder: press button */
+  pressEncoderButton?: () => void;
+  /** Encoder: release button */
+  releaseEncoderButton?: () => void;
   /** SSD1306 controller — set onFrameReady to receive display updates */
   ssd1306?: SSD1306Controller;
   /** Cleanup listener */
@@ -127,16 +152,43 @@ export function wireComponents(
       };
       port.addListener(listener);
       wc.cleanup = () => port.removeListener(listener);
+    } else if (part.type === "wokwi-servo") {
+      // Servo: measure PWM pulse width on the signal pin
+      const servo = new ServoSimulator(runner, pinInfo);
+      servo.onAngleChange = (angle) => wc.onAngleChange?.(angle);
+      wc.cleanup = () => servo.dispose();
+    } else if (part.type === "wokwi-dht22") {
+      // DHT22: one-wire protocol on the SDA pin
+      const dht = new DHT22Simulator(runner, pinInfo);
+      wc.setTemperature = (c: number) => dht.setTemperature(c);
+      wc.setHumidity = (h: number) => dht.setHumidity(h);
+      wc.cleanup = () => dht.dispose();
+    } else if (part.type === "wokwi-potentiometer" || part.type === "wokwi-slide-potentiometer") {
+      // Potentiometer: analog input via ADC
+      // SIG pin connects to an analog pin (A0-A5 = portC 0-5 = ADC channel 0-5)
+      if (pinInfo.port === "portC" && pinInfo.pin <= 5) {
+        const channel = pinInfo.pin;
+        const initialValue = parseInt(part.attrs.value || "0", 10);
+        // ADC channelValues are in volts (0-5V). Map 0-1023 to 0-5V.
+        runner.adc.channelValues[channel] = (initialValue / 1023) * 5;
+        wc.setValue = (value: number) => {
+          runner.adc.channelValues[channel] = (Math.max(0, Math.min(1023, value)) / 1023) * 5;
+        };
+      }
     }
 
     wired.set(part.id, wc);
   }
 
   // --- I2C components ---
+  const i2cBus = new I2CBus(runner.twi);
+  let hasI2C = false;
+
   for (const part of diagram.parts) {
     if (part.type === "wokwi-ssd1306") {
       const controller = new SSD1306Controller(runner.twi);
-      runner.twi.eventHandler = controller;
+      i2cBus.addDevice(0x3c, controller);
+      hasI2C = true;
       wired.set(part.id, {
         part,
         ssd1306: controller,
@@ -145,11 +197,32 @@ export function wireComponents(
     }
   }
 
+  for (const part of diagram.parts) {
+    if (part.type === "wokwi-mpu6050") {
+      const controller = new MPU6050Controller(runner.twi);
+      i2cBus.addDevice(0x68, controller);
+      hasI2C = true;
+      wired.set(part.id, {
+        part,
+        setAccel: (x, y, z) => controller.setAccel(x, y, z),
+        setGyro: (x, y, z) => controller.setGyro(x, y, z),
+        cleanup: () => {},
+      });
+    }
+  }
+
+  if (hasI2C) {
+    runner.twi.eventHandler = i2cBus;
+  }
+
   // --- 74HC165 shift registers ---
   wireHC165(runner, diagram, resolvedMcuId!, pinMapper, wired);
 
   // --- 74HC595 shift registers ---
   wireHC595(runner, diagram, resolvedMcuId!, pinMapper, wired);
+
+  // --- Rotary encoders ---
+  wireEncoders(runner, diagram, resolvedMcuId!, pinMapper, wired);
 
   return wired;
 }
@@ -401,6 +474,52 @@ function wireHC595Outputs(
       segWc.onSegmentChange(values);
     }
   };
+}
+
+/**
+ * Detect and wire KY-040 rotary encoder parts.
+ * Traces connections to find MCU pins for CLK, DT, and SW.
+ */
+function wireEncoders(
+  runner: AVRRunner,
+  diagram: Diagram,
+  mcuId: string,
+  pinMapper: (name: string) => PinInfo | null,
+  wired: Map<string, WiredComponent>,
+) {
+  for (const part of diagram.parts) {
+    if (part.type !== "wokwi-ky-040") continue;
+
+    const conns = findPartConnections(diagram, part.id);
+
+    const resolveMcuPin = (pinName: string): PinInfo | null => {
+      const targets = conns.get(pinName);
+      if (!targets) return null;
+      for (const ref of targets) {
+        const [refPart, refPin] = ref.split(":");
+        if (refPart === mcuId) return pinMapper(refPin);
+      }
+      return null;
+    };
+
+    const clkPin = resolveMcuPin("CLK");
+    const dtPin = resolveMcuPin("DT");
+    if (!clkPin || !dtPin) continue;
+
+    const swPin = resolveMcuPin("SW");
+
+    const encoder = new EncoderSimulator(runner, clkPin, dtPin, swPin);
+
+    const wc: WiredComponent = {
+      part,
+      stepCW: () => encoder.stepCW(),
+      stepCCW: () => encoder.stepCCW(),
+      pressEncoderButton: () => encoder.pressButton(),
+      releaseEncoderButton: () => encoder.releaseButton(),
+      cleanup: () => encoder.dispose(),
+    };
+    wired.set(part.id, wc);
+  }
 }
 
 /** Cleanup all listeners. */

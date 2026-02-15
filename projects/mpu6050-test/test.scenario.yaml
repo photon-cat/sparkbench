@@ -1,0 +1,15 @@
+name: "MPU6050 accelerometer/gyroscope test"
+version: 1
+steps:
+  # WHO_AM_I should return 0x68
+  - wait-serial: "WHO:68"
+
+  # Default accel: 0g, 0g, 1g → raw 0, 0, 16384
+  - wait-serial: "A:0,0,16384"
+
+  # Change accel to 1g, -0.5g, 0g
+  - set-control:
+      part-id: mpu1
+      control: accel
+      value: "1,-0.5,0"
+  - wait-serial: "A:16384,-8192,0"

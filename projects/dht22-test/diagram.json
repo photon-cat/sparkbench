@@ -1,0 +1,14 @@
+{
+  "version": 1,
+  "author": "sparkbench",
+  "editor": "sparkbench",
+  "parts": [
+    { "type": "wokwi-arduino-uno", "id": "uno", "top": 200, "left": 15, "attrs": {} },
+    { "type": "wokwi-dht22", "id": "dht1", "top": 20, "left": 100, "attrs": {} }
+  ],
+  "connections": [
+    ["dht1:SDA", "uno:2", "green", []],
+    ["dht1:VCC", "uno:5V", "red", []],
+    ["dht1:GND", "uno:GND.1", "black", []]
+  ]
+}

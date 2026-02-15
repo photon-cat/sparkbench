@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useCallback } from "react";
+import { useState, useRef, useCallback, useEffect } from "react";
 import type { Diagram } from "@/lib/diagram-parser";
 import type { AVRRunner } from "@/lib/avr-runner";
 import { buildProject } from "@/lib/api";
@@ -68,16 +68,25 @@ export function useSimulation({
         setSerialOutput((prev) => prev + String.fromCharCode(byte));
       };
 
+      needsStartRef.current = true;
       setRunner(newRunner);
       setStatus("running");
-
-      newRunner.execute(() => {});
     } catch (err) {
       setStatus("error");
       const msg = err instanceof Error ? err.message : String(err);
       setSerialOutput(`Error: ${msg}\n`);
     }
   }, [diagram, sketchCode, slug, projectFiles, board]);
+
+  // Start execution after React renders and child effects (wiring) complete.
+  // React runs child useEffects before parent useEffects, so DiagramCanvas's
+  // wireComponents() will have run before this effect fires.
+  const needsStartRef = useRef(false);
+  useEffect(() => {
+    if (!runner || !needsStartRef.current) return;
+    needsStartRef.current = false;
+    runner.execute(() => {});
+  }, [runner]);
 
   const handleStop = useCallback(() => {
     if (runnerRef.current) {

@@ -1,0 +1,26 @@
+name: "Rotary encoder test"
+version: 1
+steps:
+  # Rotate CW once
+  - set-control:
+      part-id: encoder1
+      control: rotate-cw
+      value: 1
+  - delay: 50
+  - wait-serial: "Direction: CW | Counter: 1"
+
+  # Rotate CW again
+  - set-control:
+      part-id: encoder1
+      control: rotate-cw
+      value: 1
+  - delay: 50
+  - wait-serial: "Counter: 2"
+
+  # Rotate CCW
+  - set-control:
+      part-id: encoder1
+      control: rotate-ccw
+      value: 1
+  - delay: 50
+  - wait-serial: "Direction: CCW | Counter: 1"

@@ -1,0 +1,7 @@
+name: "Servo motor angle test"
+version: 1
+steps:
+  - wait-serial: "ANGLE:0"
+  - wait-serial: "ANGLE:90"
+  - wait-serial: "ANGLE:180"
+  - wait-serial: "ANGLE:45"

@@ -33,7 +33,18 @@ interface StepExpectSerial {
   "expect-serial": string;
 }
 
-type ScenarioStep = StepDelay | StepSetControl | StepWaitSerial | StepExpectSerial;
+interface StepExpectDisplay {
+  "expect-display": {
+    "part-id": string;
+    /** Check that at least this many bytes are non-zero in GDDRAM */
+    "min-filled"?: number;
+    /** Hex pattern to match at a specific byte offset, e.g. "55 aa 55 aa" */
+    pattern?: string;
+    offset?: number;
+  };
+}
+
+type ScenarioStep = StepDelay | StepSetControl | StepWaitSerial | StepExpectSerial | StepExpectDisplay;
 
 export interface Scenario {
   name: string;
@@ -135,6 +146,26 @@ function executeStep(
       wc.setState(!!value);
     } else if (control === "pressed" && wc.setPressed) {
       wc.setPressed(!!value);
+    } else if (control === "position" && wc.setValue) {
+      // Potentiometer: position is 0.0-1.0, maps to 0-1023
+      wc.setValue(Math.round(Number(value) * 1023));
+    } else if (control === "temperature" && wc.setTemperature) {
+      wc.setTemperature(Number(value));
+    } else if (control === "humidity" && wc.setHumidity) {
+      wc.setHumidity(Number(value));
+    } else if (control === "accel" && wc.setAccel) {
+      // value is "x,y,z" string
+      const [x, y, z] = String(value).split(",").map(Number);
+      wc.setAccel(x, y, z);
+    } else if (control === "gyro" && wc.setGyro) {
+      const [x, y, z] = String(value).split(",").map(Number);
+      wc.setGyro(x, y, z);
+    } else if (control === "rotate-cw" && wc.stepCW) {
+      const steps = Number(value) || 1;
+      for (let i = 0; i < steps; i++) wc.stepCW();
+    } else if (control === "rotate-ccw" && wc.stepCCW) {
+      const steps = Number(value) || 1;
+      for (let i = 0; i < steps; i++) wc.stepCCW();
     } else {
       return {
         step: index,
@@ -195,6 +226,73 @@ function executeStep(
       description: `expect-serial "${expected}"`,
       passed: false,
       error: `Serial output does not contain "${expected}". Got:\n${serial}`,
+    };
+  }
+
+  if ("expect-display" in step) {
+    const { "part-id": partId, "min-filled": minFilled, pattern, offset } = step["expect-display"];
+    const wc = wired.get(partId);
+    if (!wc) {
+      return {
+        step: index,
+        description: `expect-display ${partId}`,
+        passed: false,
+        error: `Part "${partId}" not found`,
+      };
+    }
+
+    if (!wc.ssd1306) {
+      return {
+        step: index,
+        description: `expect-display ${partId}`,
+        passed: false,
+        error: `Part "${partId}" is not an SSD1306 display`,
+      };
+    }
+
+    const gddram = wc.ssd1306.gddramBuffer;
+
+    // Check min-filled
+    if (minFilled !== undefined) {
+      let nonZero = 0;
+      for (let i = 0; i < gddram.length; i++) {
+        if (gddram[i] !== 0) nonZero++;
+      }
+      if (nonZero < minFilled) {
+        return {
+          step: index,
+          description: `expect-display ${partId} min-filled=${minFilled}`,
+          passed: false,
+          error: `Only ${nonZero} non-zero bytes in GDDRAM (expected >= ${minFilled})`,
+        };
+      }
+    }
+
+    // Check pattern at offset
+    if (pattern !== undefined) {
+      const patternBytes = pattern.split(/\s+/).map((h) => parseInt(h, 16));
+      const off = offset ?? 0;
+      for (let i = 0; i < patternBytes.length; i++) {
+        if (gddram[off + i] !== patternBytes[i]) {
+          const actual = Array.from(gddram.slice(off, off + patternBytes.length))
+            .map((b) => b.toString(16).padStart(2, "0"))
+            .join(" ");
+          return {
+            step: index,
+            description: `expect-display ${partId} pattern at offset ${off}`,
+            passed: false,
+            error: `Pattern mismatch at offset ${off + i}. Expected: ${pattern}, Got: ${actual}`,
+          };
+        }
+      }
+    }
+
+    return {
+      step: index,
+      description: `expect-display ${partId}` +
+        (minFilled !== undefined ? ` min-filled=${minFilled}` : "") +
+        (pattern !== undefined ? ` pattern="${pattern}"` : ""),
+      passed: true,
     };
   }
 

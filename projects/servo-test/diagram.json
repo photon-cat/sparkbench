@@ -1,0 +1,14 @@
+{
+  "version": 1,
+  "author": "sparkbench",
+  "editor": "sparkbench",
+  "parts": [
+    { "type": "wokwi-arduino-uno", "id": "uno", "top": 200, "left": 15, "attrs": {} },
+    { "type": "wokwi-servo", "id": "servo1", "top": 20, "left": 100, "attrs": {} }
+  ],
+  "connections": [
+    ["servo1:PWM", "uno:9", "green", []],
+    ["servo1:V+", "uno:5V", "red", []],
+    ["servo1:GND", "uno:GND.1", "black", []]
+  ]
+}

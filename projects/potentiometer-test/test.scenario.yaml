@@ -1,0 +1,29 @@
+name: "Potentiometer ADC test"
+version: 1
+steps:
+  # Initial position is 0 — should read near 0
+  - wait-serial: "ADC:0"
+
+  # Move potentiometer to middle (0.5 = 512)
+  - set-control:
+      part-id: pot1
+      control: position
+      value: 0.5
+  - delay: 200
+  - wait-serial: "ADC:512"
+
+  # Move potentiometer to max (1.0 = 1023)
+  - set-control:
+      part-id: pot1
+      control: position
+      value: 1.0
+  - delay: 200
+  - wait-serial: "ADC:1023"
+
+  # Move potentiometer to quarter (0.25 ≈ 256)
+  - set-control:
+      part-id: pot1
+      control: position
+      value: 0.25
+  - delay: 200
+  - wait-serial: "ADC:256"
