@@ -726,6 +726,14 @@ export default function DiagramCanvas({
     return () => {
       window.removeEventListener("keydown", handleKeyDown);
       window.removeEventListener("keyup", handleKeyUp);
+      // Reset visual state of all wired components
+      for (const [id, wc] of wiredRef.current) {
+        const el = elementsRef.current.get(id);
+        if (!el) continue;
+        if (wc.part.type === "wokwi-led") (el as any).value = false;
+        else if (wc.part.type === "wokwi-buzzer") (el as any).hasSignal = false;
+        else if (wc.part.type === "wokwi-arduino-uno") (el as any).ledPower = false;
+      }
       cleanupWiring(wiredRef.current);
     };
   }, [runner, diagram]);
