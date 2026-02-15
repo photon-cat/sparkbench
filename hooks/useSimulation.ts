@@ -93,7 +93,7 @@ export function useSimulation({
 
   const handleResume = useCallback(() => {
     if (runnerRef.current) {
-      runnerRef.current.taskScheduler.start();
+      runnerRef.current.resume();
       runnerRef.current.execute(() => {});
     }
     setStatus("running");

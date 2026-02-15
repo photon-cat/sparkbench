@@ -1,8 +1,5 @@
 "use client";
-
-import { useState } from "react";
 import type { DiagramPart } from "@/lib/diagram-parser";
-import { FOOTPRINT_OPTIONS, getDefaultFootprint } from "@/lib/pcb-footprints";
 
 interface PartAttributePanelProps {
   part: DiagramPart | null;
@@ -71,11 +68,18 @@ const PART_ATTR_DEFS: Record<string, AttrDef[]> = {
     { label: "Digits", attr: "digits", type: "select", options: ["1", "2", "3", "4"] },
     { label: "Colon", attr: "colon", type: "select", options: ["", "1"] },
   ],
+  "wokwi-text": [
+    { label: "Text", attr: "text", type: "text", placeholder: "Enter text..." },
+  ],
+  "wokwi-clock-generator": [
+    { label: "Frequency (Hz)", attr: "frequency", type: "text", placeholder: "10" },
+  ],
   "wokwi-neopixel": [],
   "wokwi-ssd1306": [],
   "wokwi-arduino-uno": [],
   "wokwi-arduino-mega": [],
   "wokwi-arduino-nano": [],
+  "sb-atmega328": [],
 };
 
 const inputStyle: React.CSSProperties = {
@@ -108,22 +112,14 @@ export default function PartAttributePanel({
   onDelete,
   onClose,
 }: PartAttributePanelProps) {
-  const [customFp, setCustomFp] = useState(false);
-
   if (!part) return null;
 
   const attrDefs = PART_ATTR_DEFS[part.type];
-  const friendlyType = part.type.replace("wokwi-", "").replace(/-/g, " ");
-  const fpOptions = FOOTPRINT_OPTIONS[part.type];
-  const defaultFp = getDefaultFootprint(part.type);
-  const currentFp = part.footprint ?? defaultFp ?? "";
-  const showCustomFpInput = customFp || (currentFp && fpOptions && !fpOptions.some((o) => o.value === currentFp));
+  const friendlyType = part.type.replace(/^wokwi-/, "").replace(/^sb-/, "").replace(/-/g, " ");
 
-  // Parts that typically have a meaningful value field
   const hasValue = ["wokwi-resistor", "wokwi-led", "wokwi-buzzer"].includes(part.type) ||
     part.value !== undefined;
 
-  // For unknown part types, show raw attrs
   const showRawAttrs = attrDefs === undefined && Object.keys(part.attrs).length > 0;
 
   return (
@@ -136,8 +132,8 @@ export default function PartAttributePanel({
         border: "1px solid #444",
         borderRadius: 6,
         padding: "10px 12px",
-        minWidth: 180,
-        maxWidth: 240,
+        minWidth: 240,
+        maxWidth: 320,
         zIndex: 20,
         fontFamily: "monospace",
         fontSize: 12,
@@ -145,7 +141,6 @@ export default function PartAttributePanel({
         backdropFilter: "blur(8px)",
       }}
     >
-      {/* Header */}
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
         <div>
           <div style={{ color: "#fff", fontSize: 13, fontWeight: 600 }}>{part.id}</div>
@@ -168,7 +163,6 @@ export default function PartAttributePanel({
         </button>
       </div>
 
-      {/* Value field */}
       {hasValue && (
         <div style={{ marginBottom: 6 }}>
           <label style={{ color: "#999", fontSize: 10, display: "block", marginBottom: 2 }}>Value</label>
@@ -182,49 +176,6 @@ export default function PartAttributePanel({
         </div>
       )}
 
-      {/* Footprint field */}
-      {fpOptions && (
-        <div style={{ marginBottom: 8 }}>
-          <label style={{ color: "#999", fontSize: 10, display: "block", marginBottom: 2 }}>Footprint</label>
-          {showCustomFpInput ? (
-            <div style={{ display: "flex", gap: 4 }}>
-              <input
-                type="text"
-                value={currentFp}
-                placeholder="Custom footprint"
-                onChange={(e) => onAttrChange("__footprint", e.target.value)}
-                style={{ ...inputStyle, flex: 1 }}
-              />
-              <button
-                onClick={() => { setCustomFp(false); onAttrChange("__footprint", defaultFp ?? ""); }}
-                style={{ ...btnStyle, padding: "3px 6px", fontSize: 10 }}
-                title="Reset to list"
-              >
-                Reset
-              </button>
-            </div>
-          ) : (
-            <select
-              value={currentFp}
-              onChange={(e) => {
-                if (e.target.value === "__custom") {
-                  setCustomFp(true);
-                } else {
-                  onAttrChange("__footprint", e.target.value);
-                }
-              }}
-              style={inputStyle}
-            >
-              {fpOptions.map((opt) => (
-                <option key={opt.value} value={opt.value}>{opt.label}</option>
-              ))}
-              <option value="__custom">Custom...</option>
-            </select>
-          )}
-        </div>
-      )}
-
-      {/* Type-specific attributes */}
       {attrDefs && attrDefs.length > 0 && (
         <div style={{ display: "flex", flexDirection: "column", gap: 6, marginBottom: 8 }}>
           {attrDefs.map((def) => (
@@ -256,7 +207,6 @@ export default function PartAttributePanel({
         </div>
       )}
 
-      {/* Generic attrs for unknown parts */}
       {showRawAttrs && (
         <div style={{ display: "flex", flexDirection: "column", gap: 6, marginBottom: 8 }}>
           {Object.entries(part.attrs).map(([key, value]) => (
@@ -275,9 +225,19 @@ export default function PartAttributePanel({
         </div>
       )}
 
-      {/* Actions — always shown */}
+      <div style={{ marginBottom: 6 }}>
+        <label style={{ color: "#999", fontSize: 10, display: "block", marginBottom: 2 }}>Footprint</label>
+        <input
+          type="text"
+          value={part.attrs.footprint ?? ""}
+          placeholder="e.g. 0805, DIP-28"
+          onChange={(e) => onAttrChange("footprint", e.target.value)}
+          style={inputStyle}
+        />
+      </div>
+
       <div style={{ display: "flex", gap: 6, marginTop: 4 }}>
-        <button onClick={() => onRotate(90)} style={btnStyle} title="Rotate 90° (R)">
+        <button onClick={() => onRotate(90)} style={btnStyle} title="Rotate 90 (R)">
           Rotate
         </button>
         <button

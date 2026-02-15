@@ -4,10 +4,50 @@ import { useState, useRef, useCallback, useEffect } from "react";
 import { useParams } from "next/navigation";
 import Toolbar from "@/components/Toolbar";
 import Workbench from "@/components/Workbench";
-import { parseDiagram, type Diagram, type DiagramPart, type DiagramConnection, type DiagramLabel } from "@/lib/diagram-parser";
+import { parseDiagram, type Diagram, type DiagramPart, type DiagramConnection } from "@/lib/diagram-parser";
 import { useSimulation } from "@/hooks/useSimulation";
 import { fetchDiagram, fetchSketch, saveDiagram, saveSketch, fetchPCB, savePCB } from "@/lib/api";
 import { importWokwi, exportToWokwi } from "@/lib/diagram-io";
+
+// Short prefix overrides for generating unique part IDs
+const SHORT_PREFIX: Record<string, string> = {
+  "wokwi-pushbutton": "btn",
+  "wokwi-pushbutton-6mm": "btn",
+  "wokwi-resistor": "r",
+  "wokwi-clock-generator": "clk",
+  "wokwi-junction": "j",
+  "sb-atmega328": "u",
+  "sb-capacitor": "c",
+  "sb-crystal": "y",
+  "sb-diode": "d",
+  "sb-usb-c": "j",
+};
+
+const prefixCounters: Record<string, number> = {};
+
+function typeToPrefix(type: string): string {
+  if (SHORT_PREFIX[type]) return SHORT_PREFIX[type];
+  return type
+    .replace(/^wokwi-/, "")
+    .replace(/^sb-/, "")
+    .replace(/^board-/, "")
+    .replace(/-\d+$/, "")
+    .replace(/-/g, "");
+}
+
+function generatePartId(type: string, existingIds?: Set<string>): string {
+  const prefix = typeToPrefix(type);
+  prefixCounters[prefix] = (prefixCounters[prefix] || 0) + 1;
+  let id = `${prefix}${prefixCounters[prefix]}`;
+  // Ensure uniqueness if existingIds provided
+  if (existingIds) {
+    while (existingIds.has(id)) {
+      prefixCounters[prefix]++;
+      id = `${prefix}${prefixCounters[prefix]}`;
+    }
+  }
+  return id;
+}
 
 export default function ProjectPage() {
   const { slug } = useParams<{ slug: string }>();
@@ -20,10 +60,74 @@ export default function ProjectPage() {
   const [lastSaved, setLastSaved] = useState<Date | null>(null);
   const [dirty, setDirty] = useState(false);
   const [selectedPartId, setSelectedPartId] = useState<string | null>(null);
-  const [selectedLabelId, setSelectedLabelId] = useState<string | null>(null);
   const [placingPartId, setPlacingPartId] = useState<string | null>(null);
-  const [placingLabelId, setPlacingLabelId] = useState<string | null>(null);
-  const labelCounterRef = useRef(1);
+  const [showGrid, setShowGrid] = useState(true);
+
+  // Undo/redo history for diagram state
+  const MAX_HISTORY = 50;
+  const undoStackRef = useRef<{ diagram: Diagram; json: string }[]>([]);
+  const redoStackRef = useRef<{ diagram: Diagram; json: string }[]>([]);
+  const [canUndo, setCanUndo] = useState(false);
+  const [canRedo, setCanRedo] = useState(false);
+  const skipHistoryRef = useRef(false);
+
+  /** Push current diagram state to undo stack before making a change. */
+  const pushUndo = useCallback(() => {
+    if (skipHistoryRef.current) return;
+    const currentDiagram = diagramRef.current;
+    const currentJson = diagramJsonRef.current;
+    if (!currentDiagram) return;
+    undoStackRef.current.push({ diagram: currentDiagram, json: currentJson });
+    if (undoStackRef.current.length > MAX_HISTORY) undoStackRef.current.shift();
+    redoStackRef.current = [];
+    setCanUndo(true);
+    setCanRedo(false);
+  }, []);
+
+  const diagramRef = useRef<Diagram | null>(diagram);
+  diagramRef.current = diagram;
+  const diagramJsonRef = useRef(diagramJson);
+  diagramJsonRef.current = diagramJson;
+
+  /** Wrapped setDiagram that pushes undo history. */
+  const setDiagramWithUndo = useCallback((updater: (prev: Diagram | null) => Diagram | null) => {
+    pushUndo();
+    setDiagram(updater);
+  }, [pushUndo]);
+
+  const handleUndo = useCallback(() => {
+    const entry = undoStackRef.current.pop();
+    if (!entry) return;
+    const currentDiagram = diagramRef.current;
+    const currentJson = diagramJsonRef.current;
+    if (currentDiagram) {
+      redoStackRef.current.push({ diagram: currentDiagram, json: currentJson });
+    }
+    skipHistoryRef.current = true;
+    setDiagram(entry.diagram);
+    setDiagramJson(entry.json);
+    skipHistoryRef.current = false;
+    setCanUndo(undoStackRef.current.length > 0);
+    setCanRedo(true);
+    setDirty(true);
+  }, []);
+
+  const handleRedo = useCallback(() => {
+    const entry = redoStackRef.current.pop();
+    if (!entry) return;
+    const currentDiagram = diagramRef.current;
+    const currentJson = diagramJsonRef.current;
+    if (currentDiagram) {
+      undoStackRef.current.push({ diagram: currentDiagram, json: currentJson });
+    }
+    skipHistoryRef.current = true;
+    setDiagram(entry.diagram);
+    setDiagramJson(entry.json);
+    skipHistoryRef.current = false;
+    setCanUndo(true);
+    setCanRedo(redoStackRef.current.length > 0);
+    setDirty(true);
+  }, []);
 
   const loadedRef = useRef(false);
 
@@ -44,11 +148,22 @@ export default function ProjectPage() {
 
     fetchDiagram(slug)
       .then((data) => {
-        setDiagram(parseDiagram(data.diagram));
+        const parsed = parseDiagram(data.diagram);
+        setDiagram(parsed);
         setDiagramJson(JSON.stringify(data.diagram, null, 2));
         if (data.lastModified) setLastSaved(new Date(data.lastModified));
         loadedRef.current = true;
         setDirty(false);
+
+        // Initialize prefix counters from loaded parts
+        for (const p of parsed.parts) {
+          const match = p.id.match(/^([a-zA-Z_]+)(\d+)$/);
+          if (match) {
+            const prefix = match[1];
+            const num = parseInt(match[2], 10);
+            prefixCounters[prefix] = Math.max(prefixCounters[prefix] || 0, num);
+          }
+        }
       })
       .catch((err) => console.error("Failed to load diagram:", err));
 
@@ -72,37 +187,7 @@ export default function ProjectPage() {
   }, []);
 
   const handleAddPart = useCallback((partType: string) => {
-    // Handle netlabel placement separately
-    if (partType === "netlabel") {
-      const id = `label-${Date.now()}`;
-      const name = `NET${labelCounterRef.current++}`;
-      const label: DiagramLabel = { id, name, pinRef: "", x: -9999, y: -9999 };
-
-      setDiagram((prev) => {
-        if (!prev) return prev;
-        return { ...prev, labels: [...(prev.labels ?? []), label] };
-      });
-
-      setDiagramJson((prev) => {
-        try {
-          const obj = JSON.parse(prev);
-          if (!obj.labels) obj.labels = [];
-          obj.labels.push(label);
-          return JSON.stringify(obj, null, 2);
-        } catch {
-          return prev;
-        }
-      });
-
-      setPlacingLabelId(id);
-      setSelectedLabelId(id);
-      setSelectedPartId(null);
-      setDirty(true);
-      return;
-    }
-
-    const base = partType.replace(/^wokwi-/, "").replace(/-/g, "");
-
+    pushUndo();
     const defaultAttrs: Record<string, Record<string, string>> = {
       "wokwi-led": { color: "red" },
       "wokwi-resistor": { value: "1000" },
@@ -111,19 +196,14 @@ export default function ProjectPage() {
     };
     const attrs = defaultAttrs[partType] ?? {};
 
-    function nextId(existingIds: Set<string>) {
-      let n = 1;
-      while (existingIds.has(base + n)) n++;
-      return base + n;
-    }
-
     let placedId = "";
 
     setDiagram((prev) => {
       if (!prev) return prev;
-      const id = nextId(new Set(prev.parts.map((p) => p.id)));
+      const existingIds = new Set(prev.parts.map((p) => p.id));
+      const id = generatePartId(partType, existingIds);
       placedId = id;
-      const newPart: DiagramPart = { type: partType, id, top: 200, left: 200, attrs };
+      const newPart: DiagramPart = { type: partType, id, top: 0, left: 0, attrs };
       return { ...prev, parts: [...prev.parts, newPart] };
     });
 
@@ -131,8 +211,9 @@ export default function ProjectPage() {
       try {
         const obj = JSON.parse(prev);
         if (!obj.parts) obj.parts = [];
-        const id = nextId(new Set(obj.parts.map((p: any) => p.id)));
-        obj.parts.push({ type: partType, id, top: 200, left: 200, attrs });
+        const existingIds = new Set<string>(obj.parts.map((p: any) => p.id));
+        const id = generatePartId(partType, existingIds);
+        obj.parts.push({ type: partType, id, top: 0, left: 0, attrs });
         return JSON.stringify(obj, null, 2);
       } catch {
         return prev;
@@ -147,6 +228,7 @@ export default function ProjectPage() {
   }, []);
 
   const handlePartMove = useCallback((partId: string, top: number, left: number) => {
+    pushUndo();
     setDiagram((prev) => {
       if (!prev) return prev;
       return {
@@ -177,6 +259,7 @@ export default function ProjectPage() {
   }, []);
 
   const handleAddConnection = useCallback((conn: DiagramConnection) => {
+    pushUndo();
     setDiagram((prev) => {
       if (!prev) return prev;
       return { ...prev, connections: [...prev.connections, conn] };
@@ -197,6 +280,7 @@ export default function ProjectPage() {
   }, []);
 
   const handleDeleteConnection = useCallback((index: number) => {
+    pushUndo();
     setDiagram((prev) => {
       if (!prev) return prev;
       const conns = [...prev.connections];
@@ -220,6 +304,7 @@ export default function ProjectPage() {
   }, []);
 
   const handleUpdateConnection = useCallback((index: number, conn: DiagramConnection) => {
+    pushUndo();
     setDiagram((prev) => {
       if (!prev) return prev;
       const conns = [...prev.connections];
@@ -243,6 +328,7 @@ export default function ProjectPage() {
   }, []);
 
   const handleWireColorChange = useCallback((index: number, color: string) => {
+    pushUndo();
     setDiagram((prev) => {
       if (!prev) return prev;
       const conns = [...prev.connections];
@@ -269,53 +355,6 @@ export default function ProjectPage() {
     setDirty(true);
   }, []);
 
-  const handleUpdateLabel = useCallback((labelId: string, name: string) => {
-    setDiagram((prev) => {
-      if (!prev) return prev;
-      return {
-        ...prev,
-        labels: (prev.labels ?? []).map((l) =>
-          l.id === labelId ? { ...l, name } : l,
-        ),
-      };
-    });
-
-    setDiagramJson((prev) => {
-      try {
-        const obj = JSON.parse(prev);
-        if (obj.labels) {
-          const label = obj.labels.find((l: any) => l.id === labelId);
-          if (label) label.name = name;
-        }
-        return JSON.stringify(obj, null, 2);
-      } catch {
-        return prev;
-      }
-    });
-
-    setDirty(true);
-  }, []);
-
-  const handleAddLabel = useCallback((label: DiagramLabel) => {
-    setDiagram((prev) => {
-      if (!prev) return prev;
-      return { ...prev, labels: [...(prev.labels ?? []), label] };
-    });
-
-    setDiagramJson((prev) => {
-      try {
-        const obj = JSON.parse(prev);
-        if (!obj.labels) obj.labels = [];
-        obj.labels.push(label);
-        return JSON.stringify(obj, null, 2);
-      } catch {
-        return prev;
-      }
-    });
-
-    setDirty(true);
-  }, []);
-
   const handleDiagramChange = useCallback(
     (json: string) => {
       setDiagramJson(json);
@@ -332,64 +371,10 @@ export default function ProjectPage() {
 
   const handlePartSelect = useCallback((partId: string | null) => {
     setSelectedPartId(partId);
-    if (partId) setSelectedLabelId(null);
-  }, []);
-
-  const handleLabelSelect = useCallback((labelId: string | null) => {
-    setSelectedLabelId(labelId);
-    if (labelId) setSelectedPartId(null);
-  }, []);
-
-  const handleDeleteLabel = useCallback((labelId: string) => {
-    setDiagram((prev) => {
-      if (!prev) return prev;
-      return { ...prev, labels: (prev.labels ?? []).filter((l) => l.id !== labelId) };
-    });
-
-    setDiagramJson((prev) => {
-      try {
-        const obj = JSON.parse(prev);
-        if (obj.labels) {
-          obj.labels = obj.labels.filter((l: any) => l.id !== labelId);
-        }
-        return JSON.stringify(obj, null, 2);
-      } catch {
-        return prev;
-      }
-    });
-
-    setSelectedLabelId(null);
-    setDirty(true);
-  }, []);
-
-  const handleMoveLabel = useCallback((labelId: string, x: number, y: number) => {
-    setDiagram((prev) => {
-      if (!prev) return prev;
-      return {
-        ...prev,
-        labels: (prev.labels ?? []).map((l) =>
-          l.id === labelId ? { ...l, x, y } : l,
-        ),
-      };
-    });
-
-    setDiagramJson((prev) => {
-      try {
-        const obj = JSON.parse(prev);
-        if (obj.labels) {
-          const label = obj.labels.find((l: any) => l.id === labelId);
-          if (label) { label.x = x; label.y = y; }
-        }
-        return JSON.stringify(obj, null, 2);
-      } catch {
-        return prev;
-      }
-    });
-
-    setDirty(true);
   }, []);
 
   const handleDeletePart = useCallback((partId: string) => {
+    pushUndo();
     setDiagram((prev) => {
       if (!prev) return prev;
       return {
@@ -398,7 +383,6 @@ export default function ProjectPage() {
         connections: prev.connections.filter((conn) => {
           return !conn[0].startsWith(partId + ":") && !conn[1].startsWith(partId + ":");
         }),
-        labels: (prev.labels ?? []).filter((l) => !l.pinRef?.startsWith(partId + ":")),
       };
     });
 
@@ -409,9 +393,6 @@ export default function ProjectPage() {
         obj.connections = (obj.connections ?? []).filter((c: any) => {
           return !c[0]?.startsWith(partId + ":") && !c[1]?.startsWith(partId + ":");
         });
-        if (obj.labels) {
-          obj.labels = obj.labels.filter((l: any) => !l.pinRef?.startsWith(partId + ":"));
-        }
         return JSON.stringify(obj, null, 2);
       } catch {
         return prev;
@@ -423,6 +404,7 @@ export default function ProjectPage() {
   }, []);
 
   const handlePartRotate = useCallback((partId: string, angle: number) => {
+    pushUndo();
     setDiagram((prev) => {
       if (!prev) return prev;
       return {
@@ -447,7 +429,49 @@ export default function ProjectPage() {
     setDirty(true);
   }, []);
 
+  const handleDuplicatePart = useCallback((partId: string) => {
+    pushUndo();
+    setDiagram((prev) => {
+      if (!prev) return prev;
+      const part = prev.parts.find((p) => p.id === partId);
+      if (!part) return prev;
+      const existingIds = new Set(prev.parts.map((p) => p.id));
+      const newId = generatePartId(part.type, existingIds);
+      const newPart: DiagramPart = {
+        ...part,
+        id: newId,
+        top: part.top + 20,
+        left: part.left + 20,
+      };
+      setSelectedPartId(newId);
+      return { ...prev, parts: [...prev.parts, newPart] };
+    });
+
+    setDiagramJson((prev) => {
+      try {
+        const obj = JSON.parse(prev);
+        const part = (obj.parts ?? []).find((p: any) => p.id === partId);
+        if (part) {
+          const existingIds = new Set<string>((obj.parts ?? []).map((p: any) => p.id));
+          const newId = generatePartId(part.type, existingIds);
+          obj.parts.push({
+            ...part,
+            id: newId,
+            top: (part.top ?? 0) + 20,
+            left: (part.left ?? 0) + 20,
+          });
+        }
+        return JSON.stringify(obj, null, 2);
+      } catch {
+        return prev;
+      }
+    });
+
+    setDirty(true);
+  }, []);
+
   const handlePartAttrChange = useCallback((partId: string, attr: string, value: string) => {
+    pushUndo();
     // Handle first-class fields: __value and __footprint
     if (attr === "__value" || attr === "__footprint") {
       const field = attr === "__value" ? "value" : "footprint";
@@ -537,61 +561,8 @@ export default function ProjectPage() {
     setPlacingPartId(null);
   }, []);
 
-  const handleFinishPlacingLabel = useCallback(() => {
-    setPlacingLabelId(null);
-  }, []);
-
-  const handlePlaceLabelAt = useCallback((labelId: string, pinRef: string, x: number, y: number) => {
-    setDiagram((prev) => {
-      if (!prev) return prev;
-      return {
-        ...prev,
-        labels: (prev.labels ?? []).map((l) =>
-          l.id === labelId ? { ...l, pinRef, x, y } : l,
-        ),
-      };
-    });
-
-    setDiagramJson((prev) => {
-      try {
-        const obj = JSON.parse(prev);
-        if (obj.labels) {
-          const label = obj.labels.find((l: any) => l.id === labelId);
-          if (label) { label.pinRef = pinRef; label.x = x; label.y = y; }
-        }
-        return JSON.stringify(obj, null, 2);
-      } catch {
-        return prev;
-      }
-    });
-
-    setDirty(true);
-  }, []);
-
-  const handleCancelPlacingLabel = useCallback(() => {
-    // Delete the temporary label
-    const lid = placingLabelId;
-    if (!lid) return;
-    setDiagram((prev) => {
-      if (!prev) return prev;
-      return { ...prev, labels: (prev.labels ?? []).filter((l) => l.id !== lid) };
-    });
-    setDiagramJson((prev) => {
-      try {
-        const obj = JSON.parse(prev);
-        if (obj.labels) obj.labels = obj.labels.filter((l: any) => l.id !== lid);
-        return JSON.stringify(obj, null, 2);
-      } catch {
-        return prev;
-      }
-    });
-    setPlacingLabelId(null);
-    setSelectedLabelId(null);
-  }, [placingLabelId]);
-
   const handleInitPCB = useCallback(async () => {
     if (!diagram) return;
-    // Dynamic imports to avoid SSR issues with KiCanvas window access
     const [{ extractNetlist }, { initPCBFromSchematic }, { buildKicadPCBTree }, { serializeSExpr }] = await Promise.all([
       import("@/lib/netlist"),
       import("@/lib/pcb-parser"),
@@ -635,6 +606,16 @@ export default function ProjectPage() {
     setDiagram(imported);
     setDiagramJson(JSON.stringify(json, null, 2));
     setDirty(true);
+
+    // Re-init prefix counters from imported parts
+    for (const p of imported.parts) {
+      const match = p.id.match(/^([a-zA-Z_]+)(\d+)$/);
+      if (match) {
+        const prefix = match[1];
+        const num = parseInt(match[2], 10);
+        prefixCounters[prefix] = Math.max(prefixCounters[prefix] || 0, num);
+      }
+    }
   }, []);
 
   const handleExportWokwi = useCallback(() => {
@@ -649,6 +630,162 @@ export default function ProjectPage() {
     a.click();
     URL.revokeObjectURL(url);
   }, [diagram]);
+
+  // Copy/Paste via native clipboard events — Wokwi-compatible format
+  const selectedPartIdRef = useRef(selectedPartId);
+  selectedPartIdRef.current = selectedPartId;
+
+  useEffect(() => {
+    const handleCopy = (e: ClipboardEvent) => {
+      const el = e.target as HTMLElement;
+      const tag = el.tagName;
+      if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") return;
+      if (el.isContentEditable || el.closest(".monaco-editor")) return;
+
+      const pid = selectedPartIdRef.current;
+      if (!pid) return;
+      const diag = diagramRef.current;
+      if (!diag) return;
+      const parts = diag.parts.filter((p) => p.id === pid);
+      if (parts.length === 0) return;
+
+      const partIds = new Set(parts.map((p: DiagramPart) => p.id));
+      const connections = diag.connections.filter((c: DiagramConnection) => {
+        const fromId = c[0].split(":")[0];
+        const toId = c[1].split(":")[0];
+        return partIds.has(fromId) && partIds.has(toId);
+      });
+
+      const payload = JSON.stringify({
+        version: 1,
+        author: diag.author || "",
+        editor: "wokwi",
+        parts: parts.map((p: DiagramPart) => ({
+          type: p.type,
+          id: p.id,
+          top: p.top,
+          left: p.left,
+          rotate: p.rotate ?? 0,
+          hide: false,
+          attrs: p.attrs || {},
+        })),
+        connections,
+        dependencies: {},
+      });
+
+      e.preventDefault();
+      e.clipboardData?.setData("text/plain", payload);
+    };
+
+    const handlePaste = (e: ClipboardEvent) => {
+      const el = e.target as HTMLElement;
+      const tag = el.tagName;
+      if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") return;
+      if (el.isContentEditable || el.closest(".monaco-editor")) return;
+
+      const text = e.clipboardData?.getData("text/plain");
+      if (!text) return;
+
+      let parsed: { parts?: any[]; connections?: DiagramConnection[] };
+      try {
+        parsed = JSON.parse(text);
+      } catch {
+        return;
+      }
+      if (!parsed.parts || !Array.isArray(parsed.parts) || parsed.parts.length === 0) return;
+
+      e.preventDefault();
+
+      const diag = diagramRef.current;
+      if (!diag) return;
+      const existingIds = new Set(diag.parts.map((p) => p.id));
+      const idMap = new Map<string, string>();
+      const newParts: DiagramPart[] = [];
+      for (const p of parsed.parts as any[]) {
+        const newId = generatePartId(p.type, existingIds);
+        existingIds.add(newId);
+        idMap.set(p.id, newId);
+        newParts.push({
+          type: p.type,
+          id: newId,
+          top: (p.top ?? 0) + 30,
+          left: (p.left ?? 0) + 30,
+          rotate: p.rotate || undefined,
+          attrs: p.attrs || {},
+          value: p.value,
+        });
+      }
+
+      const newConns: DiagramConnection[] = [];
+      if (parsed.connections) {
+        for (const c of parsed.connections) {
+          const fromParts = c[0].split(":");
+          const toParts = c[1].split(":");
+          const newFrom = idMap.get(fromParts[0]);
+          const newTo = idMap.get(toParts[0]);
+          if (newFrom && newTo) {
+            newConns.push([
+              `${newFrom}:${fromParts.slice(1).join(":")}`,
+              `${newTo}:${toParts.slice(1).join(":")}`,
+              c[2],
+              c[3],
+            ]);
+          }
+        }
+      }
+
+      const newDiag = {
+        ...diag,
+        parts: [...diag.parts, ...newParts],
+        connections: [...diag.connections, ...newConns],
+      };
+      setDiagram(newDiag);
+      setDiagramJson(JSON.stringify(exportToWokwi(newDiag), null, 2));
+      if (newParts.length === 1) {
+        setSelectedPartId(newParts[0].id);
+      }
+      setDirty(true);
+    };
+
+    document.addEventListener("copy", handleCopy);
+    document.addEventListener("paste", handlePaste);
+    return () => {
+      document.removeEventListener("copy", handleCopy);
+      document.removeEventListener("paste", handlePaste);
+    };
+  }, []);
+
+  // App-level keyboard shortcuts: A = catalog, G = grid
+  useEffect(() => {
+    const handleKey = (e: KeyboardEvent) => {
+      const el = e.target as HTMLElement;
+      const tag = el.tagName;
+      if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") return;
+      if (el.isContentEditable || el.closest(".monaco-editor")) return;
+
+      if ((e.key === "z" || e.key === "Z") && (e.ctrlKey || e.metaKey)) {
+        e.preventDefault();
+        if (e.shiftKey) {
+          handleRedo();
+        } else {
+          handleUndo();
+        }
+        return;
+      }
+      if ((e.key === "y" || e.key === "Y") && (e.ctrlKey || e.metaKey)) {
+        e.preventDefault();
+        handleRedo();
+        return;
+      }
+      if (e.key === "g" || e.key === "G") {
+        if (!e.ctrlKey && !e.metaKey) {
+          setShowGrid((v) => !v);
+        }
+      }
+    };
+    window.addEventListener("keydown", handleKey);
+    return () => window.removeEventListener("keydown", handleKey);
+  }, [handleUndo, handleRedo]);
 
   return (
     <div style={{ height: "100vh", display: "flex", flexDirection: "column" }}>
@@ -676,23 +813,20 @@ export default function ProjectPage() {
         onUpdateConnection={handleUpdateConnection}
         onDeleteConnection={handleDeleteConnection}
         onWireColorChange={handleWireColorChange}
-        onAddLabel={handleAddLabel}
-        onUpdateLabel={handleUpdateLabel}
-        onDeleteLabel={handleDeleteLabel}
-        onMoveLabel={handleMoveLabel}
         selectedPartId={selectedPartId}
-        selectedLabelId={selectedLabelId}
         onPartSelect={handlePartSelect}
-        onLabelSelect={handleLabelSelect}
         onDeletePart={handleDeletePart}
         onPartRotate={handlePartRotate}
+        onDuplicatePart={handleDuplicatePart}
         onPartAttrChange={handlePartAttrChange}
         placingPartId={placingPartId}
         onFinishPlacing={handleFinishPlacing}
-        placingLabelId={placingLabelId}
-        onFinishPlacingLabel={handleFinishPlacingLabel}
-        onCancelPlacingLabel={handleCancelPlacingLabel}
-        onPlaceLabelAt={handlePlaceLabelAt}
+        showGrid={showGrid}
+        onUndo={handleUndo}
+        onRedo={handleRedo}
+        canUndo={canUndo}
+        canRedo={canRedo}
+        onToggleGrid={() => setShowGrid((v) => !v)}
         onInitPCB={handleInitPCB}
       />
     </div>

@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef } from "react";
 import Fab from "@mui/material/Fab";
+import Popover from "@mui/material/Popover";
 import Menu from "@mui/material/Menu";
 import MenuItem from "@mui/material/MenuItem";
 import ListItemIcon from "@mui/material/ListItemIcon";
@@ -14,17 +15,14 @@ import PauseIcon from "@mui/icons-material/Pause";
 import ReplayIcon from "@mui/icons-material/Replay";
 import AddIcon from "@mui/icons-material/Add";
 import MoreVertIcon from "@mui/icons-material/MoreVert";
-import Popover from "@mui/material/Popover";
-import AddPartPanel from "./AddPartPanel";
-import BugReportIcon from "@mui/icons-material/BugReport";
 import UndoIcon from "@mui/icons-material/Undo";
 import RedoIcon from "@mui/icons-material/Redo";
 import ZoomOutMapIcon from "@mui/icons-material/ZoomOutMap";
 import ZoomInIcon from "@mui/icons-material/ZoomIn";
 import ZoomOutIcon from "@mui/icons-material/ZoomOut";
 import GridOnIcon from "@mui/icons-material/GridOn";
-import FullscreenIcon from "@mui/icons-material/Fullscreen";
 import HelpIcon from "@mui/icons-material/Help";
+import AddPartPanel from "./AddPartPanel";
 import type { AVRRunner } from "@/lib/avr-runner";
 
 type Status = "idle" | "compiling" | "running" | "paused" | "error";
@@ -38,6 +36,11 @@ interface SimulationControlsProps {
   onResume: () => void;
   onRestart: () => void;
   onAddPart: (partType: string) => void;
+  onUndo?: () => void;
+  onRedo?: () => void;
+  canUndo?: boolean;
+  canRedo?: boolean;
+  onToggleGrid?: () => void;
 }
 
 function formatTime(ms: number): string {
@@ -66,6 +69,11 @@ export default function SimulationControls({
   onResume,
   onRestart,
   onAddPart,
+  onUndo,
+  onRedo,
+  canUndo,
+  canRedo,
+  onToggleGrid,
 }: SimulationControlsProps) {
   const [menuAnchor, setMenuAnchor] = useState<null | HTMLElement>(null);
   const [addAnchor, setAddAnchor] = useState<null | HTMLElement>(null);
@@ -87,17 +95,13 @@ export default function SimulationControls({
     prevStatusRef.current = status;
 
     if (status === "running" && (prev === "idle" || prev === "compiling" || prev === "error")) {
-      // Fresh start
       accumulatedMsRef.current = 0;
       segmentStartRef.current = Date.now();
     } else if (status === "running" && prev === "paused") {
-      // Resume
       segmentStartRef.current = Date.now();
     } else if (status === "paused" && prev === "running") {
-      // Pause — accumulate elapsed
       accumulatedMsRef.current += Date.now() - segmentStartRef.current;
     } else if (status === "idle") {
-      // Stop — reset
       accumulatedMsRef.current = 0;
       setDisplayMs(0);
       setSpeed(0);
@@ -113,7 +117,6 @@ export default function SimulationControls({
       const total = accumulatedMsRef.current + (now - segmentStartRef.current);
       setDisplayMs(total);
 
-      // Compute speed
       if (runner && total > 0) {
         const expectedCycles = (total / 1000) * 16_000_000;
         const actualCycles = runner.cpu.cycles;
@@ -131,20 +134,20 @@ export default function SimulationControls({
     setMenuAnchor(null);
   };
 
-  const menuItems = [
-    { icon: <BugReportIcon fontSize="small" />, label: "Debug", shortcut: "(beta)" },
-    { icon: <UndoIcon fontSize="small" />, label: "Undo", shortcut: "Ctrl+Z" },
-    { icon: <RedoIcon fontSize="small" />, label: "Redo", shortcut: "Ctrl+Y" },
+  type MenuEntry = { icon: React.ReactNode; label: string; shortcut: string; action?: () => void; disabled?: boolean } | "divider";
+
+  const menuItems: MenuEntry[] = [
+    { icon: <UndoIcon fontSize="small" />, label: "Undo", shortcut: "Ctrl+Z", action: onUndo, disabled: !canUndo },
+    { icon: <RedoIcon fontSize="small" />, label: "Redo", shortcut: "Ctrl+Shift+Z", action: onRedo, disabled: !canRedo },
     "divider",
     { icon: <ZoomOutMapIcon fontSize="small" />, label: "Fit", shortcut: "F" },
     { icon: <ZoomInIcon fontSize="small" />, label: "Zoom in", shortcut: "+" },
     { icon: <ZoomOutIcon fontSize="small" />, label: "Zoom out", shortcut: "-" },
     "divider",
-    { icon: <GridOnIcon fontSize="small" />, label: "Toggle Grid", shortcut: "G" },
-    { icon: <FullscreenIcon fontSize="small" />, label: "Full screen", shortcut: "Alt+Enter" },
+    { icon: <GridOnIcon fontSize="small" />, label: "Toggle Grid", shortcut: "G", action: onToggleGrid },
     "divider",
     { icon: <HelpIcon fontSize="small" />, label: "Help", shortcut: "?" },
-  ] as const;
+  ];
 
   // Idle / compiling / error state
   if (!isActive) {
@@ -164,21 +167,6 @@ export default function SimulationControls({
         <Fab size="small" onClick={(e) => setAddAnchor(e.currentTarget)} sx={fabSx("#2563eb", "#1d4ed8")}>
           <AddIcon />
         </Fab>
-        <Popover
-          open={Boolean(addAnchor)}
-          anchorEl={addAnchor}
-          onClose={() => setAddAnchor(null)}
-          anchorOrigin={{ vertical: "bottom", horizontal: "left" }}
-          transformOrigin={{ vertical: "top", horizontal: "left" }}
-          slotProps={{ paper: { sx: { bgcolor: "#1a1a1a", borderRadius: 2, overflow: "hidden" } } }}
-        >
-          <AddPartPanel
-            onSelect={(partType) => {
-              setAddAnchor(null);
-              onAddPart(partType);
-            }}
-          />
-        </Popover>
         <Fab size="small" onClick={handleMenuOpen} sx={fabSx("rgba(50,50,50,0.8)", "rgba(70,70,70,0.9)")}>
           <MoreVertIcon />
         </Fab>
@@ -202,7 +190,15 @@ export default function SimulationControls({
             item === "divider" ? (
               <Divider key={i} sx={{ borderColor: "rgba(255,255,255,0.1)" }} />
             ) : (
-              <MenuItem key={i} disabled sx={{ opacity: "0.5 !important" }}>
+              <MenuItem
+                key={i}
+                disabled={item.disabled ?? !item.action}
+                onClick={() => {
+                  item.action?.();
+                  handleMenuClose();
+                }}
+                sx={{ opacity: (item.disabled ?? !item.action) ? "0.5 !important" : 1 }}
+              >
                 <ListItemIcon sx={{ color: "inherit", minWidth: 32 }}>{item.icon}</ListItemIcon>
                 <ListItemText>{item.label}</ListItemText>
                 <Typography variant="body2" sx={{ color: "#666", ml: 3, fontSize: 12 }}>
@@ -212,6 +208,26 @@ export default function SimulationControls({
             ),
           )}
         </Menu>
+
+        <Popover
+          open={Boolean(addAnchor)}
+          anchorEl={addAnchor}
+          onClose={() => setAddAnchor(null)}
+          anchorOrigin={{ vertical: "top", horizontal: "center" }}
+          transformOrigin={{ vertical: "bottom", horizontal: "center" }}
+          slotProps={{
+            paper: {
+              sx: { bgcolor: "transparent", boxShadow: "0 4px 20px rgba(0,0,0,0.5)", borderRadius: 2, overflow: "hidden" },
+            },
+          }}
+        >
+          <AddPartPanel
+            onSelect={(type) => {
+              onAddPart(type);
+              setAddAnchor(null);
+            }}
+          />
+        </Popover>
       </>
     );
   }
@@ -237,7 +253,6 @@ export default function SimulationControls({
         {isPaused ? <PlayArrowIcon /> : <PauseIcon />}
       </Fab>
 
-      {/* Timer */}
       <Typography
         sx={{
           color: "#ccc",
@@ -250,7 +265,6 @@ export default function SimulationControls({
         {formatTime(displayMs)}
       </Typography>
 
-      {/* Speed */}
       <Typography
         sx={{
           color: "#999",

@@ -2,15 +2,6 @@
  * Wire renderer for Wokwi diagram.json connections.
  *
  * Spec: https://docs.wokwi.com/diagram-format#wire-placement-mini-language
- *
- * Wire placement mini-language:
- * - "v" + pixels: move vertically
- * - "h" + pixels: move horizontally
- * - "*" splits source-side and target-side instructions
- *
- * Instructions BEFORE "*" are applied outward from the SOURCE pin.
- * Instructions AFTER "*" are applied in REVERSE ORDER outward from the TARGET pin.
- * The two loose ends are then connected with orthogonal (h+v) segments.
  */
 
 import type { DiagramConnection } from "./diagram-parser";
@@ -34,15 +25,14 @@ export interface RenderedWire {
 }
 
 /**
- * Convert a full wire path (source pin → ... → target pin) back to
- * Wokwi h/v hint segments. All segments are encoded source-side
- * (no `*` separator), so the auto-router bridge is a no-op.
+ * Convert a full wire path back to Wokwi h/v hint segments.
  */
 export function pathToHints(points: Point[]): string[] {
+  const cleaned = cleanPath(points);
   const hints: string[] = [];
-  for (let i = 1; i < points.length; i++) {
-    const dx = points[i].x - points[i - 1].x;
-    const dy = points[i].y - points[i - 1].y;
+  for (let i = 1; i < cleaned.length; i++) {
+    const dx = cleaned[i].x - cleaned[i - 1].x;
+    const dy = cleaned[i].y - cleaned[i - 1].y;
     if (Math.abs(dx) > 0.5) hints.push(`h${Math.round(dx)}`);
     if (Math.abs(dy) > 0.5) hints.push(`v${Math.round(dy)}`);
   }
@@ -72,7 +62,6 @@ function parseSegments(arr: string[]): Segment[] {
   return segs;
 }
 
-/** Trace a path from an origin following a list of h/v segments. */
 function trace(origin: Point, segs: Segment[]): Point[] {
   const pts: Point[] = [{ ...origin }];
   let cur = { ...origin };
@@ -88,31 +77,59 @@ function trace(origin: Point, segs: Segment[]): Point[] {
 
 /**
  * Auto-route between two loose ends using orthogonal segments.
- * Returns 0–1 intermediate points (forming an L shape).
- * Uses bigger-delta-first routing to match the wire drawing preview.
+ * Returns 0-1 intermediate points (forming an L shape).
+ * Wokwi routes horizontal-first for the auto-bridge gap.
  */
 function autoRoute(a: Point, b: Point): Point[] {
   const dx = b.x - a.x;
   const dy = b.y - a.y;
 
-  // Already same point
   if (Math.abs(dx) < 0.5 && Math.abs(dy) < 0.5) return [];
-  // Already aligned horizontally or vertically
   if (Math.abs(dy) < 0.5) return [];
   if (Math.abs(dx) < 0.5) return [];
 
-  // Bigger delta first (matches wire drawing preview L-bend)
-  return Math.abs(dx) >= Math.abs(dy)
-    ? [{ x: b.x, y: a.y }] // horizontal first
-    : [{ x: a.x, y: b.y }]; // vertical first
+  // Wokwi routes horizontal-first: go to target X, then vertical
+  return [{ x: b.x, y: a.y }];
+}
+
+/**
+ * Clean a wire path by removing near-duplicate and collinear points.
+ */
+function cleanPath(points: Point[]): Point[] {
+  if (points.length <= 1) return points;
+
+  // Step 1: Remove near-duplicate consecutive points
+  const deduped: Point[] = [points[0]];
+  for (let i = 1; i < points.length; i++) {
+    const prev = deduped[deduped.length - 1];
+    if (Math.abs(points[i].x - prev.x) > 0.5 || Math.abs(points[i].y - prev.y) > 0.5) {
+      deduped.push(points[i]);
+    }
+  }
+
+  // Step 2: Remove collinear mid-points (3 consecutive points on same axis)
+  if (deduped.length <= 2) return deduped;
+  const result: Point[] = [deduped[0]];
+  for (let i = 1; i < deduped.length - 1; i++) {
+    const prev = result[result.length - 1];
+    const cur = deduped[i];
+    const next = deduped[i + 1];
+    const sameX = Math.abs(prev.x - cur.x) < 0.5 && Math.abs(cur.x - next.x) < 0.5;
+    const sameY = Math.abs(prev.y - cur.y) < 0.5 && Math.abs(cur.y - next.y) < 0.5;
+    if (!sameX && !sameY) {
+      result.push(cur);
+    }
+  }
+  result.push(deduped[deduped.length - 1]);
+  return result;
 }
 
 function buildWirePath(start: Point, end: Point, hints: string[]): Point[] {
   if (!hints || hints.length === 0) {
-    // No routing hints — straight horizontal then vertical
     if (Math.abs(start.x - end.x) < 0.5 || Math.abs(start.y - end.y) < 0.5) {
       return [start, end];
     }
+    // Horizontal-first routing to match Wokwi
     return [start, { x: end.x, y: start.y }, end];
   }
 
@@ -129,25 +146,18 @@ function buildWirePath(start: Point, end: Point, hints: string[]): Point[] {
   }
 
   const fromSegs = parseSegments(fromHints);
-  // Per spec: to-segments are applied in REVERSE ORDER from the target pin
   const toSegs = parseSegments(toHints).reverse();
 
-  // Trace from source pin
   const fromPath = trace(start, fromSegs);
-  // Trace from target pin (segments already reversed per spec)
   const toPath = trace(end, toSegs);
 
-  // The loose ends that need connecting
   const looseA = fromPath[fromPath.length - 1];
   const looseB = toPath[toPath.length - 1];
-
-  // Auto-route the gap with orthogonal segments
   const bridge = autoRoute(looseA, looseB);
 
-  // Reverse toPath so it goes from the loose end back to the target pin
   toPath.reverse();
-
-  return [...fromPath, ...bridge, ...toPath];
+  const raw = [...fromPath, ...bridge, ...toPath];
+  return cleanPath(raw);
 }
 
 export function renderWires(
@@ -183,6 +193,10 @@ function mapColor(color: string): string {
     yellow: "#fc0",
     pink: "#f6b",
     brown: "#852",
+    cyan: "#0cc",
+    limegreen: "#8f0",
+    magenta: "#f0f",
+    violet: "#80f",
   };
   return map[color] || color;
 }

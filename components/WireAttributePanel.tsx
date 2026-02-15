@@ -1,5 +1,4 @@
 "use client";
-
 import type { DiagramConnection } from "@/lib/diagram-parser";
 
 const WIRE_COLORS = [
@@ -20,9 +19,7 @@ const WIRE_COLORS = [
 interface WireAttributePanelProps {
   connection: DiagramConnection;
   connectionIndex: number;
-  netName: string;
   onColorChange: (index: number, color: string) => void;
-  onNetNameChange: (netName: string, pinRef: string) => void;
   onDelete: (index: number) => void;
   onClose: () => void;
 }
@@ -30,9 +27,7 @@ interface WireAttributePanelProps {
 export default function WireAttributePanel({
   connection,
   connectionIndex,
-  netName,
   onColorChange,
-  onNetNameChange,
   onDelete,
   onClose,
 }: WireAttributePanelProps) {
@@ -61,7 +56,6 @@ export default function WireAttributePanel({
         backdropFilter: "blur(8px)",
       }}
     >
-      {/* Header */}
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
         <div>
           <div style={{ color: "#fff", fontSize: 13, fontWeight: 600 }}>Wire</div>
@@ -81,25 +75,6 @@ export default function WireAttributePanel({
         </button>
       </div>
 
-      {/* Net name */}
-      <div style={{ marginBottom: 8 }}>
-        <label style={{ color: "#999", fontSize: 10, display: "block", marginBottom: 2 }}>
-          Net name
-        </label>
-        <input
-          type="text"
-          value={netName}
-          onChange={(e) => onNetNameChange(e.target.value, fromRef)}
-          style={{
-            background: "#2a2a2a", border: "1px solid #555", borderRadius: 3,
-            color: "#eee", padding: "3px 6px", fontSize: 12, fontFamily: "monospace",
-            width: "100%", boxSizing: "border-box",
-          }}
-          placeholder="Net name"
-        />
-      </div>
-
-      {/* Color picker */}
       <div style={{ marginBottom: 8 }}>
         <label style={{ color: "#999", fontSize: 10, display: "block", marginBottom: 4 }}>
           Color
@@ -122,7 +97,6 @@ export default function WireAttributePanel({
         </div>
       </div>
 
-      {/* Actions */}
       <div style={{ display: "flex", gap: 6, marginTop: 4 }}>
         <button
           onClick={() => onDelete(connectionIndex)}

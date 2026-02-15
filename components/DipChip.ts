@@ -1,17 +1,16 @@
 /**
  * Generic DIP IC chip rendering for components not in @wokwi/elements.
- * Pin positions extracted from the actual Wokwi bundle.
- *
- * Key formula: rs(t) = (1.1 + 2.54 * t) * MM_TO_PX
- * where MM_TO_PX = 3.7795275591 (CSS px per mm at 96 DPI)
+ * Pin positions are grid-aligned (multiples of UNIT_PX = 9.6).
  */
 
-const MM = 3.7795275591;
+const UNIT = 9.6; // 0.1 inch at 96 DPI — must match UNIT_PX in constants.ts
 
-/** Pin x-position for DIP-16, matching Wokwi's coordinate system */
-const rs = (t: number) => (1.1 + 2.54 * t) * MM;
+// DIP-16: 8 pins per side, 0.1in spacing, 0.3in row width
+const PIN_COUNT = 8;
+const ROW_SPACING = 3 * UNIT; // 28.8px = 0.3in between top and bottom rows
+const CHIP_W = (PIN_COUNT - 1) * UNIT; // 67.2px — first pin at x=0, last at x=67.2
+const CHIP_H = ROW_SPACING; // 28.8px — top pins at y=0, bottom at y=28.8
 
-/** Pin info compatible with @wokwi/elements ElementPin */
 interface PinInfo {
   name: string;
   x: number;
@@ -20,109 +19,177 @@ interface PinInfo {
   number: number;
 }
 
-/**
- * 74HC595 pin layout (horizontal DIP-16):
- * - Bottom row (y=30): pins 1-8, left to right (Q1..GND)
- * - Top row (y=0): pins 9-16, right to left (Q7S..VCC)
- */
+function pinX(i: number): number { return i * UNIT; }
+
 const HC595_PINS: PinInfo[] = [
-  // Bottom row: pins 1-8 (y=30)
-  { name: "Q1", y: 30, x: rs(0), number: 1, signals: [] },
-  { name: "Q2", y: 30, x: rs(1), number: 2, signals: [] },
-  { name: "Q3", y: 30, x: rs(2), number: 3, signals: [] },
-  { name: "Q4", y: 30, x: rs(3), number: 4, signals: [] },
-  { name: "Q5", y: 30, x: rs(4), number: 5, signals: [] },
-  { name: "Q6", y: 30, x: rs(5), number: 6, signals: [] },
-  { name: "Q7", y: 30, x: rs(6), number: 7, signals: [] },
-  { name: "GND", y: 30, x: rs(7), number: 8, signals: [{ type: "power", signal: "GND" }] },
-  // Top row: pins 9-16 (y=0), right to left
-  { name: "Q7S", y: 0, x: rs(7), number: 9, signals: [] },
-  { name: "MR", y: 0, x: rs(6), number: 10, signals: [] },
-  { name: "SHCP", y: 0, x: rs(5), number: 11, signals: [] },
-  { name: "STCP", y: 0, x: rs(4), number: 12, signals: [] },
-  { name: "OE", y: 0, x: rs(3), number: 13, signals: [] },
-  { name: "DS", y: 0, x: rs(2), number: 14, signals: [] },
-  { name: "Q0", y: 0, x: rs(1), number: 15, signals: [] },
-  { name: "VCC", y: 0, x: rs(0), number: 16, signals: [{ type: "power", signal: "VCC" }] },
+  { name: "Q1", y: CHIP_H, x: pinX(0), number: 1, signals: [] },
+  { name: "Q2", y: CHIP_H, x: pinX(1), number: 2, signals: [] },
+  { name: "Q3", y: CHIP_H, x: pinX(2), number: 3, signals: [] },
+  { name: "Q4", y: CHIP_H, x: pinX(3), number: 4, signals: [] },
+  { name: "Q5", y: CHIP_H, x: pinX(4), number: 5, signals: [] },
+  { name: "Q6", y: CHIP_H, x: pinX(5), number: 6, signals: [] },
+  { name: "Q7", y: CHIP_H, x: pinX(6), number: 7, signals: [] },
+  { name: "GND", y: CHIP_H, x: pinX(7), number: 8, signals: [{ type: "power", signal: "GND" }] },
+  { name: "Q7S", y: 0, x: pinX(7), number: 9, signals: [] },
+  { name: "MR", y: 0, x: pinX(6), number: 10, signals: [] },
+  { name: "SHCP", y: 0, x: pinX(5), number: 11, signals: [] },
+  { name: "STCP", y: 0, x: pinX(4), number: 12, signals: [] },
+  { name: "OE", y: 0, x: pinX(3), number: 13, signals: [] },
+  { name: "DS", y: 0, x: pinX(2), number: 14, signals: [] },
+  { name: "Q0", y: 0, x: pinX(1), number: 15, signals: [] },
+  { name: "VCC", y: 0, x: pinX(0), number: 16, signals: [{ type: "power", signal: "VCC" }] },
 ];
 
-/**
- * 74HC165 pin layout (horizontal DIP-16):
- * Left side (pins 1-8):  SH/LD, CLK, E, F, G, H, QH_N, GND
- * Right side (pins 9-16): QH, SER, A, B, C, D, CLK_INH, VCC
- *
- * Wokwi uses these pin names: PL(=SH/LD), CP(=CLK), CE(=CLK_INH),
- * Q7(=QH), Q7_N(=QH_N), D0-D7(=A-H), DS(=SER)
- */
 const HC165_PINS: PinInfo[] = [
-  // Bottom row: pins 1-8 (y=30)
-  { name: "PL", y: 30, x: rs(0), number: 1, signals: [] },       // SH/LD
-  { name: "CP", y: 30, x: rs(1), number: 2, signals: [] },       // CLK
-  { name: "D4", y: 30, x: rs(2), number: 3, signals: [] },       // E
-  { name: "D5", y: 30, x: rs(3), number: 4, signals: [] },       // F
-  { name: "D6", y: 30, x: rs(4), number: 5, signals: [] },       // G
-  { name: "D7", y: 30, x: rs(5), number: 6, signals: [] },       // H
-  { name: "Q7_N", y: 30, x: rs(6), number: 7, signals: [] },     // QH complement
-  { name: "GND", y: 30, x: rs(7), number: 8, signals: [{ type: "power", signal: "GND" }] },
-  // Top row: pins 9-16 (y=0), right to left
-  { name: "Q7", y: 0, x: rs(7), number: 9, signals: [] },        // QH serial out
-  { name: "DS", y: 0, x: rs(6), number: 10, signals: [] },       // SER
-  { name: "D0", y: 0, x: rs(5), number: 11, signals: [] },       // A
-  { name: "D1", y: 0, x: rs(4), number: 12, signals: [] },       // B
-  { name: "D2", y: 0, x: rs(3), number: 13, signals: [] },       // C
-  { name: "D3", y: 0, x: rs(2), number: 14, signals: [] },       // D
-  { name: "CE", y: 0, x: rs(1), number: 15, signals: [] },       // CLK INH
-  { name: "VCC", y: 0, x: rs(0), number: 16, signals: [{ type: "power", signal: "VCC" }] },
+  { name: "PL", y: CHIP_H, x: pinX(0), number: 1, signals: [] },
+  { name: "CP", y: CHIP_H, x: pinX(1), number: 2, signals: [] },
+  { name: "D4", y: CHIP_H, x: pinX(2), number: 3, signals: [] },
+  { name: "D5", y: CHIP_H, x: pinX(3), number: 4, signals: [] },
+  { name: "D6", y: CHIP_H, x: pinX(4), number: 5, signals: [] },
+  { name: "D7", y: CHIP_H, x: pinX(5), number: 6, signals: [] },
+  { name: "Q7_N", y: CHIP_H, x: pinX(6), number: 7, signals: [] },
+  { name: "GND", y: CHIP_H, x: pinX(7), number: 8, signals: [{ type: "power", signal: "GND" }] },
+  { name: "Q7", y: 0, x: pinX(7), number: 9, signals: [] },
+  { name: "DS", y: 0, x: pinX(6), number: 10, signals: [] },
+  { name: "D0", y: 0, x: pinX(5), number: 11, signals: [] },
+  { name: "D1", y: 0, x: pinX(4), number: 12, signals: [] },
+  { name: "D2", y: 0, x: pinX(3), number: 13, signals: [] },
+  { name: "D3", y: 0, x: pinX(2), number: 14, signals: [] },
+  { name: "CE", y: 0, x: pinX(1), number: 15, signals: [] },
+  { name: "VCC", y: 0, x: pinX(0), number: 16, signals: [{ type: "power", signal: "VCC" }] },
 ];
-
-// Element dimensions
-const CHIP_W = rs(7) + rs(0); // symmetric: last pin + first pin offset
-const CHIP_H = 30;
 
 function renderDip16Svg(label: string, sublabel: string): string {
-  const w = CHIP_W;
-  const h = CHIP_H;
-  const bodyPad = 3;
-  const bodyX = rs(0) - bodyPad;
-  const bodyW = rs(7) - rs(0) + bodyPad * 2;
-  const bodyY = 5;
-  const bodyH = h - 10;
-  const pinR = 1.5;
+  const pinStub = 2;
+  const pinW = 2.4;
+  const bodyPad = 3; // body extends beyond pins horizontally
+  const bodyX = -bodyPad;
+  const bodyW = CHIP_W + bodyPad * 2;
+  const bodyY = pinStub;
+  const bodyH = CHIP_H - pinStub * 2;
+  const bodyR = 2;
 
-  let svg = `<svg width="${w}" height="${h}" xmlns="http://www.w3.org/2000/svg">`;
+  let svg = `<svg width="${CHIP_W}" height="${CHIP_H}" style="overflow:visible" xmlns="http://www.w3.org/2000/svg">`;
 
-  // Chip body
-  svg += `<rect x="${bodyX}" y="${bodyY}" width="${bodyW}" height="${bodyH}" rx="2" fill="#333" stroke="#555" stroke-width="0.8"/>`;
+  // Body
+  svg += `<rect x="${bodyX}" y="${bodyY}" width="${bodyW}" height="${bodyH}" rx="${bodyR}" fill="#3a3d42"/>`;
 
   // Notch on left side (pin 1 indicator)
-  svg += `<path d="M ${bodyX} ${h / 2 - 3} A 3 3 0 0 1 ${bodyX} ${h / 2 + 3}" fill="#444" stroke="#555" stroke-width="0.5"/>`;
+  const notchY = CHIP_H / 2;
+  svg += `<path d="M ${bodyX} ${notchY - 3} A 3 3 0 0 1 ${bodyX} ${notchY + 3}" fill="#2a2d32"/>`;
 
-  // Label
-  svg += `<text x="${w / 2}" y="${h / 2 - 1}" text-anchor="middle" dominant-baseline="middle" fill="#aaa" font-size="6" font-family="monospace">${label}</text>`;
-  svg += `<text x="${w / 2}" y="${h / 2 + 5}" text-anchor="middle" dominant-baseline="middle" fill="#777" font-size="4" font-family="monospace">${sublabel}</text>`;
+  // Orientation dots
+  svg += `<circle cx="${bodyX + 6}" cy="${CHIP_H / 2}" r="1.8" fill="#2a2d32"/>`;
+  svg += `<circle cx="${bodyX + bodyW - 6}" cy="${CHIP_H / 2}" r="1.8" fill="#2a2d32"/>`;
 
-  // Bottom row pins (1-8)
-  for (let i = 0; i < 8; i++) {
-    const x = rs(i);
-    svg += `<line x1="${x}" y1="${h}" x2="${x}" y2="${bodyY + bodyH}" stroke="#999" stroke-width="1.5"/>`;
-    svg += `<circle cx="${x}" cy="${h}" r="${pinR}" fill="#bbb"/>`;
+  // Labels
+  svg += `<text x="${CHIP_W / 2}" y="${CHIP_H / 2 - 1}" text-anchor="middle" dominant-baseline="middle" fill="#aaa" font-size="5.5" font-family="monospace" font-weight="600">${label}</text>`;
+  svg += `<text x="${CHIP_W / 2}" y="${CHIP_H / 2 + 5}" text-anchor="middle" dominant-baseline="middle" fill="#777" font-size="3.5" font-family="monospace">${sublabel}</text>`;
+
+  // Bottom pins (stubby rectangles)
+  for (let i = 0; i < PIN_COUNT; i++) {
+    const x = pinX(i);
+    svg += `<rect x="${x - pinW / 2}" y="${bodyY + bodyH}" width="${pinW}" height="${pinStub}" fill="#c0c0c0" rx="0.3"/>`;
   }
 
-  // Top row pins (9-16)
-  for (let i = 0; i < 8; i++) {
-    const x = rs(7 - i);
-    svg += `<line x1="${x}" y1="0" x2="${x}" y2="${bodyY}" stroke="#999" stroke-width="1.5"/>`;
-    svg += `<circle cx="${x}" cy="0" r="${pinR}" fill="#bbb"/>`;
+  // Top pins (stubby rectangles, reversed order for DIP convention)
+  for (let i = 0; i < PIN_COUNT; i++) {
+    const x = pinX(PIN_COUNT - 1 - i);
+    svg += `<rect x="${x - pinW / 2}" y="0" width="${pinW}" height="${pinStub}" fill="#c0c0c0" rx="0.3"/>`;
   }
 
   svg += `</svg>`;
   return svg;
 }
 
-function registerDip16(tagName: string, pins: PinInfo[], label: string, sublabel: string) {
+// DIP-28: 14 pins per side, 0.1in spacing, 0.3in row width
+const PIN_COUNT_28 = 14;
+const CHIP_W_28 = (PIN_COUNT_28 - 1) * UNIT;
+const CHIP_H_28 = ROW_SPACING;
+
+// ATmega328P pinout (DIP-28)
+const ATMEGA328_PINS: PinInfo[] = [
+  // Bottom row: pins 1-14 (left to right)
+  { name: "PC6",  y: CHIP_H_28, x: pinX(0),  number: 1,  signals: [{ type: "io", signal: "RESET" }] },
+  { name: "PD0",  y: CHIP_H_28, x: pinX(1),  number: 2,  signals: [{ type: "io", signal: "RXD" }] },
+  { name: "PD1",  y: CHIP_H_28, x: pinX(2),  number: 3,  signals: [{ type: "io", signal: "TXD" }] },
+  { name: "PD2",  y: CHIP_H_28, x: pinX(3),  number: 4,  signals: [{ type: "io", signal: "INT0" }] },
+  { name: "PD3",  y: CHIP_H_28, x: pinX(4),  number: 5,  signals: [{ type: "io", signal: "INT1" }] },
+  { name: "PD4",  y: CHIP_H_28, x: pinX(5),  number: 6,  signals: [{ type: "io", signal: "T0" }] },
+  { name: "VCC",  y: CHIP_H_28, x: pinX(6),  number: 7,  signals: [{ type: "power", signal: "VCC" }] },
+  { name: "GND",  y: CHIP_H_28, x: pinX(7),  number: 8,  signals: [{ type: "power", signal: "GND" }] },
+  { name: "PB6",  y: CHIP_H_28, x: pinX(8),  number: 9,  signals: [{ type: "io", signal: "XTAL1" }] },
+  { name: "PB7",  y: CHIP_H_28, x: pinX(9),  number: 10, signals: [{ type: "io", signal: "XTAL2" }] },
+  { name: "PD5",  y: CHIP_H_28, x: pinX(10), number: 11, signals: [{ type: "io", signal: "T1" }] },
+  { name: "PD6",  y: CHIP_H_28, x: pinX(11), number: 12, signals: [{ type: "io", signal: "AIN0" }] },
+  { name: "PD7",  y: CHIP_H_28, x: pinX(12), number: 13, signals: [{ type: "io", signal: "AIN1" }] },
+  { name: "PB0",  y: CHIP_H_28, x: pinX(13), number: 14, signals: [{ type: "io", signal: "ICP1" }] },
+  // Top row: pins 15-28 (right to left)
+  { name: "PB1",  y: 0, x: pinX(13), number: 15, signals: [{ type: "io", signal: "OC1A" }] },
+  { name: "PB2",  y: 0, x: pinX(12), number: 16, signals: [{ type: "io", signal: "OC1B" }] },
+  { name: "PB3",  y: 0, x: pinX(11), number: 17, signals: [{ type: "io", signal: "MOSI" }] },
+  { name: "PB4",  y: 0, x: pinX(10), number: 18, signals: [{ type: "io", signal: "MISO" }] },
+  { name: "PB5",  y: 0, x: pinX(9),  number: 19, signals: [{ type: "io", signal: "SCK" }] },
+  { name: "AVCC", y: 0, x: pinX(8),  number: 20, signals: [{ type: "power", signal: "VCC" }] },
+  { name: "AREF", y: 0, x: pinX(7),  number: 21, signals: [] },
+  { name: "GND2", y: 0, x: pinX(6),  number: 22, signals: [{ type: "power", signal: "GND" }] },
+  { name: "PC0",  y: 0, x: pinX(5),  number: 23, signals: [{ type: "io", signal: "ADC0" }] },
+  { name: "PC1",  y: 0, x: pinX(4),  number: 24, signals: [{ type: "io", signal: "ADC1" }] },
+  { name: "PC2",  y: 0, x: pinX(3),  number: 25, signals: [{ type: "io", signal: "ADC2" }] },
+  { name: "PC3",  y: 0, x: pinX(2),  number: 26, signals: [{ type: "io", signal: "ADC3" }] },
+  { name: "PC4",  y: 0, x: pinX(1),  number: 27, signals: [{ type: "io", signal: "SDA" }] },
+  { name: "PC5",  y: 0, x: pinX(0),  number: 28, signals: [{ type: "io", signal: "SCL" }] },
+];
+
+function renderDip28Svg(label: string, sublabel: string): string {
+  const pinStub = 2;
+  const pinW = 2.4;
+  const bodyPad = 3;
+  const bodyX = -bodyPad;
+  const bodyW = CHIP_W_28 + bodyPad * 2;
+  const bodyY = pinStub;
+  const bodyH = CHIP_H_28 - pinStub * 2;
+  const bodyR = 2;
+
+  let svg = `<svg width="${CHIP_W_28}" height="${CHIP_H_28}" style="overflow:visible" xmlns="http://www.w3.org/2000/svg">`;
+
+  // Body
+  svg += `<rect x="${bodyX}" y="${bodyY}" width="${bodyW}" height="${bodyH}" rx="${bodyR}" fill="#3a3d42"/>`;
+
+  // Notch on left side (pin 1 indicator)
+  const notchY = CHIP_H_28 / 2;
+  svg += `<path d="M ${bodyX} ${notchY - 3} A 3 3 0 0 1 ${bodyX} ${notchY + 3}" fill="#2a2d32"/>`;
+
+  // Orientation dots
+  svg += `<circle cx="${bodyX + 6}" cy="${CHIP_H_28 / 2}" r="1.8" fill="#2a2d32"/>`;
+  svg += `<circle cx="${bodyX + bodyW - 6}" cy="${CHIP_H_28 / 2}" r="1.8" fill="#2a2d32"/>`;
+
+  // Labels
+  svg += `<text x="${CHIP_W_28 / 2}" y="${CHIP_H_28 / 2 - 1}" text-anchor="middle" dominant-baseline="middle" fill="#aaa" font-size="5.5" font-family="monospace" font-weight="600">${label}</text>`;
+  svg += `<text x="${CHIP_W_28 / 2}" y="${CHIP_H_28 / 2 + 5}" text-anchor="middle" dominant-baseline="middle" fill="#777" font-size="3.5" font-family="monospace">${sublabel}</text>`;
+
+  // Bottom pins
+  for (let i = 0; i < PIN_COUNT_28; i++) {
+    const x = pinX(i);
+    svg += `<rect x="${x - pinW / 2}" y="${bodyY + bodyH}" width="${pinW}" height="${pinStub}" fill="#c0c0c0" rx="0.3"/>`;
+  }
+
+  // Top pins (reversed order for DIP convention)
+  for (let i = 0; i < PIN_COUNT_28; i++) {
+    const x = pinX(PIN_COUNT_28 - 1 - i);
+    svg += `<rect x="${x - pinW / 2}" y="0" width="${pinW}" height="${pinStub}" fill="#c0c0c0" rx="0.3"/>`;
+  }
+
+  svg += `</svg>`;
+  return svg;
+}
+
+function registerDip(tagName: string, pins: PinInfo[], label: string, sublabel: string, chipW: number, chipH: number, pinCount: number, renderFn: (label: string, sublabel: string) => string) {
   if (customElements.get(tagName)) return;
 
-  const svgContent = renderDip16Svg(label, sublabel);
+  const svgContent = renderFn(label, sublabel);
+  const w = chipW;
+  const h = chipH;
 
   class DipElement extends HTMLElement {
     private _shadow: ShadowRoot;
@@ -130,20 +197,36 @@ function registerDip16(tagName: string, pins: PinInfo[], label: string, sublabel
     constructor() {
       super();
       this._shadow = this.attachShadow({ mode: "open" });
-      this._shadow.innerHTML = `<style>:host { display: inline-block; line-height: 0; }</style>${svgContent}`;
+      this._shadow.innerHTML = `<style>:host { display: block; width: ${w}px; height: ${h}px; overflow: visible; line-height: 0; } svg { display: block; }</style>${svgContent}`;
     }
 
     get pinInfo(): PinInfo[] {
       return pins;
+    }
+
+    get chipWidth(): number {
+      return w;
+    }
+
+    get chipHeight(): number {
+      return h;
     }
   }
 
   customElements.define(tagName, DipElement);
 }
 
+function registerDip16(tagName: string, pins: PinInfo[], label: string, sublabel: string) {
+  registerDip(tagName, pins, label, sublabel, CHIP_W, CHIP_H, PIN_COUNT, renderDip16Svg);
+}
+
+function registerDip28(tagName: string, pins: PinInfo[], label: string, sublabel: string) {
+  registerDip(tagName, pins, label, sublabel, CHIP_W_28, CHIP_H_28, PIN_COUNT_28, renderDip28Svg);
+}
+
 export function registerDipChips() {
   if (typeof window === "undefined") return;
-
-  registerDip16("wokwi-74hc595", HC595_PINS, "74HC595", "S65D3N");
-  registerDip16("wokwi-74hc165", HC165_PINS, "74HC165", "S65D3N");
+  registerDip16("wokwi-74hc595", HC595_PINS, "74HC595", "SN65D3N");
+  registerDip16("wokwi-74hc165", HC165_PINS, "74HC165", "SN65D3N");
+  registerDip28("sb-atmega328", ATMEGA328_PINS, "ATmega328P", "SB-MCU");
 }

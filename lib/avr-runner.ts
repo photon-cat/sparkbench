@@ -39,6 +39,7 @@ export class AVRRunner {
   readonly taskScheduler = new MicroTaskScheduler();
   private wallStartMs = 0;
   private simStartCycles = 0;
+  private stopped = false;
 
   constructor(hex: string) {
     loadHex(hex, new Uint8Array(this.program.buffer));
@@ -55,6 +56,7 @@ export class AVRRunner {
   }
 
   execute(callback: (cpu: CPU) => void) {
+    if (this.stopped) return;
     if (this.wallStartMs === 0) {
       this.wallStartMs = performance.now();
       this.simStartCycles = this.cpu.cycles;
@@ -82,8 +84,14 @@ export class AVRRunner {
   }
 
   stop() {
+    this.stopped = true;
     this.taskScheduler.stop();
     this.wallStartMs = 0;
     this.simStartCycles = 0;
+  }
+
+  resume() {
+    this.stopped = false;
+    this.taskScheduler.start();
   }
 }

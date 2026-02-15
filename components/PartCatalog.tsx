@@ -1,12 +1,6 @@
 "use client";
-
 import { useState, useMemo, useEffect, useRef } from "react";
-import Box from "@mui/material/Box";
-import InputBase from "@mui/material/InputBase";
-import Typography from "@mui/material/Typography";
-import SearchIcon from "@mui/icons-material/Search";
 import { registerLogicGates } from "./LogicGates";
-import { registerDipChips } from "./DipChip";
 
 interface PartEntry {
   type: string;
@@ -140,12 +134,10 @@ const CATALOG: Category[] = [
       { type: "wokwi-led-bar-graph", label: "LED Bar Graph" },
       { type: "wokwi-relay-module", label: "Relay Module" },
       { type: "wokwi-dip-switch-8", label: "DIP Switch (8)" },
-      { type: "wokwi-microsd-card", label: "MicroSD Card" },
     ],
   },
 ];
 
-/** Renders a scaled-down Wokwi custom element as a 40x40 thumbnail. */
 function PartThumbnail({ type, attrs }: { type: string; attrs?: Record<string, string> }) {
   const ref = useRef<HTMLDivElement>(null);
 
@@ -187,21 +179,17 @@ function PartThumbnail({ type, attrs }: { type: string; attrs?: Record<string, s
   );
 }
 
-interface AddPartPanelProps {
+interface PartCatalogProps {
   onSelect: (partType: string) => void;
+  onClose: () => void;
 }
 
-export default function AddPartPanel({ onSelect }: AddPartPanelProps) {
+export default function PartCatalog({ onSelect, onClose }: PartCatalogProps) {
   const [search, setSearch] = useState("");
   const [ready, setReady] = useState(false);
 
-  // Ensure wokwi elements + custom elements are loaded before rendering thumbnails
   useEffect(() => {
-    import("@wokwi/elements").then(() => {
-      registerLogicGates();
-      registerDipChips();
-      setReady(true);
-    });
+    import("@wokwi/elements").then(() => { registerLogicGates(); setReady(true); });
   }, []);
 
   const filtered = useMemo(() => {
@@ -218,78 +206,103 @@ export default function AddPartPanel({ onSelect }: AddPartPanelProps) {
   }, [search]);
 
   return (
-    <Box sx={{ width: 380, maxHeight: 500, display: "flex", flexDirection: "column", bgcolor: "#1a1a1a" }}>
-      {/* Search bar */}
-      <Box sx={{ display: "flex", alignItems: "center", px: 1.5, py: 1, borderBottom: "1px solid #333" }}>
-        <InputBase
+    <div style={{
+      position: "absolute",
+      top: 48,
+      left: 12,
+      width: 340,
+      maxHeight: 500,
+      display: "flex",
+      flexDirection: "column",
+      background: "rgba(26, 26, 26, 0.95)",
+      border: "1px solid #444",
+      borderRadius: 6,
+      zIndex: 30,
+      backdropFilter: "blur(8px)",
+      overflow: "hidden",
+    }}>
+      {/* Header */}
+      <div style={{ display: "flex", alignItems: "center", padding: "8px 12px", borderBottom: "1px solid #333" }}>
+        <input
+          type="text"
           placeholder="Search parts..."
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           autoFocus
-          sx={{
+          style={{
             flex: 1,
+            background: "transparent",
+            border: "none",
             color: "#ccc",
             fontSize: 14,
-            "& input::placeholder": { color: "#666", opacity: 1 },
+            fontFamily: "monospace",
+            outline: "none",
           }}
         />
-        <SearchIcon sx={{ color: "#666", fontSize: 20 }} />
-      </Box>
+        <button
+          onClick={onClose}
+          style={{
+            background: "none",
+            border: "none",
+            color: "#888",
+            cursor: "pointer",
+            fontSize: 16,
+            padding: "0 4px",
+          }}
+        >
+          x
+        </button>
+      </div>
 
       {/* Scrollable list */}
-      <Box sx={{ overflowY: "auto", flex: 1 }}>
+      <div style={{ overflowY: "auto", flex: 1 }}>
         {filtered.map((cat) => (
-          <Box key={cat.name}>
-            {/* Category header */}
-            <Typography
-              sx={{
-                px: 1.5,
-                py: 0.75,
-                fontSize: 11,
-                fontWeight: 600,
-                color: "#777",
-                textTransform: "uppercase",
-                letterSpacing: 0.5,
-                bgcolor: "#222",
-              }}
-            >
+          <div key={cat.name}>
+            <div style={{
+              padding: "6px 12px",
+              fontSize: 11,
+              fontWeight: 600,
+              color: "#777",
+              textTransform: "uppercase",
+              letterSpacing: 0.5,
+              background: "#222",
+              fontFamily: "monospace",
+            }}>
               {cat.name}
-            </Typography>
-
-            {/* Part rows */}
+            </div>
             {cat.parts.map((part) => (
-              <Box
+              <div
                 key={part.type}
                 onClick={() => onSelect(part.type)}
-                sx={{
+                style={{
                   display: "flex",
                   alignItems: "center",
-                  gap: 1.5,
-                  px: 1.5,
-                  py: 0.75,
+                  gap: 12,
+                  padding: "6px 12px",
                   cursor: "pointer",
-                  "&:hover": { bgcolor: "#2a2a2a" },
+                  fontFamily: "monospace",
+                  fontSize: 13,
+                  color: "#ccc",
                 }}
+                onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.background = "#2a2a2a"; }}
+                onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.background = ""; }}
               >
                 {ready ? (
                   <PartThumbnail type={part.type} attrs={part.thumbAttrs} />
                 ) : (
                   <div style={{ width: 40, height: 40, borderRadius: 4, background: "#2a2a2a", flexShrink: 0 }} />
                 )}
-                <Typography sx={{ color: "#ccc", fontSize: 13 }}>
-                  {part.label}
-                </Typography>
-              </Box>
+                {part.label}
+              </div>
             ))}
-          </Box>
+          </div>
         ))}
-
         {filtered.length === 0 && (
-          <Typography sx={{ color: "#666", fontSize: 13, textAlign: "center", py: 3 }}>
+          <div style={{ color: "#666", fontSize: 13, textAlign: "center", padding: "24px 0", fontFamily: "monospace" }}>
             No parts found
-          </Typography>
+          </div>
         )}
-      </Box>
-    </Box>
+      </div>
+    </div>
   );
 }

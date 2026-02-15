@@ -4,7 +4,7 @@ import dynamic from "next/dynamic";
 import styles from "./Workbench.module.css";
 import EditorPanel from "./EditorPanel";
 import SimulationPanel from "./SimulationPanel";
-import { Diagram, DiagramConnection, DiagramLabel } from "@/lib/diagram-parser";
+import { Diagram, DiagramConnection } from "@/lib/diagram-parser";
 import { AVRRunner } from "@/lib/avr-runner";
 
 // SplitPane wraps Allotment and imports its CSS — must skip SSR
@@ -33,23 +33,20 @@ interface WorkbenchProps {
   onUpdateConnection: (index: number, conn: DiagramConnection) => void;
   onDeleteConnection: (index: number) => void;
   onWireColorChange: (index: number, color: string) => void;
-  onAddLabel?: (label: DiagramLabel) => void;
-  onUpdateLabel?: (labelId: string, name: string) => void;
-  onDeleteLabel?: (labelId: string) => void;
-  onMoveLabel?: (labelId: string, x: number, y: number) => void;
   selectedPartId: string | null;
-  selectedLabelId: string | null;
   onPartSelect: (partId: string | null) => void;
-  onLabelSelect: (labelId: string | null) => void;
   onDeletePart: (partId: string) => void;
   onPartRotate: (partId: string, angle: number) => void;
+  onDuplicatePart: (partId: string) => void;
   onPartAttrChange: (partId: string, attr: string, value: string) => void;
   placingPartId: string | null;
   onFinishPlacing: () => void;
-  placingLabelId: string | null;
-  onFinishPlacingLabel: () => void;
-  onCancelPlacingLabel: () => void;
-  onPlaceLabelAt: (labelId: string, pinRef: string, x: number, y: number) => void;
+  showGrid: boolean;
+  onUndo?: () => void;
+  onRedo?: () => void;
+  canUndo?: boolean;
+  canRedo?: boolean;
+  onToggleGrid?: () => void;
   onInitPCB: () => void;
 }
 
@@ -76,23 +73,20 @@ export default function Workbench({
   onUpdateConnection,
   onDeleteConnection,
   onWireColorChange,
-  onAddLabel,
-  onUpdateLabel,
-  onDeleteLabel,
-  onMoveLabel,
   selectedPartId,
-  selectedLabelId,
   onPartSelect,
-  onLabelSelect,
   onDeletePart,
   onPartRotate,
+  onDuplicatePart,
   onPartAttrChange,
   placingPartId,
   onFinishPlacing,
-  placingLabelId,
-  onFinishPlacingLabel,
-  onCancelPlacingLabel,
-  onPlaceLabelAt,
+  showGrid,
+  onUndo,
+  onRedo,
+  canUndo,
+  canRedo,
+  onToggleGrid,
   onInitPCB,
 }: WorkbenchProps) {
   return (
@@ -128,23 +122,20 @@ export default function Workbench({
               onUpdateConnection={onUpdateConnection}
               onDeleteConnection={onDeleteConnection}
               onWireColorChange={onWireColorChange}
-              onAddLabel={onAddLabel}
-              onUpdateLabel={onUpdateLabel}
-              onDeleteLabel={onDeleteLabel}
-              onMoveLabel={onMoveLabel}
               selectedPartId={selectedPartId}
-              selectedLabelId={selectedLabelId}
               onPartSelect={onPartSelect}
-              onLabelSelect={onLabelSelect}
               onDeletePart={onDeletePart}
               onPartRotate={onPartRotate}
+              onDuplicatePart={onDuplicatePart}
               onPartAttrChange={onPartAttrChange}
               placingPartId={placingPartId}
               onFinishPlacing={onFinishPlacing}
-              placingLabelId={placingLabelId}
-              onFinishPlacingLabel={onFinishPlacingLabel}
-              onCancelPlacingLabel={onCancelPlacingLabel}
-              onPlaceLabelAt={onPlaceLabelAt}
+              showGrid={showGrid}
+              onUndo={onUndo}
+              onRedo={onRedo}
+              canUndo={canUndo}
+              canRedo={canRedo}
+              onToggleGrid={onToggleGrid}
               onInitPCB={onInitPCB}
             />
           }
