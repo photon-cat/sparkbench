@@ -11,7 +11,7 @@
  * No dev server required.
  */
 
-import { readFileSync, writeFileSync, mkdirSync, rmSync } from "fs";
+import { readFileSync, writeFileSync, mkdirSync, rmSync, readdirSync } from "fs";
 import { execFileSync } from "child_process";
 import path from "path";
 import os from "os";
@@ -51,6 +51,18 @@ function compileSketch(slug: string, board: string): string {
   mkdirSync(includeDir, { recursive: true });
 
   writeFileSync(path.join(srcDir, "main.cpp"), sketch);
+
+  // Copy any header files from the project directory
+  const projDir = path.join(ROOT, "projects", slug);
+  try {
+    const files = readdirSync(projDir);
+    for (const f of files) {
+      if (f.endsWith(".h")) {
+        const content = readFileSync(path.join(projDir, f), "utf-8");
+        writeFileSync(path.join(includeDir, f), content);
+      }
+    }
+  } catch { /* ignore */ }
 
   console.log(`Compiling sketch for ${board}...`);
   try {

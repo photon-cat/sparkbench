@@ -1,0 +1,59 @@
+name: 'Simon Game test - score display and game over'
+version: 1
+steps:
+  # Round 1: setup + displayScore + playSequence (~400ms) - wait generously
+  - delay: 2000
+  # Game is now in readButtons(). Press all 4 buttons one at a time,
+  # with long gaps between them. Since we don't know the random sequence,
+  # one will eventually be wrong and trigger "Game over!".
+  # Each round after correct: lightLedAndPlayTone(350ms) + delay(300) +
+  # playLevelUpSound(900ms) + delay(300) + displayScore + playSequence = ~3000ms+
+  #
+  # Press button 0 (btn-yellow)
+  - set-control:
+      part-id: btn-yellow
+      control: pressed
+      value: 1
+  - delay: 200
+  - set-control:
+      part-id: btn-yellow
+      control: pressed
+      value: 0
+  # Wait for game to either end or finish all animations
+  - delay: 5000
+  # Press button 1 (btn-blue)
+  - set-control:
+      part-id: btn-blue
+      control: pressed
+      value: 1
+  - delay: 200
+  - set-control:
+      part-id: btn-blue
+      control: pressed
+      value: 0
+  - delay: 5000
+  # Press button 2 (btn-green)
+  - set-control:
+      part-id: btn-green
+      control: pressed
+      value: 1
+  - delay: 200
+  - set-control:
+      part-id: btn-green
+      control: pressed
+      value: 0
+  - delay: 5000
+  # Press button 3 (btn-red)
+  - set-control:
+      part-id: btn-red
+      control: pressed
+      value: 1
+  - delay: 200
+  - set-control:
+      part-id: btn-red
+      control: pressed
+      value: 0
+  - delay: 5000
+  # By now at least one wrong button should have triggered game over
+  - wait-serial: 'Game over! your score:'
+    timeout: 5000

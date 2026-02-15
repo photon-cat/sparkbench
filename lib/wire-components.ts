@@ -9,7 +9,7 @@ import {
 import { mapArduinoPin, mapAtmega328Pin, getPort, PinInfo } from "./pin-mapping";
 import { SSD1306Controller } from "./ssd1306-controller";
 import { HC165Simulator } from "./hc165-sim";
-import { HC595Simulator } from "./hc595-sim";
+import { HC595Chip, HC595Chain } from "./hc595-sim";
 
 export interface WiredComponent {
   part: DiagramPart;
@@ -226,8 +226,10 @@ function wireHC165(
 }
 
 /**
- * Detect and wire 74HC595 shift register parts.
- * Traces connections to find MCU pins for DS/SHCP/STCP and Q0-Q7 to LEDs.
+ * Detect and wire 74HC595 shift register parts, including daisy chains.
+ *
+ * Builds chains by following Q7S→DS connections between 595s.
+ * Connects Q0-Q7 outputs to LEDs and 7-segment displays.
  */
 function wireHC595(
   runner: AVRRunner,
@@ -236,62 +238,169 @@ function wireHC595(
   pinMapper: (name: string) => PinInfo | null,
   wired: Map<string, WiredComponent>,
 ) {
+  // Collect all 595 parts and their connections
+  const sr595Parts: DiagramPart[] = [];
+  const sr595Conns = new Map<string, Map<string, string[]>>();
   for (const part of diagram.parts) {
     if (part.type !== "wokwi-74hc595") continue;
+    sr595Parts.push(part);
+    sr595Conns.set(part.id, findPartConnections(diagram, part.id));
+  }
+  if (sr595Parts.length === 0) return;
 
-    const conns = findPartConnections(diagram, part.id);
+  // Helper to resolve an MCU pin from a 595's pin connections
+  const resolveMcuPin = (partId: string, pinName: string): PinInfo | null => {
+    const conns = sr595Conns.get(partId)!;
+    const targets = conns.get(pinName);
+    if (!targets) return null;
+    for (const ref of targets) {
+      const [refPart, refPin] = ref.split(":");
+      if (refPart === mcuId) return pinMapper(refPin);
+    }
+    return null;
+  };
 
-    // Resolve MCU pin for a shift register pin name
-    const resolveMcuPin = (srPinName: string): PinInfo | null => {
-      const targets = conns.get(srPinName);
-      if (!targets) return null;
-      for (const ref of targets) {
-        const [refPart, refPin] = ref.split(":");
-        if (refPart === mcuId) {
-          return pinMapper(refPin);
-        }
+  // Helper to resolve an MCU pin by following shared connections between 595s
+  // (e.g. sr2:SHCP → sr1:SHCP → MCU pin)
+  const resolveMcuPinTransitive = (partId: string, pinName: string): PinInfo | null => {
+    const direct = resolveMcuPin(partId, pinName);
+    if (direct) return direct;
+    // Follow connection to another 595 with the same pin name
+    const conns = sr595Conns.get(partId)!;
+    const targets = conns.get(pinName);
+    if (!targets) return null;
+    for (const ref of targets) {
+      const [refPart, refPin] = ref.split(":");
+      if (sr595Conns.has(refPart) && refPin === pinName) {
+        const indirect = resolveMcuPinTransitive(refPart, pinName);
+        if (indirect) return indirect;
       }
-      return null;
-    };
+    }
+    return null;
+  };
 
-    const dsPin = resolveMcuPin("DS");
-    const shcpPin = resolveMcuPin("SHCP");
-    const stcpPin = resolveMcuPin("STCP");
+  // Build daisy chains: find Q7S→DS links between 595s
+  // downstream[A] = B means A:Q7S → B:DS (A feeds B)
+  const downstream = new Map<string, string>();
+  const hasUpstream = new Set<string>();
+  for (const part of sr595Parts) {
+    const conns = sr595Conns.get(part.id)!;
+    const q7sTargets = conns.get("Q7S");
+    if (!q7sTargets) continue;
+    for (const ref of q7sTargets) {
+      const [refPart, refPin] = ref.split(":");
+      if (refPin === "DS" && sr595Conns.has(refPart)) {
+        downstream.set(part.id, refPart);
+        hasUpstream.add(refPart);
+      }
+    }
+  }
 
+  // Find chain heads (595s whose DS connects to MCU, not to another 595)
+  const processed = new Set<string>();
+  for (const part of sr595Parts) {
+    if (hasUpstream.has(part.id)) continue; // not a head
+    if (processed.has(part.id)) continue;
+
+    // Build chain from head
+    const chainIds: string[] = [];
+    let current: string | undefined = part.id;
+    while (current && !processed.has(current)) {
+      chainIds.push(current);
+      processed.add(current);
+      current = downstream.get(current);
+    }
+
+    // Resolve MCU pins from the head (or transitively for shared clocks)
+    const dsPin = resolveMcuPin(chainIds[0], "DS");
+    const shcpPin = resolveMcuPinTransitive(chainIds[0], "SHCP");
+    const stcpPin = resolveMcuPinTransitive(chainIds[0], "STCP");
     if (!dsPin || !shcpPin || !stcpPin) continue;
 
-    const sim = new HC595Simulator(runner, dsPin, shcpPin, stcpPin);
+    // Create chips and chain
+    const chips: HC595Chip[] = chainIds.map(() => new HC595Chip());
+    const chain = new HC595Chain(runner, dsPin, shcpPin, stcpPin, chips);
 
-    // Map Q0-Q7 outputs to connected LEDs
-    const ledMap: { bit: number; wcId: string }[] = [];
-    for (let bit = 0; bit < 8; bit++) {
-      const qTargets = conns.get(`Q${bit}`);
-      if (!qTargets) continue;
-      for (const ref of qTargets) {
-        const [targetId] = ref.split(":");
-        const targetWc = wired.get(targetId);
-        if (targetWc && targetWc.part.type === "wokwi-led") {
-          ledMap.push({ bit, wcId: targetId });
+    // Wire each chip's Q outputs to LEDs and 7-segment displays
+    for (let ci = 0; ci < chainIds.length; ci++) {
+      const chipId = chainIds[ci];
+      const chip = chips[ci];
+      const conns = sr595Conns.get(chipId)!;
+
+      wireHC595Outputs(chip, chipId, conns, wired);
+
+      // Set cleanup on the 595's wired component
+      const wc = wired.get(chipId) || { part: sr595Parts.find((p) => p.id === chipId)! };
+      wired.set(chipId, wc);
+    }
+
+    // Attach chain cleanup to the head 595
+    const headWc = wired.get(chainIds[0])!;
+    const existingCleanup = headWc.cleanup;
+    headWc.cleanup = () => {
+      existingCleanup?.();
+      chain.dispose();
+    };
+  }
+}
+
+/** Segment pin name → index in the values array [A,B,C,D,E,F,G,DP] */
+const SEG_PIN_INDEX: Record<string, number> = {
+  A: 0, B: 1, C: 2, D: 3, E: 4, F: 5, G: 6, DP: 7,
+};
+
+/**
+ * Wire a single HC595 chip's Q0-Q7 outputs to connected LEDs and 7-segment displays.
+ */
+function wireHC595Outputs(
+  chip: HC595Chip,
+  chipId: string,
+  conns: Map<string, string[]>,
+  wired: Map<string, WiredComponent>,
+) {
+  const ledMap: { bit: number; wcId: string }[] = [];
+  // segMap: { segPartId → { bit → segIndex } }
+  const segMap = new Map<string, { bit: number; segIndex: number }[]>();
+
+  for (let bit = 0; bit < 8; bit++) {
+    const qTargets = conns.get(`Q${bit}`);
+    if (!qTargets) continue;
+    for (const ref of qTargets) {
+      const [targetId, targetPin] = ref.split(":");
+      const targetWc = wired.get(targetId);
+      if (!targetWc) continue;
+
+      if (targetWc.part.type === "wokwi-led") {
+        ledMap.push({ bit, wcId: targetId });
+      } else if (targetWc.part.type === "wokwi-7segment") {
+        const segIndex = SEG_PIN_INDEX[targetPin];
+        if (segIndex !== undefined) {
+          let entries = segMap.get(targetId);
+          if (!entries) { entries = []; segMap.set(targetId, entries); }
+          entries.push({ bit, segIndex });
         }
       }
     }
-
-    sim.onOutputChange = (outputs: boolean[]) => {
-      for (const { bit, wcId } of ledMap) {
-        const ledWc = wired.get(wcId);
-        ledWc?.onStateChange?.(outputs[bit]);
-      }
-    };
-
-    // Update wired component for the shift register with cleanup
-    const existingWc = wired.get(part.id) || { part };
-    const existingCleanup = existingWc.cleanup;
-    existingWc.cleanup = () => {
-      existingCleanup?.();
-      sim.dispose();
-    };
-    wired.set(part.id, existingWc);
   }
+
+  chip.onOutputChange = (outputs: boolean[]) => {
+    // Update LEDs
+    for (const { bit, wcId } of ledMap) {
+      const ledWc = wired.get(wcId);
+      ledWc?.onStateChange?.(outputs[bit]);
+    }
+    // Update 7-segment displays
+    for (const [segId, entries] of segMap) {
+      const segWc = wired.get(segId);
+      if (!segWc?.onSegmentChange) continue;
+      // Build segment values array — common-anode: LOW (false) = segment ON
+      const values = new Array(8).fill(0);
+      for (const { bit, segIndex } of entries) {
+        values[segIndex] = outputs[bit] ? 0 : 1; // invert for common-anode
+      }
+      segWc.onSegmentChange(values);
+    }
+  };
 }
 
 /** Cleanup all listeners. */

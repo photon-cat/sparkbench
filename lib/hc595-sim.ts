@@ -1,82 +1,40 @@
 /**
  * 74HC595 Serial-In/Parallel-Out Shift Register Simulation
  *
- * Hooks into avr8js GPIO ports to simulate the digital logic:
- * - DS (Serial Data Input): data bit to shift in
- * - SHCP (Shift Register Clock): shifts DS into the register on rising edge
- * - STCP (Storage Register Clock / Latch): copies shift register to output register on rising edge
- * - OE (Output Enable, active LOW): enables Q0-Q7 outputs (assumed always enabled here)
- * - MR (Master Reset, active LOW): clears the shift register (assumed always HIGH here)
- * - Q0-Q7: parallel outputs
- * - Q7S: serial output for daisy-chaining
+ * Supports single chips and daisy-chained configurations.
+ *
+ * HC595Chip: pure shift/latch logic for one chip
+ * HC595Chain: manages port listeners and propagates shifts through a chain
  */
 
 import { PinState } from "avr8js";
 import { AVRRunner } from "./avr-runner";
 import { PinInfo, getPort } from "./pin-mapping";
 
-export class HC595Simulator {
-  private shiftRegister = 0; // 8-bit shift register
-  private outputRegister = 0; // 8-bit output latch
-  private lastSHCP = false; // shift clock state
-  private lastSTCP = false; // latch clock state
-  private cleanups: (() => void)[] = [];
+/** A single 74HC595 chip's shift/latch logic (no port listeners). */
+export class HC595Chip {
+  shiftRegister = 0; // 8-bit shift register
+  outputRegister = 0; // 8-bit output latch
 
   /** Called when the output register changes. Receives 8-element boolean array [Q0..Q7]. */
   onOutputChange?: (outputs: boolean[]) => void;
 
   /**
-   * @param runner   - AVR simulation runner
-   * @param dsPin    - MCU pin connected to DS (serial data input)
-   * @param shcpPin  - MCU pin connected to SHCP (shift clock)
-   * @param stcpPin  - MCU pin connected to STCP (storage/latch clock)
+   * Shift one bit in. Returns the old MSB (Q7S) for daisy-chaining.
    */
-  constructor(
-    private runner: AVRRunner,
-    private dsPin: PinInfo,
-    private shcpPin: PinInfo,
-    private stcpPin: PinInfo,
-  ) {
-    const dsPort = getPort(runner, dsPin.port);
-    const shcpPort = getPort(runner, shcpPin.port);
-    const stcpPort = getPort(runner, stcpPin.port);
-
-    const listener = () => this.tick();
-
-    // Add listener to each unique port
-    const ports = new Set([dsPort, shcpPort, stcpPort]);
-    for (const port of ports) {
-      port.addListener(listener);
-      this.cleanups.push(() => port.removeListener(listener));
-    }
+  shift(ds: boolean): boolean {
+    const q7s = (this.shiftRegister & 0x80) !== 0;
+    this.shiftRegister = ((this.shiftRegister << 1) | (ds ? 1 : 0)) & 0xff;
+    return q7s;
   }
 
-  private tick() {
-    const dsPort = getPort(this.runner, this.dsPin.port);
-    const shcpPort = getPort(this.runner, this.shcpPin.port);
-    const stcpPort = getPort(this.runner, this.stcpPin.port);
-
-    const shcpHigh = shcpPort.pinState(this.shcpPin.pin) === PinState.High;
-    const stcpHigh = stcpPort.pinState(this.stcpPin.pin) === PinState.High;
-
-    // SHCP rising edge: shift DS into the register (MSB first — DS goes into bit 0,
-    // existing bits shift left)
-    if (shcpHigh && !this.lastSHCP) {
-      const dsHigh = dsPort.pinState(this.dsPin.pin) === PinState.High;
-      this.shiftRegister = ((this.shiftRegister << 1) | (dsHigh ? 1 : 0)) & 0xff;
+  /** Latch: copy shift register to output register. */
+  latch() {
+    const prev = this.outputRegister;
+    this.outputRegister = this.shiftRegister;
+    if (this.outputRegister !== prev) {
+      this.fireOutputChange();
     }
-
-    // STCP rising edge: latch shift register to output register
-    if (stcpHigh && !this.lastSTCP) {
-      const prev = this.outputRegister;
-      this.outputRegister = this.shiftRegister;
-      if (this.outputRegister !== prev) {
-        this.fireOutputChange();
-      }
-    }
-
-    this.lastSHCP = shcpHigh;
-    this.lastSTCP = stcpHigh;
   }
 
   private fireOutputChange() {
@@ -86,6 +44,65 @@ export class HC595Simulator {
       outputs.push((this.outputRegister & (1 << i)) !== 0);
     }
     this.onOutputChange(outputs);
+  }
+}
+
+/**
+ * Manages a chain of one or more daisy-chained 74HC595 chips.
+ * Listens to the shared SHCP/STCP clock pins and the head chip's DS pin.
+ * On SHCP rising edge: shifts through all chips (head first, Q7S feeds next).
+ * On STCP rising edge: latches all chips.
+ */
+export class HC595Chain {
+  private lastSHCP = false;
+  private lastSTCP = false;
+  private cleanups: (() => void)[] = [];
+
+  constructor(
+    private runner: AVRRunner,
+    private dsPin: PinInfo,
+    private shcpPin: PinInfo,
+    private stcpPin: PinInfo,
+    readonly chips: HC595Chip[],
+  ) {
+    const listener = () => this.tick();
+
+    const ports = new Set([
+      getPort(runner, dsPin.port),
+      getPort(runner, shcpPin.port),
+      getPort(runner, stcpPin.port),
+    ]);
+    for (const port of ports) {
+      port.addListener(listener);
+      this.cleanups.push(() => port.removeListener(listener));
+    }
+  }
+
+  private tick() {
+    const shcpPort = getPort(this.runner, this.shcpPin.port);
+    const stcpPort = getPort(this.runner, this.stcpPin.port);
+
+    const shcpHigh = shcpPort.pinState(this.shcpPin.pin) === PinState.High;
+    const stcpHigh = stcpPort.pinState(this.stcpPin.pin) === PinState.High;
+
+    // SHCP rising edge: shift all chips in chain order
+    if (shcpHigh && !this.lastSHCP) {
+      const dsPort = getPort(this.runner, this.dsPin.port);
+      let ds = dsPort.pinState(this.dsPin.pin) === PinState.High;
+      for (const chip of this.chips) {
+        ds = chip.shift(ds); // Q7S overflow becomes next chip's DS
+      }
+    }
+
+    // STCP rising edge: latch all chips
+    if (stcpHigh && !this.lastSTCP) {
+      for (const chip of this.chips) {
+        chip.latch();
+      }
+    }
+
+    this.lastSHCP = shcpHigh;
+    this.lastSTCP = stcpHigh;
   }
 
   dispose() {
