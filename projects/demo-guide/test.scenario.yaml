@@ -1,13 +1,17 @@
-name: Demo Guide - Basic Functionality
+name: Demo Guide - 74HC595 Shift Register + LEDs
 version: 1
 steps:
-  - delay: 500
+  - delay: 1000
 
   # Verify boot message
   - wait-serial: "SparkBench Demo Guide"
     timeout: 3000
 
-  # Press button to cycle to pattern 1 (red)
+  # Wait for chase animation to produce serial output
+  - delay: 600
+  - expect-serial: "[sr] LEDs="
+
+  # Press button to cycle to fill mode
   - set-control:
       part-id: btn1
       control: pressed
@@ -17,10 +21,10 @@ steps:
       part-id: btn1
       control: pressed
       value: false
-  - delay: 200
-  - expect-serial: "Red ON"
+  - delay: 300
+  - expect-serial: "fill"
 
-  # Press button again for pattern 2 (green)
+  # Press button to cycle to bounce mode
   - set-control:
       part-id: btn1
       control: pressed
@@ -30,13 +34,13 @@ steps:
       part-id: btn1
       control: pressed
       value: false
-  - delay: 200
-  - expect-serial: "Green ON"
+  - delay: 300
+  - expect-serial: "bounce"
 
-  # Move potentiometer and check servo output
+  # Move potentiometer and check servo angle output
   - set-control:
       part-id: pot1
       control: position
-      value: 0.5
+      value: 0.75
   - delay: 600
-  - expect-serial: "Servo:"
+  - expect-serial: "servo="

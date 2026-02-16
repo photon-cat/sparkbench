@@ -3,264 +3,55 @@
   "author": "SparkBench",
   "editor": "sparkbench",
   "parts": [
-    {
-      "type": "wokwi-arduino-uno",
-      "id": "uno",
-      "top": 183,
-      "left": 18,
-      "attrs": {}
-    },
-    {
-      "type": "wokwi-led",
-      "id": "led1",
-      "top": 10,
-      "left": 6,
-      "attrs": {
-        "color": "red"
-      }
-    },
-    {
-      "type": "wokwi-led",
-      "id": "led2",
-      "top": 10,
-      "left": 56,
-      "attrs": {
-        "color": "green"
-      }
-    },
-    {
-      "type": "wokwi-led",
-      "id": "led3",
-      "top": 10,
-      "left": 106,
-      "attrs": {
-        "color": "blue"
-      }
-    },
-    {
-      "type": "wokwi-resistor",
-      "id": "r1",
-      "top": 80,
-      "left": 10,
-      "attrs": {
-        "value": "220"
-      }
-    },
-    {
-      "type": "wokwi-resistor",
-      "id": "r2",
-      "top": 80,
-      "left": 60,
-      "attrs": {
-        "value": "220"
-      }
-    },
-    {
-      "type": "wokwi-resistor",
-      "id": "r3",
-      "top": 80,
-      "left": 110,
-      "attrs": {
-        "value": "220"
-      }
-    },
-    {
-      "type": "wokwi-pushbutton",
-      "id": "btn1",
-      "top": 10,
-      "left": 180,
-      "attrs": {
-        "color": "red"
-      }
-    },
-    {
-      "type": "wokwi-potentiometer",
-      "id": "pot1",
-      "top": 10,
-      "left": 280,
-      "attrs": {}
-    },
-    {
-      "type": "wokwi-servo",
-      "id": "servo1",
-      "top": 100,
-      "left": 280,
-      "attrs": {}
-    }
+    { "type": "wokwi-arduino-uno", "id": "uno", "top": 270, "left": 18, "attrs": {} },
+    { "type": "wokwi-74hc595", "id": "sr1", "top": 130, "left": 210, "rotate": 90 },
+    { "type": "wokwi-led", "id": "led1", "top": 10, "left": 220, "attrs": { "color": "red" } },
+    { "type": "wokwi-led", "id": "led2", "top": 10, "left": 195, "attrs": { "color": "orange" } },
+    { "type": "wokwi-led", "id": "led3", "top": 10, "left": 170, "attrs": { "color": "yellow" } },
+    { "type": "wokwi-led", "id": "led4", "top": 10, "left": 145, "attrs": { "color": "green" } },
+    { "type": "wokwi-led", "id": "led5", "top": 10, "left": 120, "attrs": { "color": "green" } },
+    { "type": "wokwi-led", "id": "led6", "top": 10, "left": 95, "attrs": { "color": "blue" } },
+    { "type": "wokwi-led", "id": "led7", "top": 10, "left": 70, "attrs": { "color": "blue" } },
+    { "type": "wokwi-led", "id": "led8", "top": 10, "left": 45, "attrs": { "color": "white" } },
+    { "type": "wokwi-pushbutton", "id": "btn1", "top": 10, "left": 290, "attrs": { "color": "red" } },
+    { "type": "wokwi-potentiometer", "id": "pot1", "top": 10, "left": 370, "attrs": {} },
+    { "type": "wokwi-servo", "id": "servo1", "top": 100, "left": 370, "attrs": {} }
   ],
   "connections": [
-    [
-      "uno:13",
-      "r1:1",
-      "orange",
-      [
-        "v-16",
-        "*",
-        "h6"
-      ]
-    ],
-    [
-      "r1:2",
-      "led1:A",
-      "orange",
-      [
-        "v-10",
-        "*",
-        "h0"
-      ]
-    ],
-    [
-      "uno:GND.1",
-      "led1:C",
-      "black",
-      [
-        "v-12",
-        "*",
-        "h-8",
-        "v4"
-      ]
-    ],
-    [
-      "uno:12",
-      "r2:1",
-      "green",
-      [
-        "v-20",
-        "*",
-        "h6"
-      ]
-    ],
-    [
-      "r2:2",
-      "led2:A",
-      "green",
-      [
-        "v-10",
-        "*",
-        "h0"
-      ]
-    ],
-    [
-      "uno:GND.1",
-      "led2:C",
-      "black",
-      [
-        "v-12",
-        "*",
-        "h-8",
-        "v4"
-      ]
-    ],
-    [
-      "uno:11",
-      "r3:1",
-      "blue",
-      [
-        "v-24",
-        "*",
-        "h6"
-      ]
-    ],
-    [
-      "r3:2",
-      "led3:A",
-      "blue",
-      [
-        "v-10",
-        "*",
-        "h0"
-      ]
-    ],
-    [
-      "uno:GND.1",
-      "led3:C",
-      "black",
-      [
-        "v-12",
-        "*",
-        "h-8",
-        "v4"
-      ]
-    ],
-    [
-      "uno:2",
-      "btn1:2.r",
-      "purple",
-      [
-        "v-28",
-        "*",
-        "h10"
-      ]
-    ],
-    [
-      "uno:GND.2",
-      "btn1:1.l",
-      "black",
-      [
-        "v-12",
-        "*",
-        "h-6"
-      ]
-    ],
-    [
-      "uno:A0",
-      "pot1:SIG",
-      "gold",
-      [
-        "v-32",
-        "*",
-        "h0"
-      ]
-    ],
-    [
-      "uno:5V",
-      "pot1:VCC",
-      "red",
-      [
-        "v-36",
-        "*",
-        "h0"
-      ]
-    ],
-    [
-      "uno:GND.3",
-      "pot1:GND",
-      "black",
-      [
-        "v-12",
-        "*",
-        "h0"
-      ]
-    ],
-    [
-      "uno:9",
-      "servo1:PWM",
-      "orange",
-      [
-        "v-40",
-        "*",
-        "h0"
-      ]
-    ],
-    [
-      "uno:5V",
-      "servo1:V+",
-      "red",
-      [
-        "v-36",
-        "*",
-        "h0"
-      ]
-    ],
-    [
-      "uno:GND.3",
-      "servo1:GND",
-      "black",
-      [
-        "v-12",
-        "*",
-        "h0"
-      ]
-    ]
+    ["sr1:DS", "uno:2", "blue", ["h16", "v70", "h-68"]],
+    ["sr1:SHCP", "uno:3", "gray", ["h4", "v30", "h-66"]],
+    ["sr1:STCP", "uno:4", "purple", ["h7", "v43", "h-77"]],
+    ["sr1:VCC", "uno:5V", "red", ["h30", "v300", "h-156"]],
+    ["sr1:GND", "uno:GND.1", "black", ["h0"]],
+    ["uno:GND.1", "sr1:OE", "black", ["v-22", "h184", "v-52"]],
+
+    ["sr1:Q0", "led1:A", "green", ["h10", "v-17", "h-63", "v40", "h-6"]],
+    ["sr1:Q1", "led2:A", "green", ["h-19", "v37", "h-40"]],
+    ["sr1:Q2", "led3:A", "green", ["h-16", "v31", "h-64"]],
+    ["sr1:Q3", "led4:A", "green", ["h-13", "v24", "h-95"]],
+    ["sr1:Q4", "led5:A", "green", ["h-10", "v18", "h-131"]],
+    ["sr1:Q5", "led6:A", "green", ["h-7", "v12", "h-161"]],
+    ["sr1:Q6", "led7:A", "green", ["h-4", "v6", "h-194"]],
+    ["sr1:Q7", "led8:A", "green", ["h0"]],
+
+    ["uno:GND.1", "led1:C", "black", ["v-40", "h-13"]],
+    ["uno:GND.1", "led2:C", "black", ["v-40", "h-29"]],
+    ["uno:GND.1", "led3:C", "black", ["v-40", "h-16"]],
+    ["uno:GND.1", "led4:C", "black", ["v-40", "h-35"]],
+    ["uno:GND.1", "led5:C", "black", ["v-40", "h-66"]],
+    ["uno:GND.1", "led6:C", "black", ["v-40", "h-100"]],
+    ["uno:GND.1", "led7:C", "black", ["v-40", "h206"]],
+    ["uno:GND.1", "led8:C", "black", ["v-40", "h277"]],
+
+    ["uno:5", "btn1:2.r", "purple", ["v-28", "*", "h10"]],
+    ["uno:GND.2", "btn1:1.l", "black", ["v-12", "*", "h-6"]],
+
+    ["uno:A0", "pot1:SIG", "gold", ["v-32", "*", "h0"]],
+    ["uno:5V", "pot1:VCC", "red", ["v-36", "*", "h0"]],
+    ["uno:GND.3", "pot1:GND", "black", ["v-12", "*", "h0"]],
+
+    ["uno:9", "servo1:PWM", "orange", ["v-40", "*", "h0"]],
+    ["uno:5V", "servo1:V+", "red", ["v-36", "*", "h0"]],
+    ["uno:GND.3", "servo1:GND", "black", ["v-12", "*", "h0"]]
   ]
 }
