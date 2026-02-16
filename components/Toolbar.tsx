@@ -12,6 +12,7 @@ import FileDownloadIcon from "@mui/icons-material/FileDownload";
 import FolderZipIcon from "@mui/icons-material/FolderZip";
 import EditIcon from "@mui/icons-material/Edit";
 import SettingsIcon from "@mui/icons-material/Settings";
+import AutoAwesomeIcon from "@mui/icons-material/AutoAwesome";
 import styles from "./Toolbar.module.css";
 
 interface ToolbarProps {
@@ -22,13 +23,15 @@ interface ToolbarProps {
   onDownloadZip?: () => void;
   lastSaved?: Date | null;
   dirty?: boolean;
+  sparkyOpen?: boolean;
+  onSparkyToggle?: () => void;
 }
 
 function formatTime(date: Date): string {
   return date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" });
 }
 
-export default function Toolbar({ projectName, onSave, onImportWokwi, onExportWokwi, onDownloadZip, lastSaved, dirty }: ToolbarProps) {
+export default function Toolbar({ projectName, onSave, onImportWokwi, onExportWokwi, onDownloadZip, lastSaved, dirty, sparkyOpen, onSparkyToggle }: ToolbarProps) {
   const [saving, setSaving] = useState(false);
   const [dropdownAnchor, setDropdownAnchor] = useState<null | HTMLElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -140,6 +143,16 @@ export default function Toolbar({ projectName, onSave, onImportWokwi, onExportWo
 
       {/* Right */}
       <div className={styles.right}>
+        {onSparkyToggle && (
+          <button
+            className={`${styles.sparkyBtn} ${sparkyOpen ? styles.sparkyBtnActive : ""}`}
+            onClick={onSparkyToggle}
+            title="Toggle Sparky AI assistant"
+          >
+            <AutoAwesomeIcon sx={{ fontSize: 16 }} />
+            <span>Sparky</span>
+          </button>
+        )}
         <button className={styles.settingsBtn}>
           <SettingsIcon sx={{ fontSize: 20 }} />
         </button>

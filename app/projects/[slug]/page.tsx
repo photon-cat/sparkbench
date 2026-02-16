@@ -6,7 +6,7 @@ import Toolbar from "@/components/Toolbar";
 import Workbench from "@/components/Workbench";
 import { parseDiagram, findMCUs, type Diagram, type DiagramPart, type DiagramConnection, type MCUInfo } from "@/lib/diagram-parser";
 import { useSimulation } from "@/hooks/useSimulation";
-import { fetchDiagram, fetchSketch, saveDiagram, saveSketch, fetchPCB, savePCB } from "@/lib/api";
+import { fetchDiagram, fetchSketch, saveDiagram, saveSketch, fetchPCB, savePCB, fetchLibraries, saveLibraries } from "@/lib/api";
 import { importWokwi, exportToWokwi } from "@/lib/diagram-io";
 
 // Short prefix overrides for generating unique part IDs
@@ -64,6 +64,8 @@ export default function ProjectPage() {
   const [showGrid, setShowGrid] = useState(true);
   const [mcuTarget, setMcuTarget] = useState<string | undefined>(undefined);
   const [mcuOptions, setMcuOptions] = useState<{ id: string; label: string }[]>([]);
+  const [sparkyOpen, setSparkyOpen] = useState(false);
+  const [librariesTxt, setLibrariesTxt] = useState("");
 
   // Auto-detect MCUs when diagram changes
   useEffect(() => {
@@ -162,7 +164,7 @@ export default function ProjectPage() {
     handlePause,
     handleResume,
     handleRestart,
-  } = useSimulation({ slug, diagram, sketchCode, projectFiles, board: mcuBoardId });
+  } = useSimulation({ slug, diagram, sketchCode, projectFiles, board: mcuBoardId, librariesTxt });
 
   // Load diagram and sketch on mount (or when slug changes)
   useEffect(() => {
@@ -201,6 +203,10 @@ export default function ProjectPage() {
         setPcbText(data?.pcbText ?? null);
       })
       .catch((err) => console.error("Failed to load PCB:", err));
+
+    fetchLibraries(slug)
+      .then((text) => setLibrariesTxt(text))
+      .catch((err) => console.error("Failed to load libraries:", err));
   }, [slug]);
 
   const handleSketchChange = useCallback((code: string) => {
@@ -593,6 +599,18 @@ export default function ProjectPage() {
     if (loadedRef.current) setDirty(true);
   }, []);
 
+  const handleLibrariesChange = useCallback(async (text: string) => {
+    setLibrariesTxt(text);
+    setDirty(true);
+    if (slug) {
+      try {
+        await saveLibraries(slug, text);
+      } catch (err) {
+        console.error("Failed to save libraries:", err);
+      }
+    }
+  }, [slug]);
+
   const handlePcbSave = useCallback(async (text: string) => {
     if (!slug) return;
     try {
@@ -628,6 +646,35 @@ export default function ProjectPage() {
     }
   }, [diagram, slug]);
 
+  // Reload project files from disk (called after Sparky agent modifies files)
+  const handleProjectChanged = useCallback(() => {
+    if (!slug) return;
+    fetchDiagram(slug)
+      .then((data) => {
+        const parsed = parseDiagram(data.diagram);
+        setDiagram(parsed);
+        setDiagramJson(JSON.stringify(data.diagram, null, 2));
+      })
+      .catch((err) => console.error("Failed to reload diagram:", err));
+
+    fetchSketch(slug)
+      .then((data) => {
+        setSketchCode(data.sketch || "");
+        setProjectFiles(data.files || []);
+      })
+      .catch((err) => console.error("Failed to reload sketch:", err));
+
+    fetchPCB(slug)
+      .then((data) => {
+        setPcbText(data?.pcbText ?? null);
+      })
+      .catch((err) => console.error("Failed to reload PCB:", err));
+
+    fetchLibraries(slug)
+      .then((text) => setLibrariesTxt(text))
+      .catch((err) => console.error("Failed to reload libraries:", err));
+  }, [slug]);
+
   const handleSaveOutline = useCallback(async (svgText: string) => {
     // Add/update outline.svg in project files so it appears in the sidebar
     setProjectFiles((prev) => {
@@ -653,13 +700,16 @@ export default function ProjectPage() {
       if (pcbText !== null) {
         promises.push(savePCB(slug, pcbText));
       }
+      if (librariesTxt) {
+        promises.push(saveLibraries(slug, librariesTxt));
+      }
       await Promise.all(promises);
       setLastSaved(new Date());
       setDirty(false);
     } catch (err) {
       console.error("Save error:", err);
     }
-  }, [slug, diagramJson, sketchCode, pcbText, projectFiles]);
+  }, [slug, diagramJson, sketchCode, pcbText, projectFiles, librariesTxt]);
 
   const handleImportWokwi = useCallback((json: unknown) => {
     const imported = importWokwi(json);
@@ -701,6 +751,9 @@ export default function ProjectPage() {
     }
     if (pcbText) {
       zip.file("board.kicad_pcb", pcbText);
+    }
+    if (librariesTxt) {
+      zip.file("libraries.txt", librariesTxt);
     }
     const blob = await zip.generateAsync({ type: "blob" });
     const url = URL.createObjectURL(blob);
@@ -869,7 +922,7 @@ export default function ProjectPage() {
 
   return (
     <div style={{ height: "100vh", display: "flex", flexDirection: "column" }}>
-      <Toolbar projectName={slug} onSave={handleSave} onImportWokwi={handleImportWokwi} onExportWokwi={handleExportWokwi} onDownloadZip={handleDownloadZip} lastSaved={lastSaved} dirty={dirty} />
+      <Toolbar projectName={slug} onSave={handleSave} onImportWokwi={handleImportWokwi} onExportWokwi={handleExportWokwi} onDownloadZip={handleDownloadZip} lastSaved={lastSaved} dirty={dirty} sparkyOpen={sparkyOpen} onSparkyToggle={() => setSparkyOpen((v) => !v)} />
       <Workbench
         diagram={diagram}
         runner={runner}
@@ -917,6 +970,12 @@ export default function ProjectPage() {
         mcuId={mcuTarget}
         mcuOptions={mcuOptions}
         onMcuChange={setMcuTarget}
+        librariesTxt={librariesTxt}
+        onLibrariesChange={handleLibrariesChange}
+        sparkyOpen={sparkyOpen}
+        onSparkyToggle={() => setSparkyOpen((v) => !v)}
+        slug={slug}
+        onProjectChanged={handleProjectChanged}
       />
     </div>
   );

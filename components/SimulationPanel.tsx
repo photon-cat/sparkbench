@@ -8,6 +8,7 @@ import SimulationControls from "./SimulationControls";
 import SerialMonitor from "./SerialMonitor";
 import PartAttributePanel from "./PartAttributePanel";
 import WireAttributePanel from "./WireAttributePanel";
+import LibraryManager from "./LibraryManager";
 import styles from "./SimulationPanel.module.css";
 import { Diagram, DiagramConnection } from "@/lib/diagram-parser";
 import { AVRRunner } from "@/lib/avr-runner";
@@ -60,6 +61,8 @@ interface SimulationPanelProps {
   mcuId?: string;
   mcuOptions?: { id: string; label: string }[];
   onMcuChange?: (id: string) => void;
+  librariesTxt?: string;
+  onLibrariesChange?: (text: string) => void;
 }
 
 export default function SimulationPanel({
@@ -99,6 +102,8 @@ export default function SimulationPanel({
   mcuId,
   mcuOptions,
   onMcuChange,
+  librariesTxt,
+  onLibrariesChange,
 }: SimulationPanelProps) {
   const [activeTab, setActiveTab] = useState("simulation");
   const [activeTool, setActiveTool] = useState<ToolType>("cursor");
@@ -107,7 +112,7 @@ export default function SimulationPanel({
   const simTabs = useMemo(() => [
     { id: "simulation", label: "Diagram" },
     { id: "pcb", label: "PCB" },
-    { id: "description", label: "Description" },
+    { id: "libraries", label: "Library Manager" },
   ], []);
 
   const handleTabChange = useCallback((tabId: string) => {
@@ -239,17 +244,12 @@ export default function SimulationPanel({
               onUpdateFromDiagram={onUpdateFromDiagram}
               onSaveOutline={onSaveOutline}
             />
-        ) : (
-          <div style={{ padding: 16, color: "#999" }}>
-            <h3 style={{ color: "#ccc", marginBottom: 8 }}>
-              Project Description
-            </h3>
-            <p>
-              Select the Diagram tab to view and edit the schematic,
-              or the PCB tab to edit the board layout.
-            </p>
-          </div>
-        )}
+        ) : activeTab === "libraries" ? (
+          <LibraryManager
+            librariesTxt={librariesTxt ?? ""}
+            onLibrariesChange={onLibrariesChange ?? (() => {})}
+          />
+        ) : null}
       </div>
       <SerialMonitor output={serialOutput} visible={activeTab === "simulation" && (status === "running" || status === "paused" || status === "error")} />
     </div>

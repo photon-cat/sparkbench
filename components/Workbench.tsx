@@ -4,6 +4,7 @@ import dynamic from "next/dynamic";
 import styles from "./Workbench.module.css";
 import EditorPanel from "./EditorPanel";
 import SimulationPanel from "./SimulationPanel";
+import SparkyChat from "./SparkyChat";
 import { Diagram, DiagramConnection } from "@/lib/diagram-parser";
 import { AVRRunner } from "@/lib/avr-runner";
 
@@ -57,6 +58,12 @@ interface WorkbenchProps {
   mcuId?: string;
   mcuOptions?: { id: string; label: string }[];
   onMcuChange?: (id: string) => void;
+  librariesTxt?: string;
+  onLibrariesChange?: (text: string) => void;
+  sparkyOpen?: boolean;
+  onSparkyToggle?: () => void;
+  slug?: string;
+  onProjectChanged?: () => void;
 }
 
 export default function Workbench({
@@ -106,6 +113,12 @@ export default function Workbench({
   mcuId,
   mcuOptions,
   onMcuChange,
+  librariesTxt,
+  onLibrariesChange,
+  sparkyOpen,
+  onSparkyToggle,
+  slug,
+  onProjectChanged,
 }: WorkbenchProps) {
   return (
     <div className={styles.workbench}>
@@ -124,6 +137,8 @@ export default function Workbench({
               onDeleteFile={onDeleteFile}
               onRenameFile={onRenameFile}
               onFileContentChange={onFileContentChange}
+              librariesTxt={librariesTxt}
+              onLibrariesChange={onLibrariesChange}
             />
           }
           right={
@@ -164,10 +179,25 @@ export default function Workbench({
               mcuId={mcuId}
               mcuOptions={mcuOptions}
               onMcuChange={onMcuChange}
+              librariesTxt={librariesTxt}
+              onLibrariesChange={onLibrariesChange}
             />
           }
         />
       </div>
+      {slug && onSparkyToggle && (
+        <SparkyChat
+          open={!!sparkyOpen}
+          onToggle={onSparkyToggle}
+          slug={slug}
+          diagramJson={diagramJson}
+          sketchCode={sketchCode}
+          pcbText={pcbText}
+          librariesTxt={librariesTxt || ""}
+          projectFiles={projectFiles}
+          onProjectChanged={onProjectChanged}
+        />
+      )}
     </div>
   );
 }

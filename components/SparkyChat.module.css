@@ -1,0 +1,485 @@
+/* ===== Bottom center handle (always visible, like Colab's Gemini button) ===== */
+.handle {
+  position: fixed;
+  bottom: 12px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 1000;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  background: #f59e0b;
+  border: none;
+  color: #000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  box-shadow: 0 2px 12px rgba(245, 158, 11, 0.4);
+  transition: transform 0.15s, box-shadow 0.15s;
+}
+
+.handle:hover {
+  transform: translateX(-50%) scale(1.1);
+  box-shadow: 0 4px 20px rgba(245, 158, 11, 0.5);
+}
+
+/* Hide handle when panel is open */
+.handleHidden {
+  display: none;
+}
+
+/* ===== Panel — no backdrop, floats at bottom, non-blocking ===== */
+.panel {
+  position: fixed;
+  bottom: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 85vw;
+  max-width: 1200px;
+  /* height set via inline style */
+  z-index: 900;
+  background: #1a1a1a;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-bottom: none;
+  border-radius: 14px 14px 0 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  box-shadow: 0 -4px 40px rgba(0, 0, 0, 0.6);
+  animation: slideUp 0.2s ease;
+}
+
+/* ===== Resize handle at top edge ===== */
+.resizeHandle {
+  height: 8px;
+  cursor: ns-resize;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  background: transparent;
+  transition: background 0.15s;
+}
+
+.resizeHandle:hover {
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.resizeGrip {
+  width: 36px;
+  height: 3px;
+  border-radius: 2px;
+  background: rgba(255, 255, 255, 0.15);
+  transition: background 0.15s;
+}
+
+.resizeHandle:hover .resizeGrip {
+  background: rgba(245, 158, 11, 0.5);
+}
+
+@keyframes slideUp {
+  from { transform: translateX(-50%) translateY(30px); opacity: 0; }
+  to { transform: translateX(-50%) translateY(0); opacity: 1; }
+}
+
+/* ===== Header ===== */
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 16px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  background: #161616;
+  cursor: default;
+  flex-shrink: 0;
+}
+
+.headerLeft {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  flex: 1;
+}
+
+.title {
+  font-size: 14px;
+  font-weight: 600;
+  color: #f59e0b;
+  letter-spacing: 0.3px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.headerRight {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+.backBtn,
+.newChatBtn,
+.closeBtn {
+  background: none;
+  border: none;
+  color: #666;
+  cursor: pointer;
+  padding: 4px;
+  display: flex;
+  border-radius: 4px;
+  transition: background 0.15s, color 0.15s;
+}
+
+.backBtn:hover,
+.newChatBtn:hover,
+.closeBtn:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: #ccc;
+}
+
+/* ===== Chat history list ===== */
+.historyList {
+  padding: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.newChatItem {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+  background: none;
+  border: 1px dashed rgba(255, 255, 255, 0.12);
+  border-radius: 8px;
+  color: #999;
+  font-size: 13px;
+  font-family: inherit;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s, color 0.15s;
+  margin-bottom: 4px;
+}
+
+.newChatItem:hover {
+  background: rgba(255, 255, 255, 0.04);
+  border-color: #f59e0b;
+  color: #e0e0e0;
+}
+
+.historyItem {
+  display: flex;
+  align-items: center;
+  border-radius: 8px;
+  transition: background 0.15s;
+}
+
+.historyItem:hover {
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.historyItemBtn {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 10px 12px;
+  background: none;
+  border: none;
+  text-align: left;
+  cursor: pointer;
+  min-width: 0;
+  font-family: inherit;
+}
+
+.historyTitle {
+  font-size: 13px;
+  font-weight: 500;
+  color: #ddd;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.historyMeta {
+  font-size: 11px;
+  color: #666;
+}
+
+.historyDelete {
+  background: none;
+  border: none;
+  color: #444;
+  cursor: pointer;
+  padding: 6px;
+  display: flex;
+  border-radius: 4px;
+  flex-shrink: 0;
+  opacity: 0;
+  transition: opacity 0.15s, color 0.15s;
+}
+
+.historyItem:hover .historyDelete {
+  opacity: 1;
+}
+
+.historyDelete:hover {
+  color: #e55;
+}
+
+.historyEmpty {
+  padding: 24px;
+  text-align: center;
+  color: #555;
+  font-size: 13px;
+}
+
+/* ===== Body (scrollable area) ===== */
+.body {
+  flex: 1;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+}
+
+/* ===== Welcome screen ===== */
+.welcome {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  gap: 6px;
+}
+
+.greeting {
+  font-size: 24px;
+  font-weight: 700;
+  background: linear-gradient(135deg, #f59e0b, #f97316);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  margin: 0;
+}
+
+.subtitle {
+  font-size: 14px;
+  color: #777;
+  margin: 0 0 16px 0;
+}
+
+.suggestions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px;
+  max-width: 600px;
+}
+
+.suggestion {
+  padding: 8px 16px;
+  background: transparent;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 20px;
+  color: #aaa;
+  font-size: 13px;
+  cursor: pointer;
+  font-family: inherit;
+  transition: background 0.15s, border-color 0.15s, color 0.15s;
+}
+
+.suggestion:hover {
+  background: rgba(255, 255, 255, 0.05);
+  border-color: #f59e0b;
+  color: #e0e0e0;
+}
+
+/* ===== Messages ===== */
+.messages {
+  flex: 1;
+  padding: 12px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.message {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.messageUser {
+  align-items: flex-end;
+}
+
+.messageAssistant {
+  align-items: flex-start;
+}
+
+.messageContent {
+  padding: 10px 14px;
+  border-radius: 12px;
+  white-space: pre-wrap;
+  word-break: break-word;
+  font-size: 14px;
+  line-height: 1.6;
+  max-width: 80%;
+}
+
+.messageUser .messageContent {
+  background: #2563eb;
+  color: #fff;
+  border-bottom-right-radius: 4px;
+}
+
+.messageAssistant .messageContent {
+  background: #222;
+  color: #ddd;
+  border-bottom-left-radius: 4px;
+}
+
+.messageAssistant .messageContent code {
+  background: #333;
+  padding: 1px 5px;
+  border-radius: 3px;
+  font-size: 12px;
+}
+
+.messageAssistant .messageContent pre {
+  background: #111;
+  padding: 10px;
+  border-radius: 6px;
+  overflow-x: auto;
+  margin: 6px 0;
+}
+
+.messageAssistant .messageContent pre code {
+  background: none;
+  padding: 0;
+}
+
+/* ===== Tool badges ===== */
+.toolRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  padding: 0 4px;
+}
+
+.toolBadge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px;
+  background: rgba(245, 158, 11, 0.06);
+  border: 1px solid rgba(245, 158, 11, 0.15);
+  border-radius: 10px;
+  font-size: 11px;
+  color: #999;
+}
+
+.toolName {
+  color: #f59e0b;
+  font-weight: 600;
+}
+
+.toolDetail {
+  color: #666;
+  max-width: 180px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ===== Thinking indicator ===== */
+.thinking {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 10px 14px;
+}
+
+.dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: #f59e0b;
+  animation: pulse 1.4s infinite ease-in-out;
+}
+
+.dot:nth-child(2) { animation-delay: 0.2s; }
+.dot:nth-child(3) { animation-delay: 0.4s; }
+
+@keyframes pulse {
+  0%, 80%, 100% { opacity: 0.2; transform: scale(0.8); }
+  40% { opacity: 1; transform: scale(1); }
+}
+
+/* ===== Input area ===== */
+.inputArea {
+  padding: 8px 16px 14px;
+  flex-shrink: 0;
+}
+
+.inputBox {
+  display: flex;
+  align-items: flex-end;
+  background: #222;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 12px;
+  padding: 6px 6px 6px 14px;
+  transition: border-color 0.15s;
+}
+
+.inputBox:focus-within {
+  border-color: rgba(245, 158, 11, 0.35);
+}
+
+.input {
+  flex: 1;
+  background: none;
+  border: none;
+  color: #ddd;
+  font-size: 14px;
+  font-family: inherit;
+  padding: 4px 0;
+  resize: none;
+  min-height: 22px;
+  max-height: 100px;
+  line-height: 1.5;
+  outline: none;
+}
+
+.input::placeholder {
+  color: #555;
+}
+
+.sendBtn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  background: none;
+  border: none;
+  color: #666;
+  cursor: pointer;
+  border-radius: 8px;
+  flex-shrink: 0;
+  transition: color 0.15s, background 0.15s;
+}
+
+.sendBtn:hover:not(:disabled) {
+  color: #f59e0b;
+  background: rgba(245, 158, 11, 0.1);
+}
+
+.sendBtn:disabled {
+  color: #333;
+  cursor: not-allowed;
+}

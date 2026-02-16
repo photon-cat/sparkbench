@@ -30,6 +30,7 @@ export abstract class Viewer extends EventTarget {
     protected setup_finished = new Barrier();
 
     #selected: BBox | null;
+    #disposed = false;
 
     constructor(
         public canvas: HTMLCanvasElement,
@@ -39,6 +40,7 @@ export abstract class Viewer extends EventTarget {
     }
 
     dispose() {
+        this.#disposed = true;
         this.disposables.dispose();
     }
 
@@ -135,7 +137,17 @@ export abstract class Viewer extends EventTarget {
     public abstract paint(): void;
 
     protected on_draw() {
-        this.renderer.clear_canvas();
+        // Guard against calls after disposal (e.g. pending requestAnimationFrame)
+        if (!this.renderer || !this.viewport) {
+            return;
+        }
+
+        try {
+            this.renderer.clear_canvas();
+        } catch {
+            // Renderer was disposed between requestAnimationFrame and execution
+            return;
+        }
 
         if (!this.layers) {
             return;
@@ -163,11 +175,12 @@ export abstract class Viewer extends EventTarget {
     }
 
     public draw() {
-        if (!this.viewport) {
+        if (!this.viewport || this.#disposed) {
             return;
         }
 
         window.requestAnimationFrame(() => {
+            if (this.#disposed) return;
             this.on_draw();
         });
     }

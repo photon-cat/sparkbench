@@ -38,3 +38,13 @@ playwright-report/
 # OS
 .DS_Store
 Thumbs.db
+
+# Sparky agent runtime data
+data/
+
+# Wokwi integrations (separate project)
+wokwi-integrations/
+
+# Project runtime artifacts
+projects/*/build/
+projects/*/sparky-chats.json

@@ -153,3 +153,37 @@
   background: #444;
   color: #fff;
 }
+
+.sparkyBtn {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 10px;
+  background: #333;
+  border: 1px solid #555;
+  border-radius: 4px;
+  color: #ccc;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  height: 28px;
+  font-family: inherit;
+  transition: background 0.15s, border-color 0.15s;
+}
+
+.sparkyBtn:hover {
+  background: #444;
+  border-color: #f59e0b;
+  color: #fff;
+}
+
+.sparkyBtnActive {
+  background: #f59e0b;
+  border-color: #f59e0b;
+  color: #000;
+}
+
+.sparkyBtnActive:hover {
+  background: #d97706;
+  color: #000;
+}

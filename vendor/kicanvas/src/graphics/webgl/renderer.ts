@@ -87,13 +87,14 @@ export class WebGL2Renderer extends Renderer {
 
         this.canvas.width = pixel_w;
         this.canvas.height = pixel_h;
+        this.canvas_size.set(pixel_w, pixel_h);
 
         this.gl.viewport(0, 0, pixel_w, pixel_h);
         this.projection_matrix = Matrix3.orthographic(logical_w, logical_h);
     }
 
     override clear_canvas() {
-        if (this.gl == null) throw new Error("Uninitialized");
+        if (this.gl == null) return;
 
         // Update canvas size and projection matrix if needed
         this.update_canvas_size();
@@ -102,7 +103,7 @@ export class WebGL2Renderer extends Renderer {
     }
 
     override start_layer(name: string, depth = 0) {
-        if (this.gl == null) throw new Error("Uninitialized");
+        if (this.gl == null) return;
         this.#active_layer = new WebGL2RenderLayer(
             this,
             name,

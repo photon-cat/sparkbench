@@ -108,6 +108,23 @@ export async function saveOutlineSVG(slug: string, svgText: string): Promise<voi
   if (!res.ok) throw new Error(`Failed to save outline: ${res.statusText}`);
 }
 
+// ── Libraries (libraries.txt) ────────────────────────────────────
+
+export async function fetchLibraries(slug: string): Promise<string> {
+  const res = await fetch(`/api/projects/${slug}/libraries`);
+  if (!res.ok) throw new Error(`Failed to fetch libraries: ${res.statusText}`);
+  return res.text();
+}
+
+export async function saveLibraries(slug: string, text: string): Promise<void> {
+  const res = await fetch(`/api/projects/${slug}/libraries`, {
+    method: "PUT",
+    headers: { "Content-Type": "text/plain" },
+    body: text,
+  });
+  if (!res.ok) throw new Error(`Failed to save libraries: ${res.statusText}`);
+}
+
 // ── Build ────────────────────────────────────────────────────────
 
 export async function buildProject(
@@ -115,11 +132,12 @@ export async function buildProject(
   sketch: string,
   files: { name: string; content: string }[],
   board = "uno",
+  librariesTxt = "",
 ): Promise<BuildResult> {
   const res = await fetch(`/api/projects/${slug}/build`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ sketch, files, board }),
+    body: JSON.stringify({ sketch, files, board, librariesTxt }),
   });
   return res.json();
 }

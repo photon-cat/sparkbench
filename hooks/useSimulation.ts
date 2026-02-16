@@ -13,6 +13,7 @@ export interface UseSimulationOptions {
   sketchCode: string;
   projectFiles: { name: string; content: string }[];
   board?: string;
+  librariesTxt?: string;
 }
 
 export interface UseSimulationReturn {
@@ -32,6 +33,7 @@ export function useSimulation({
   sketchCode,
   projectFiles,
   board,
+  librariesTxt,
 }: UseSimulationOptions): UseSimulationReturn {
   const [status, setStatus] = useState<SimulationStatus>("idle");
   const [serialOutput, setSerialOutput] = useState("");
@@ -45,7 +47,7 @@ export function useSimulation({
     setSerialOutput("");
 
     try {
-      const buildResult = await buildProject(slug, sketchCode, projectFiles, board || "uno");
+      const buildResult = await buildProject(slug, sketchCode, projectFiles, board || "uno", librariesTxt || "");
 
       if (!buildResult.success) {
         setStatus("error");

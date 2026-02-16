@@ -201,6 +201,8 @@ interface EditorPanelProps {
   onDeleteFile: (name: string) => void;
   onRenameFile: (oldName: string, newName: string) => void;
   onFileContentChange: (name: string, content: string) => void;
+  librariesTxt?: string;
+  onLibrariesChange?: (text: string) => void;
 }
 
 export default function EditorPanel({
@@ -215,6 +217,8 @@ export default function EditorPanel({
   onDeleteFile,
   onRenameFile,
   onFileContentChange,
+  librariesTxt,
+  onLibrariesChange,
 }: EditorPanelProps) {
   const [activeTab, setActiveTab] = useState("sketch");
   const [renamingFile, setRenamingFile] = useState<string | null>(null);
@@ -305,7 +309,7 @@ export default function EditorPanel({
     if (activeTab === "sketch") return sketchCode;
     if (activeTab === "diagram") return diagramJson;
     if (activeTab === "pcb") return pcbText ?? "";
-    if (activeTab === "libraries") return "";
+    if (activeTab === "libraries") return librariesTxt ?? "";
     if (activeTab.startsWith("file:")) {
       const fileName = activeTab.slice(5);
       const file = projectFiles.find((f) => f.name === fileName);
@@ -336,6 +340,8 @@ export default function EditorPanel({
         onDiagramChange(value);
       } else if (activeTab === "pcb") {
         onPcbChange(value);
+      } else if (activeTab === "libraries") {
+        onLibrariesChange?.(value);
       } else if (activeTab.startsWith("file:")) {
         const fileName = activeTab.slice(5);
         onFileContentChange(fileName, value);
