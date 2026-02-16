@@ -265,6 +265,7 @@ export default function DiagramCanvas({
 
     const p0 = wire.points[segIdx];
     const p1 = wire.points[segIdx + 1];
+    if (!p0 || !p1) return;
     const dx = Math.abs(p1.x - p0.x);
     const dy = Math.abs(p1.y - p0.y);
     const axis: "h" | "v" = dx > dy ? "h" : "v";
