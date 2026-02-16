@@ -8,16 +8,18 @@ SparkBench combines what normally takes 5 separate tools into one browser-based 
 
 - **Prompt-to-Circuit**: Describe what you want to build. Sparky (the AI agent) designs the schematic, writes the firmware, and presents a diff for your review.
 - **Cycle-Accurate Simulation**: Run your Arduino code on an AVR emulator with 13+ simulated components (LEDs, servos, encoders, displays, sensors, shift registers).
-- **PCB Design**: Auto-generate KiCAD PCB layouts from your schematic. AI-assisted floorplanning, courtyard DRC, and 3D board preview.
+- **KiCAD-Compatible PCB Editor**: Our custom-built PCB editor reads and writes native `.kicad_pcb` files. Built as a fork of KiCanvas with a full editing layer — component drag-and-drop, footprint rotation/flip, board outline editing (rectangle or SVG import), interactive trace routing, zone drawing, layer management, ratsnest display, courtyard DRC, undo/redo, and a 3D board preview. Everything stays in the KiCAD s-expression format so you can open your boards directly in KiCAD.
+- **DeepPCB Autorouter Integration**: One-click AI-powered autorouting via [DeepPCB](https://deeppcb.ai). Send your board to DeepPCB's cloud autorouter directly from the PCB editor or let Sparky handle it conversationally. Extracts constraints, validates, runs placement and routing, and pulls back the routed board — all streamed with live progress.
 - **Headless CI Testing**: Write YAML test scenarios and run them against the simulator — no hardware needed. AI-powered fuzz testing presses all the buttons and reports what broke.
-- **Full-Context AI Agent**: Sparky has access to your entire project (schematic, code, PCB, libraries) and can debug, refactor, add features, or explain your circuit.
+- **Full-Context AI Agent**: Sparky has access to your entire project (schematic, code, PCB, libraries) and can debug, refactor, add features, route your PCB, or explain your circuit.
 
 ## Tech Stack
 
-- **Frontend**: Next.js 16, React 19, Monaco Editor, Three.js (3D PCB viewer), Tailwind CSS
+- **Frontend**: Next.js 16, React 19, Monaco Editor, Three.js (3D PCB viewer)
 - **Simulation**: [avr8js](https://github.com/niclas-niclas/avr8js) (AVR emulator), [@wokwi/elements](https://github.com/niclas-niclas/wokwi-elements) (component visuals)
-- **PCB**: KiCAD s-expression parser/serializer, KiCanvas renderer, Clipper2 (polygon math)
-- **AI**: Claude Opus 4.6 via [@anthropic-ai/claude-agent-sdk](https://www.npmjs.com/package/@anthropic-ai/claude-agent-sdk), custom MCP server for simulation control
+- **PCB Editor**: Custom KiCanvas fork with full editing — reads/writes `.kicad_pcb` s-expression format natively. Clipper2 for polygon math, WebGL2 rendering.
+- **Autorouter**: [DeepPCB](https://deeppcb.ai) MCP integration — AI-powered PCB routing via SSE transport
+- **AI**: Claude Opus 4.6 via [@anthropic-ai/claude-agent-sdk](https://www.npmjs.com/package/@anthropic-ai/claude-agent-sdk), custom MCP server for simulation control, DeepPCB MCP server for autorouting
 - **Build**: PlatformIO (AVR compilation), runs entirely in the browser except compilation
 
 ## Architecture
@@ -32,13 +34,19 @@ SparkBench combines what normally takes 5 separate tools into one browser-based 
 │  └──────────┘  └──────────────┘  └───────────────────────┘  │
 │  ┌──────────┐  ┌──────────────┐  ┌───────────────────────┐  │
 │  │  Serial   │  │  PCB Editor  │  │  3D Board Viewer      │  │
-│  │  Monitor  │  │  (KiCanvas)  │  │  (Three.js)           │  │
+│  │  Monitor  │  │  (KiCanvas   │  │  (Three.js)           │  │
+│  │          │  │   fork)      │  │                       │  │
 │  └──────────┘  └──────────────┘  └───────────────────────┘  │
 │                                                             │
 │  ┌─────────────────────────────────────────────────────────┐│
 │  │  AVR Simulation Engine                                  ││
 │  │  avr8js + I2C bus + SPI + USART + ADC + Timer/PWM      ││
 │  │  Wire components: LED, servo, encoder, SSD1306, ...     ││
+│  └─────────────────────────────────────────────────────────┘│
+│                                                             │
+│  ┌─────────────────────────────────────────────────────────┐│
+│  │  DeepPCB Autorouter (via MCP SSE)                       ││
+│  │  Extract constraints → Validate → Place → Route → Done  ││
 │  └─────────────────────────────────────────────────────────┘│
 └─────────────────────────────────────────────────────────────┘
 
@@ -49,6 +57,39 @@ SparkBench combines what normally takes 5 separate tools into one browser-based 
 └─────────────────────────────────────────────────────────────┘
 ```
 
+## PCB Editor
+
+The PCB editor is a custom-built KiCAD-compatible editor, not a wrapper around existing tools. It reads and writes `.kicad_pcb` files natively using our own s-expression parser/serializer.
+
+### Features
+
+- **Component placement** — Click-to-select via pad proximity, drag with crosshair preview, grid snapping (0.5mm)
+- **Footprint editing** — Rotate (R), flip front/back copper (F), delete, courtyard overlap detection
+- **Board outline** — Set rectangle dimensions or upload custom SVG outlines, converted to KiCAD Edge.Cuts
+- **Trace routing** — Interactive routing with orthogonal and 45° diagonal modes, via insertion, layer switching
+- **Zone drawing** — Copper pour zones with net auto-detection from pad clicks
+- **Layer management** — Full KiCAD layer stack (F.Cu, B.Cu, silkscreen, masks, etc.) with visibility toggles and highlighting
+- **Ratsnest** — Displays unrouted connections as airline wires
+- **Undo/redo** — 50-level snapshot-based undo stack
+- **3D preview** — Three.js-based 3D board viewer with component models
+- **Export** — Download `.kicad_pcb` files that open directly in KiCAD
+
+### DeepPCB Autorouter
+
+The PCB editor integrates with [DeepPCB](https://deeppcb.ai) for AI-powered autorouting. Two ways to use it:
+
+**From the UI:** Click "Route with DeepPCB" in the PCB editor's right panel. The board is sent to DeepPCB's cloud autorouter, progress streams back in real-time, and the routed board is loaded back into the editor automatically.
+
+**From Sparky:** Ask the AI agent to route your board (e.g., "route my PCB with DeepPCB"). Sparky uses DeepPCB's MCP tools directly — extracting constraints, validating, running placement/routing, and saving the result.
+
+The autorouter workflow:
+1. **Extract constraints** from the `.kicad_pcb` file
+2. **Validate constraints** for correctness
+3. **Run placement** — AI-optimized component positioning
+4. **Run routing** — AI-powered trace routing
+5. **Monitor progress** — live status updates streamed to the UI
+6. **Retrieve result** — best routed board saved back to the project
+
 ## Getting Started
 
 ### Prerequisites
@@ -56,6 +97,7 @@ SparkBench combines what normally takes 5 separate tools into one browser-based 
 - Node.js 20+
 - [PlatformIO Core](https://docs.platformio.org/en/latest/core/installation.html) (for compilation)
 - Anthropic API key (for Sparky agent)
+- DeepPCB API key (optional, for autorouting)
 
 ### Setup
 
@@ -64,7 +106,9 @@ git clone https://github.com/photon-cat/sparkbench.git
 cd sparkbench
 npm install
 cp .env.example .env.local
-# Edit .env.local with your ANTHROPIC_API_KEY
+# Edit .env.local with your keys:
+#   ANTHROPIC_API_KEY=sk-ant-...
+#   DEEPPCB_API_KEY=...          (optional, enables autorouter)
 npm run dev
 ```
 
@@ -100,20 +144,33 @@ npx tsx scripts/run-scenario.ts <project-slug>
 sparkbench/
 ├── app/                    # Next.js app router
 │   ├── api/chat/           # Sparky agent endpoint (Agent SDK)
+│   ├── api/deeppcb/        # DeepPCB autorouter endpoint
 │   ├── api/projects/       # Project CRUD + build API
 │   └── projects/[slug]/    # Workbench page
 ├── components/             # React components
 │   ├── DiagramCanvas.tsx   # Schematic editor with wiring
 │   ├── SparkyChat.tsx      # AI chat panel with diff review
-│   ├── KiPCBEditor.tsx     # PCB editor (KiCanvas)
+│   ├── KiPCBEditor.tsx     # PCB editor (KiCanvas fork)
+│   ├── KiPCBCanvas.tsx     # WebGL2 board renderer
+│   ├── KiPCBToolPalette.tsx # PCB tool sidebar
+│   ├── KiPCBLayerPanel.tsx # Layer visibility/selection
 │   ├── PCB3DViewer.tsx     # 3D board viewer (Three.js)
 │   └── SimulationPanel.tsx # Simulation controls + tabs
+├── hooks/                  # React hooks
+│   ├── useKiPCBDrag.ts     # Footprint drag + courtyard DRC
+│   ├── useKiPCBRouting.ts  # Interactive trace routing
+│   ├── useKiPCBZoneDraw.ts # Copper zone drawing
+│   └── useKiPCBBoardOutline.ts # Board outline editing
 ├── lib/                    # Core logic
 │   ├── avr-runner.ts       # AVR emulator wrapper
 │   ├── wire-components.ts  # Part simulation bindings
 │   ├── scenario-runner.ts  # CI test runner
+│   ├── sexpr-mutate.ts     # KiCAD s-expression tree manipulation
+│   ├── sexpr-serializer.ts # S-expression → .kicad_pcb text
+│   ├── deeppcb-client.ts   # DeepPCB MCP client wrapper
 │   ├── pcb-parser.ts       # Schematic → PCB conversion
 │   └── sparky-prompts.ts   # Sparky system prompt
+├── vendor/kicanvas/        # KiCanvas fork (WebGL2 PCB renderer)
 ├── scripts/
 │   └── run-scenario.ts     # CLI for headless testing
 ├── projects/               # User projects (diagram.json + sketch.ino)

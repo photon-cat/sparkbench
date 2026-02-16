@@ -44,7 +44,15 @@ interface StepExpectDisplay {
   };
 }
 
-type ScenarioStep = StepDelay | StepSetControl | StepWaitSerial | StepExpectSerial | StepExpectDisplay;
+interface StepSendSerial {
+  "send-serial": string; // text to send to MCU's USART RX
+}
+
+interface StepClearSerial {
+  "clear-serial": true; // reset captured serial output
+}
+
+type ScenarioStep = StepDelay | StepSetControl | StepWaitSerial | StepExpectSerial | StepExpectDisplay | StepSendSerial | StepClearSerial;
 
 export interface Scenario {
   name: string;
@@ -94,6 +102,14 @@ export function runScenario(
 
   for (let i = 0; i < scenario.steps.length; i++) {
     const step = scenario.steps[i];
+
+    // Handle clear-serial inline (needs mutable access to serialOutput)
+    if ("clear-serial" in step) {
+      serialOutput = "";
+      results.push({ step: i, description: "clear-serial", passed: true });
+      continue;
+    }
+
     const result = executeStep(runner, wired, step, i, () => serialOutput);
 
     results.push(result);
@@ -292,6 +308,21 @@ function executeStep(
       description: `expect-display ${partId}` +
         (minFilled !== undefined ? ` min-filled=${minFilled}` : "") +
         (pattern !== undefined ? ` pattern="${pattern}"` : ""),
+      passed: true,
+    };
+  }
+
+  if ("send-serial" in step) {
+    const text = step["send-serial"];
+    for (let i = 0; i < text.length; i++) {
+      runner.usart.writeByte(text.charCodeAt(i));
+    }
+    // Send newline to trigger line-based parsing
+    runner.usart.writeByte(13); // CR
+    runner.usart.writeByte(10); // LF
+    return {
+      step: index,
+      description: `send-serial "${text}"`,
       passed: true,
     };
   }
