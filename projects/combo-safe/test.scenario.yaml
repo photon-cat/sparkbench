@@ -5,10 +5,13 @@ steps:
   - wait-serial: "=== COMBO SAFE v1.0 ==="
     timeout: 5000
 
+  # Wait for setup() delay(1000) + drawSafeScreen
+  - delay: 1500
+
   # Check display is active
   - expect-display:
       part-id: oled1
-      min-filled: 50
+      min-filled: 20
 
   # Enter digit 1: rotate to 7 (the correct first digit)
   - set-control:

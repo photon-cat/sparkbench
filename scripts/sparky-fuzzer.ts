@@ -33,14 +33,60 @@ const BOLD = "\x1b[1m";
 const DIM = "\x1b[2m";
 const RESET = "\x1b[0m";
 
+// ─── Header-to-PlatformIO library mapping ──────────────────
+const HEADER_TO_LIB: Record<string, string> = {
+  "Adafruit_GFX.h": "adafruit/Adafruit GFX Library",
+  "Adafruit_SSD1306.h": "adafruit/Adafruit SSD1306",
+  "Adafruit_MPU6050.h": "adafruit/Adafruit MPU6050",
+  "Adafruit_NeoPixel.h": "adafruit/Adafruit NeoPixel",
+  "Adafruit_BusIO.h": "adafruit/Adafruit BusIO",
+  "LiquidCrystal_I2C.h": "marcoschwartz/LiquidCrystal_I2C",
+  "ArduinoJson.h": "bblanchon/ArduinoJson",
+};
+
+function generatePlatformioIni(sketch: string, librariesTxt: string, board: string): string {
+  const baseLibDeps = [
+    "arduino-libraries/Servo@^1.2.1",
+    "adafruit/DHT sensor library@^1.4.6",
+    "adafruit/Adafruit Unified Sensor@^1.1.14",
+  ];
+  const includes = sketch.matchAll(/#include\s*[<"]([^>"]+)[>"]/g);
+  const detected = new Set<string>();
+  for (const m of includes) {
+    const lib = HEADER_TO_LIB[m[1]];
+    if (lib) detected.add(lib);
+  }
+  const extraLibs = librariesTxt.split("\n").map(l => l.trim()).filter(l => l && !l.startsWith("#"));
+  const seen = new Set(baseLibDeps.map(l => l.toLowerCase()));
+  const allLibDeps = [...baseLibDeps];
+  for (const lib of [...detected, ...extraLibs]) {
+    const key = lib.toLowerCase();
+    if (!seen.has(key)) { seen.add(key); allLibDeps.push(lib); }
+  }
+  const libDepsStr = allLibDeps.map(l => `  ${l}`).join("\n");
+  return `[env:${board}]
+platform = atmelavr
+board = ${board === "atmega328p" ? "uno" : board}
+framework = arduino
+lib_deps =
+${libDepsStr}
+`;
+}
+
 // ─── Compile ───────────────────────────────────────────────
 function compileSketch(slug: string, board: string): string {
-  const sketchPath = path.join(ROOT, "projects", slug, "sketch.ino");
+  const projDir = path.join(ROOT, "projects", slug);
+  const sketchPath = path.join(projDir, "sketch.ino");
   let sketch = readFileSync(sketchPath, "utf-8");
 
   if (!sketch.includes("#include <Arduino.h>") && !sketch.includes('#include "Arduino.h"')) {
     sketch = "#include <Arduino.h>\n" + sketch;
   }
+
+  // Read libraries.txt and generate platformio.ini
+  let librariesTxt = "";
+  try { librariesTxt = readFileSync(path.join(projDir, "libraries.txt"), "utf-8"); } catch { /* ok */ }
+  writeFileSync(path.join(BUILD_DIR, "platformio.ini"), generatePlatformioIni(sketch, librariesTxt, board));
 
   const srcDir = path.join(BUILD_DIR, "src");
   const includeDir = path.join(BUILD_DIR, "include");
@@ -50,7 +96,6 @@ function compileSketch(slug: string, board: string): string {
   mkdirSync(includeDir, { recursive: true });
   writeFileSync(path.join(srcDir, "main.cpp"), sketch);
 
-  const projDir = path.join(ROOT, "projects", slug);
   try {
     for (const f of readdirSync(projDir)) {
       if (f.endsWith(".h")) {
@@ -68,10 +113,28 @@ function compileSketch(slug: string, board: string): string {
   return readFileSync(path.join(BUILD_DIR, ".pio", "build", board, "firmware.hex"), "utf-8");
 }
 
-// ─── Claude API (raw fetch, no extra deps) ─────────────────
+// ─── Load .env.local if ANTHROPIC_API_KEY not in env ────────
+function loadEnvFile() {
+  const envFiles = [".env.local", ".env"];
+  for (const f of envFiles) {
+    const p = path.join(ROOT, f);
+    if (existsSync(p)) {
+      const content = readFileSync(p, "utf-8");
+      for (const line of content.split("\n")) {
+        const match = line.match(/^([A-Z_]+)=(.+)$/);
+        if (match && !process.env[match[1]]) {
+          process.env[match[1]] = match[2].trim();
+        }
+      }
+    }
+  }
+}
+loadEnvFile();
+
 const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY;
 if (!ANTHROPIC_API_KEY) {
   console.error("Error: ANTHROPIC_API_KEY not set");
+  console.error("Set it in .env.local or export ANTHROPIC_API_KEY=sk-ant-...");
   process.exit(1);
 }
 

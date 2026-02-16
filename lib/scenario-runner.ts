@@ -162,6 +162,9 @@ function executeStep(
       wc.setState(!!value);
     } else if (control === "pressed" && wc.setPressed) {
       wc.setPressed(!!value);
+    } else if (control === "pressed" && wc.pressEncoderButton) {
+      if (value) wc.pressEncoderButton();
+      else if (wc.releaseEncoderButton) wc.releaseEncoderButton();
     } else if (control === "position" && wc.setValue) {
       // Potentiometer: position is 0.0-1.0, maps to 0-1023
       wc.setValue(Math.round(Number(value) * 1023));
@@ -178,10 +181,18 @@ function executeStep(
       wc.setGyro(x, y, z);
     } else if (control === "rotate-cw" && wc.stepCW) {
       const steps = Number(value) || 1;
-      for (let i = 0; i < steps; i++) wc.stepCW();
+      for (let i = 0; i < steps; i++) {
+        wc.stepCW();
+        // Run enough cycles for the quadrature sequence to complete
+        // (4 transitions × 8000 cycles = 32000, plus margin)
+        runner.runCycles(40000);
+      }
     } else if (control === "rotate-ccw" && wc.stepCCW) {
       const steps = Number(value) || 1;
-      for (let i = 0; i < steps; i++) wc.stepCCW();
+      for (let i = 0; i < steps; i++) {
+        wc.stepCCW();
+        runner.runCycles(40000);
+      }
     } else {
       return {
         step: index,

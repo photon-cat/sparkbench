@@ -19,8 +19,6 @@
 // ============================================================
 
 #include <Wire.h>
-#include <Adafruit_GFX.h>
-#include <Adafruit_SSD1306.h>
 
 // --- Pin assignments ---
 #define ENC_CLK   2   // Encoder CLK (INT0)
@@ -29,16 +27,128 @@
 #define LED_GREEN 12  // Unlocked indicator
 #define LED_RED   13  // Locked indicator
 
-// --- Display ---
-#define SCREEN_WIDTH  128
-#define SCREEN_HEIGHT 64
-Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, -1);
+// --- SSD1306 raw I2C driver (no Adafruit lib needed) ---
+#define OLED_ADDR 0x3C
+#define OLED_WIDTH 128
+#define OLED_HEIGHT 64
+#define OLED_PAGES (OLED_HEIGHT / 8)
+
+// Simple 5x7 font for digits 0-9 and a few chars
+const uint8_t FONT_5X7[][5] PROGMEM = {
+  {0x3E,0x51,0x49,0x45,0x3E}, // 0
+  {0x00,0x42,0x7F,0x40,0x00}, // 1
+  {0x42,0x61,0x51,0x49,0x46}, // 2
+  {0x21,0x41,0x45,0x4B,0x31}, // 3
+  {0x18,0x14,0x12,0x7F,0x10}, // 4
+  {0x27,0x45,0x45,0x45,0x39}, // 5
+  {0x3C,0x4A,0x49,0x49,0x30}, // 6
+  {0x01,0x71,0x09,0x05,0x03}, // 7
+  {0x36,0x49,0x49,0x49,0x36}, // 8
+  {0x06,0x49,0x49,0x29,0x1E}, // 9
+};
+
+// Screen buffer (1024 bytes = 128 * 8 pages)
+uint8_t screenBuf[OLED_WIDTH * OLED_PAGES];
+
+void oledCmd(uint8_t cmd) {
+  Wire.beginTransmission(OLED_ADDR);
+  Wire.write(0x00);
+  Wire.write(cmd);
+  Wire.endTransmission();
+}
+
+void oledCmd2(uint8_t cmd, uint8_t arg) {
+  Wire.beginTransmission(OLED_ADDR);
+  Wire.write(0x00);
+  Wire.write(cmd);
+  Wire.write(arg);
+  Wire.endTransmission();
+}
+
+void oledInit() {
+  Wire.begin();
+  oledCmd(0xAE);         // display off
+  oledCmd2(0x20, 0x00);  // horizontal addressing mode
+  oledCmd(0xAF);         // display on
+}
+
+void oledFlush() {
+  // Set column and page range
+  Wire.beginTransmission(OLED_ADDR);
+  Wire.write(0x00);
+  Wire.write(0x21); Wire.write(0); Wire.write(127);
+  Wire.write(0x22); Wire.write(0); Wire.write(7);
+  Wire.endTransmission();
+
+  // Send buffer in 16-byte chunks (Wire buffer limit)
+  for (int i = 0; i < 1024; i += 16) {
+    Wire.beginTransmission(OLED_ADDR);
+    Wire.write(0x40);  // data mode
+    for (int j = 0; j < 16; j++) {
+      Wire.write(screenBuf[i + j]);
+    }
+    Wire.endTransmission();
+  }
+}
+
+void oledClear() {
+  memset(screenBuf, 0, sizeof(screenBuf));
+}
+
+// Draw a character at pixel position (x, page)
+void oledDrawChar(int x, int page, char c) {
+  if (c >= '0' && c <= '9') {
+    int idx = c - '0';
+    for (int col = 0; col < 5; col++) {
+      if (x + col < OLED_WIDTH) {
+        screenBuf[page * OLED_WIDTH + x + col] = pgm_read_byte(&FONT_5X7[idx][col]);
+      }
+    }
+  } else if (c == '-') {
+    for (int col = 0; col < 5; col++) {
+      if (x + col < OLED_WIDTH) {
+        screenBuf[page * OLED_WIDTH + x + col] = 0x08;
+      }
+    }
+  } else if (c == ' ') {
+    // blank
+  }
+}
+
+// Draw a string at pixel position (x, page)
+void oledDrawStr(int x, int page, const char* str) {
+  while (*str) {
+    oledDrawChar(x, page, *str);
+    x += 6;
+    str++;
+  }
+}
+
+// Draw a box outline around a digit position
+void oledDrawBox(int x, int page, int w, int h) {
+  // Top edge
+  for (int i = 0; i < w; i++) {
+    if (x + i < OLED_WIDTH) screenBuf[page * OLED_WIDTH + x + i] |= 0x01;
+  }
+  // Bottom edge
+  int bottomPage = page + h - 1;
+  if (bottomPage < OLED_PAGES) {
+    for (int i = 0; i < w; i++) {
+      if (x + i < OLED_WIDTH) screenBuf[bottomPage * OLED_WIDTH + x + i] |= 0x80;
+    }
+  }
+  // Left/right edges
+  for (int p = page; p < page + h && p < OLED_PAGES; p++) {
+    if (x < OLED_WIDTH) screenBuf[p * OLED_WIDTH + x] |= 0xFF;
+    if (x + w - 1 < OLED_WIDTH) screenBuf[p * OLED_WIDTH + x + w - 1] |= 0xFF;
+  }
+}
 
 // --- Safe state ---
-const int SECRET_COMBO[3] = {7, 3, 9};  // The secret combination
+const int SECRET_COMBO[3] = {7, 3, 9};
 int enteredDigits[3] = {0, 0, 0};
-int currentDigit = 0;       // Which digit we're entering (0-2)
-int dialValue = 0;          // Current encoder position (0-9)
+int currentDigit = 0;
+int dialValue = 0;
 bool locked = true;
 
 // [VULN 2] uint8_t overflows at 255 → resets lockout
@@ -56,12 +166,18 @@ unsigned long lastButtonPress = 0;
 char serialBuf[16];
 int serialBufIdx = 0;
 
+// --- Forward declarations ---
+void readEncoder();
+void drawSafeScreen();
+void handleUnlockAttempt();
+void resetSafe();
+void processSerialInput();
+
 void setup() {
   Serial.begin(115200);
   Serial.println("=== COMBO SAFE v1.0 ===");
   Serial.println("Turn encoder to select digit, press to confirm.");
   Serial.println("Enter 3 digits to unlock the safe.");
-  Serial.println();
 
   pinMode(ENC_CLK, INPUT_PULLUP);
   pinMode(ENC_DT, INPUT_PULLUP);
@@ -72,27 +188,18 @@ void setup() {
   digitalWrite(LED_RED, HIGH);
   digitalWrite(LED_GREEN, LOW);
 
-  // Initialize OLED
-  display.begin(SSD1306_SWITCHCAPVCC, 0x3C);
-  display.clearDisplay();
-  display.setTextSize(1);
-  display.setTextColor(SSD1306_WHITE);
-  display.setCursor(0, 0);
-  display.println("COMBO SAFE v1.0");
-  display.println();
-  display.println("Turn dial to select");
-  display.println("Press to confirm");
-  display.display();
+  oledInit();
 
-  // Encoder interrupt
   attachInterrupt(digitalPinToInterrupt(ENC_CLK), readEncoder, FALLING);
 
-  delay(1000);
+  delay(100);
   drawSafeScreen();
 }
 
 void readEncoder() {
-  if (digitalRead(ENC_DT) == HIGH) {
+  // At CLK falling edge: DT LOW = CW, DT HIGH = CCW
+  // (matches SparkBench encoder sim quadrature)
+  if (digitalRead(ENC_DT) == LOW) {
     encoderPos++;
   } else {
     encoderPos--;
@@ -100,64 +207,49 @@ void readEncoder() {
 }
 
 void drawSafeScreen() {
-  display.clearDisplay();
+  oledClear();
 
-  // Title
-  display.setTextSize(1);
-  display.setCursor(0, 0);
+  // Title row (page 0)
+  char titleBuf[22];
   if (lockedOut) {
-    display.print("LOCKED OUT (");
-    display.print(failCount);
-    display.println(" fails)");
+    oledDrawStr(0, 0, "LOCKED OUT");
   } else if (locked) {
-    display.println("ENTER COMBO:");
+    oledDrawStr(0, 0, "ENTER COMBO");
   } else {
-    display.println("** UNLOCKED **");
+    oledDrawStr(0, 0, "UNLOCKED");
   }
 
-  // Draw the 3 digit boxes
-  display.setTextSize(2);
+  // Draw the 3 digit boxes (pages 2-4)
   for (int i = 0; i < 3; i++) {
-    int x = 16 + i * 36;
-    int y = 24;
+    int x = 20 + i * 36;
 
-    // Draw box
+    // Active digit box
     if (i == currentDigit && locked && !lockedOut) {
-      display.drawRect(x - 2, y - 2, 24, 22, SSD1306_WHITE);
+      oledDrawBox(x - 3, 2, 14, 2);
     }
 
-    display.setCursor(x + 4, y);
+    char digit;
     if (i < currentDigit) {
-      // Already entered — show it
-      display.print(enteredDigits[i]);
+      digit = '0' + enteredDigits[i];
     } else if (i == currentDigit && locked) {
-      // Currently selecting
-      display.print(dialValue);
+      digit = '0' + dialValue;
     } else {
-      display.print("-");
+      digit = '-';
     }
+    oledDrawChar(x, 3, digit);
   }
 
-  // Status bar
-  display.setTextSize(1);
-  display.setCursor(0, 54);
+  // Status row (page 6)
   if (!locked) {
-    display.print("ACCESS GRANTED");
+    oledDrawStr(0, 6, "ACCESS GRANTED");
   } else if (lockedOut) {
-    display.print("TRY AGAIN LATER");
-  } else {
-    display.print("Digit ");
-    display.print(currentDigit + 1);
-    display.print("/3  Dial: ");
-    display.print(dialValue);
+    oledDrawStr(0, 6, "TRY LATER");
   }
 
-  display.display();
+  oledFlush();
 }
 
 // [VULN 1] Timing side-channel: each correct digit adds 50ms delay
-// An attacker can measure response time to determine correct digits
-// one at a time, reducing brute force from 10^3 to 10*3 attempts.
 bool checkCombo() {
   unsigned long startTime = millis();
 
@@ -169,7 +261,6 @@ bool checkCombo() {
       Serial.println("ms");
       return false;
     }
-    // BUG: Timing leak — delay per correct digit
     delay(50);
   }
 
@@ -193,7 +284,6 @@ void handleUnlockAttempt() {
     digitalWrite(LED_RED, LOW);
     Serial.println("[safe] UNLOCKED!");
   } else {
-    // [VULN 2] uint8_t overflow: failCount wraps 255→0
     failCount++;
     Serial.print("[safe] Failed attempts: ");
     Serial.println(failCount);
@@ -257,10 +347,8 @@ void processSerialInput() {
 }
 
 void loop() {
-  // Process serial commands
   processSerialInput();
 
-  // Skip if locked out or already unlocked
   if (lockedOut || !locked) {
     delay(50);
     return;
@@ -273,7 +361,6 @@ void loop() {
     lastEncoderPos = newPos;
 
     dialValue += diff;
-    // Wrap 0-9
     while (dialValue < 0) dialValue += 10;
     dialValue = dialValue % 10;
 
@@ -283,10 +370,9 @@ void loop() {
   // --- Encoder button ---
   bool buttonState = digitalRead(ENC_SW);
   if (buttonState == LOW && lastButtonState == HIGH) {
-    if (millis() - lastButtonPress > 200) {  // debounce
+    if (millis() - lastButtonPress > 200) {
       lastButtonPress = millis();
 
-      // Confirm current digit
       enteredDigits[currentDigit] = dialValue;
       Serial.print("[input] Digit ");
       Serial.print(currentDigit + 1);
@@ -299,9 +385,7 @@ void loop() {
       lastEncoderPos = 0;
 
       if (currentDigit >= 3) {
-        // All 3 digits entered — check combo
         handleUnlockAttempt();
-        // Reset for next attempt
         if (locked) {
           delay(1000);
           resetSafe();

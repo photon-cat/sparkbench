@@ -27,8 +27,62 @@ function usage(): never {
   process.exit(2);
 }
 
+// Header-to-PlatformIO library mapping (same as build route)
+const HEADER_TO_LIB: Record<string, string> = {
+  "Adafruit_GFX.h": "adafruit/Adafruit GFX Library",
+  "Adafruit_SSD1306.h": "adafruit/Adafruit SSD1306",
+  "Adafruit_MPU6050.h": "adafruit/Adafruit MPU6050",
+  "Adafruit_NeoPixel.h": "adafruit/Adafruit NeoPixel",
+  "Adafruit_BusIO.h": "adafruit/Adafruit BusIO",
+  "LiquidCrystal_I2C.h": "marcoschwartz/LiquidCrystal_I2C",
+  "ArduinoJson.h": "bblanchon/ArduinoJson",
+};
+
+function generatePlatformioIni(sketch: string, librariesTxt: string, board: string): string {
+  const baseLibDeps = [
+    "arduino-libraries/Servo@^1.2.1",
+    "adafruit/DHT sensor library@^1.4.6",
+    "adafruit/Adafruit Unified Sensor@^1.1.14",
+  ];
+
+  // Auto-detect from #include
+  const includes = sketch.matchAll(/#include\s*[<"]([^>"]+)[>"]/g);
+  const detected = new Set<string>();
+  for (const m of includes) {
+    const lib = HEADER_TO_LIB[m[1]];
+    if (lib) detected.add(lib);
+  }
+
+  // Parse libraries.txt
+  const extraLibs = librariesTxt
+    .split("\n")
+    .map(l => l.trim())
+    .filter(l => l && !l.startsWith("#"));
+
+  // Merge and deduplicate
+  const seen = new Set(baseLibDeps.map(l => l.toLowerCase()));
+  const allLibDeps = [...baseLibDeps];
+  for (const lib of [...detected, ...extraLibs]) {
+    const key = lib.toLowerCase();
+    if (!seen.has(key)) {
+      seen.add(key);
+      allLibDeps.push(lib);
+    }
+  }
+
+  const libDepsStr = allLibDeps.map(l => `  ${l}`).join("\n");
+  return `[env:${board}]
+platform = atmelavr
+board = ${board === "atmega328p" ? "uno" : board}
+framework = arduino
+lib_deps =
+${libDepsStr}
+`;
+}
+
 function compileSketch(slug: string, board: string): string {
-  const sketchPath = path.join(ROOT, "projects", slug, "sketch.ino");
+  const projDir = path.join(ROOT, "projects", slug);
+  const sketchPath = path.join(projDir, "sketch.ino");
   let sketch: string;
   try {
     sketch = readFileSync(sketchPath, "utf-8");
@@ -40,6 +94,15 @@ function compileSketch(slug: string, board: string): string {
   if (!sketch.includes("#include <Arduino.h>") && !sketch.includes('#include "Arduino.h"')) {
     sketch = "#include <Arduino.h>\n" + sketch;
   }
+
+  // Read libraries.txt
+  let librariesTxt = "";
+  try {
+    librariesTxt = readFileSync(path.join(projDir, "libraries.txt"), "utf-8");
+  } catch { /* no libraries.txt is fine */ }
+
+  // Generate platformio.ini with correct lib_deps
+  writeFileSync(path.join(BUILD_DIR, "platformio.ini"), generatePlatformioIni(sketch, librariesTxt, board));
 
   const srcDir = path.join(BUILD_DIR, "src");
   const includeDir = path.join(BUILD_DIR, "include");
@@ -53,7 +116,6 @@ function compileSketch(slug: string, board: string): string {
   writeFileSync(path.join(srcDir, "main.cpp"), sketch);
 
   // Copy any header files from the project directory
-  const projDir = path.join(ROOT, "projects", slug);
   try {
     const files = readdirSync(projDir);
     for (const f of files) {
