@@ -7,6 +7,61 @@ import type { Diagram } from "./diagram-parser";
 import type { Netlist } from "./netlist";
 import { getFootprintForType, generateFootprintByType } from "./pcb-footprints";
 
+/**
+ * Wokwi pin name → physical pin number mappings.
+ * Used to translate netlist keys (e.g. "sr1:DS") to footprint pad IDs (e.g. "sr1:14").
+ * Arduino Uno uses name-based IDs directly so doesn't need mapping.
+ */
+const WOKWI_PIN_MAP: Record<string, Record<string, string>> = {
+  "wokwi-74hc595": {
+    "Q1": "1", "Q2": "2", "Q3": "3", "Q4": "4", "Q5": "5", "Q6": "6", "Q7": "7",
+    "GND": "8", "Q7S": "9", "MR": "10", "SHCP": "11", "STCP": "12",
+    "OE": "13", "DS": "14", "Q0": "15", "VCC": "16",
+  },
+  "wokwi-74hc165": {
+    "SH": "1", "CLK": "2", "E": "3", "D4": "4", "D5": "5", "D6": "6", "D7": "7",
+    "GND": "8", "Q7": "9", "DS": "10", "D0": "11", "D1": "12",
+    "D2": "13", "D3": "14", "CE": "15", "VCC": "16",
+  },
+  "wokwi-led": {
+    "A": "1", "C": "2",
+  },
+  "wokwi-resistor": {
+    "1": "1", "2": "2",
+  },
+  "wokwi-pushbutton": {
+    "1.l": "1", "2.l": "2", "1.r": "3", "2.r": "4",
+  },
+  "wokwi-potentiometer": {
+    "GND": "1", "SIG": "2", "VCC": "3",
+  },
+  "wokwi-servo": {
+    "GND": "1", "V+": "2", "PWM": "3",
+  },
+  "wokwi-buzzer": {
+    "1": "1", "2": "2",
+  },
+  "wokwi-slide-switch": {
+    "1": "1", "2": "2", "3": "3",
+  },
+  "wokwi-ssd1306": {
+    "GND": "1", "VCC": "2", "DATA": "3", "CLK": "4",
+  },
+  "wokwi-dht22": {
+    "VCC": "1", "SDA": "2", "NC": "3", "GND": "4",
+  },
+};
+
+/** Convert a Wokwi pin reference (e.g. "sr1:DS") to a footprint pad ID (e.g. "sr1:14") */
+function wokwiPinToPadId(partType: string, ref: string, pinName: string): string {
+  const map = WOKWI_PIN_MAP[partType];
+  if (map && map[pinName]) {
+    return `${ref}:${map[pinName]}`;
+  }
+  // Already numeric or no mapping needed (e.g. Arduino Uno uses name-based IDs)
+  return `${ref}:${pinName}`;
+}
+
 export function parsePCBDesign(json: unknown): PCBDesign {
   const d = json as PCBDesign;
   return {
@@ -63,9 +118,21 @@ export function initPCBFromSchematic(
     const fpType = instanceFp ?? mapping?.footprintType;
     if (!fpDef || !fpType) continue;
 
+    // Build pad-number → net lookup by translating Wokwi pin names to pad numbers
+    const padNetLookup = new Map<string, string>();
+    for (const [pinRef, netName] of netlist.pinToNet) {
+      const colonIdx = pinRef.indexOf(":");
+      if (colonIdx === -1) continue;
+      const refId = pinRef.substring(0, colonIdx);
+      const pinName = pinRef.substring(colonIdx + 1);
+      if (refId !== part.id) continue;
+      const padId = wokwiPinToPadId(part.type, part.id, pinName);
+      padNetLookup.set(padId, netName);
+    }
+
     const pads = fpDef.pads.map((pad) => ({
       ...pad,
-      net: netlist.pinToNet.get(pad.id),
+      net: padNetLookup.get(pad.id) ?? netlist.pinToNet.get(pad.id),
     }));
 
     // Position priority: agent floorplan > existing PCB position > grid fallback
