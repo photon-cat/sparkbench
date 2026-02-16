@@ -257,6 +257,11 @@ export default function DiagramCanvas({
     return [...before, ...after];
   }, []);
 
+  // Wire drag: use window-level listeners so they survive React rerenders
+  // (handle rects get recreated when dragPreviewPoints changes)
+  const wireDragMoveRef = useRef<((e: PointerEvent) => void) | null>(null);
+  const wireDragUpRef = useRef<((e: PointerEvent) => void) | null>(null);
+
   const handleHandlePointerDown = useCallback((e: React.PointerEvent, wireIdx: number, segIdx: number) => {
     e.stopPropagation();
     e.preventDefault();
@@ -279,48 +284,59 @@ export default function DiagramCanvas({
       startContent: contentPos,
     };
 
-    (e.target as HTMLElement).setPointerCapture(e.pointerId);
-  }, [wires, screenToContentForHandle]);
+    const onMove = (ev: PointerEvent) => {
+      const ds = dragStateRef.current;
+      if (!ds) return;
+      const cp = screenToContentForHandle(ev.clientX, ev.clientY);
+      const mode = getSnapMode(ev);
+      const offset = ds.axis === "h"
+        ? cp.y - ds.startContent.y
+        : cp.x - ds.startContent.x;
+      const newPoints = splitSegment(ds.origPoints, ds.segIdx, offset, mode);
+      dragPreviewRef.current = newPoints;
+      setDragPreviewPoints(newPoints);
+    };
 
-  const handleHandlePointerMove = useCallback((e: React.PointerEvent) => {
-    const ds = dragStateRef.current;
-    if (!ds) return;
-    const contentPos = screenToContentForHandle(e.clientX, e.clientY);
-    const mode = getSnapMode(e);
-
-    const offset = ds.axis === "h"
-      ? contentPos.y - ds.startContent.y
-      : contentPos.x - ds.startContent.x;
-
-    const newPoints = splitSegment(ds.origPoints, ds.segIdx, offset, mode);
-    dragPreviewRef.current = newPoints;
-    setDragPreviewPoints(newPoints);
-  }, [screenToContentForHandle, splitSegment]);
-
-  const handleHandlePointerUp = useCallback(() => {
-    const ds = dragStateRef.current;
-    const preview = dragPreviewRef.current;
-    if (!ds || !preview) {
+    const onUp = () => {
+      const ds = dragStateRef.current;
+      const preview = dragPreviewRef.current;
+      if (ds && preview) {
+        const w = wires[ds.wireIdx];
+        if (w && diagram) {
+          const conn = diagram.connections[w.connectionIndex];
+          if (conn) {
+            const hints = pathToHints(preview);
+            const newConn: DiagramConnection = [conn[0], conn[1], conn[2], hints];
+            onUpdateConnectionRef.current?.(w.connectionIndex, newConn);
+          }
+        }
+      }
       dragStateRef.current = null;
       dragPreviewRef.current = null;
       setDragPreviewPoints(null);
-      return;
-    }
+      window.removeEventListener("pointermove", onMove);
+      window.removeEventListener("pointerup", onUp);
+      wireDragMoveRef.current = null;
+      wireDragUpRef.current = null;
+    };
 
-    const wire = wires[ds.wireIdx];
-    if (wire && diagram) {
-      const conn = diagram.connections[wire.connectionIndex];
-      if (conn) {
-        const hints = pathToHints(preview);
-        const newConn: DiagramConnection = [conn[0], conn[1], conn[2], hints];
-        onUpdateConnectionRef.current?.(wire.connectionIndex, newConn);
-      }
-    }
+    // Clean up any stale listeners from a previous drag
+    if (wireDragMoveRef.current) window.removeEventListener("pointermove", wireDragMoveRef.current);
+    if (wireDragUpRef.current) window.removeEventListener("pointerup", wireDragUpRef.current);
 
-    dragStateRef.current = null;
-    dragPreviewRef.current = null;
-    setDragPreviewPoints(null);
-  }, [wires, diagram]);
+    wireDragMoveRef.current = onMove;
+    wireDragUpRef.current = onUp;
+    window.addEventListener("pointermove", onMove);
+    window.addEventListener("pointerup", onUp);
+  }, [wires, diagram, screenToContentForHandle, splitSegment]);
+
+  // Clean up window listeners on unmount
+  useEffect(() => {
+    return () => {
+      if (wireDragMoveRef.current) window.removeEventListener("pointermove", wireDragMoveRef.current);
+      if (wireDragUpRef.current) window.removeEventListener("pointerup", wireDragUpRef.current);
+    };
+  }, []);
 
   useEffect(() => {
     if (isDrawing) setSelectedWireIdx(null);
@@ -1089,8 +1105,6 @@ export default function DiagramCanvas({
                         fill="#fff" stroke="#06f" strokeWidth={1.5}
                         style={{ pointerEvents: "all", cursor: isHoriz ? "ns-resize" : "ew-resize" }}
                         onPointerDown={(e) => handleHandlePointerDown(e, selectedWireIdx, segIdx)}
-                        onPointerMove={handleHandlePointerMove}
-                        onPointerUp={handleHandlePointerUp}
                       />
                       {isHoriz ? (
                         <>
