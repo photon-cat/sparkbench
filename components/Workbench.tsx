@@ -4,7 +4,7 @@ import dynamic from "next/dynamic";
 import styles from "./Workbench.module.css";
 import EditorPanel from "./EditorPanel";
 import SimulationPanel from "./SimulationPanel";
-import SparkyChat from "./SparkyChat";
+import SparkyChat, { type FileSnapshot } from "./SparkyChat";
 import { Diagram, DiagramConnection } from "@/lib/diagram-parser";
 import { AVRRunner } from "@/lib/avr-runner";
 
@@ -64,6 +64,13 @@ interface WorkbenchProps {
   onSparkyToggle?: () => void;
   slug?: string;
   onProjectChanged?: () => void;
+  onChangesReady?: (snapshot: FileSnapshot) => void;
+  onRevertChanges?: (snapshot: FileSnapshot) => void;
+  onAcceptChanges?: () => void;
+  onSimStart?: () => void;
+  onSimStop?: () => void;
+  pendingReview?: FileSnapshot | null;
+  currentSnapshot?: FileSnapshot | null;
 }
 
 export default function Workbench({
@@ -119,6 +126,13 @@ export default function Workbench({
   onSparkyToggle,
   slug,
   onProjectChanged,
+  onChangesReady,
+  onRevertChanges,
+  onAcceptChanges,
+  onSimStart,
+  onSimStop,
+  pendingReview,
+  currentSnapshot,
 }: WorkbenchProps) {
   return (
     <div className={styles.workbench}>
@@ -196,6 +210,13 @@ export default function Workbench({
           librariesTxt={librariesTxt || ""}
           projectFiles={projectFiles}
           onProjectChanged={onProjectChanged}
+          onChangesReady={onChangesReady}
+          onRevertChanges={onRevertChanges}
+          onAcceptChanges={onAcceptChanges}
+          onSimStart={onSimStart}
+          onSimStop={onSimStop}
+          pendingReview={pendingReview}
+          currentSnapshot={currentSnapshot}
         />
       )}
     </div>

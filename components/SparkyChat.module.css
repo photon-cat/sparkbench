@@ -483,3 +483,179 @@
   color: #333;
   cursor: not-allowed;
 }
+
+.stopBtn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  background: rgba(239, 68, 68, 0.15);
+  border: none;
+  color: #ef4444;
+  cursor: pointer;
+  border-radius: 8px;
+  flex-shrink: 0;
+  transition: background 0.15s;
+}
+
+.stopBtn:hover {
+  background: rgba(239, 68, 68, 0.25);
+}
+
+/* ===== Diff review bar ===== */
+.diffBar {
+  flex-shrink: 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  background: #1e1e1e;
+  max-height: 50%;
+  overflow-y: auto;
+}
+
+.diffHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 16px;
+  background: rgba(245, 158, 11, 0.08);
+  border-bottom: 1px solid rgba(245, 158, 11, 0.15);
+}
+
+.diffTitle {
+  font-size: 13px;
+  font-weight: 600;
+  color: #f59e0b;
+}
+
+.diffActions {
+  display: flex;
+  gap: 6px;
+}
+
+.acceptBtn,
+.rejectBtn {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 10px;
+  border: none;
+  border-radius: 4px;
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  font-family: inherit;
+  transition: background 0.15s;
+}
+
+.acceptBtn {
+  background: #22c55e;
+  color: #000;
+}
+
+.acceptBtn:hover {
+  background: #16a34a;
+}
+
+.rejectBtn {
+  background: #444;
+  color: #ccc;
+}
+
+.rejectBtn:hover {
+  background: #555;
+  color: #fff;
+}
+
+.diffFiles {
+  padding: 4px 8px;
+}
+
+.diffFile {
+  border-radius: 6px;
+  overflow: hidden;
+  margin-bottom: 2px;
+}
+
+.diffFileHeader {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  padding: 6px 10px;
+  background: none;
+  border: none;
+  color: #ccc;
+  font-size: 12px;
+  font-family: inherit;
+  cursor: pointer;
+  border-radius: 4px;
+  transition: background 0.15s;
+}
+
+.diffFileHeader:hover {
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.diffFileName {
+  font-weight: 500;
+  color: #ddd;
+}
+
+.diffStats {
+  margin-left: auto;
+  display: flex;
+  gap: 6px;
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.diffStatsAdd {
+  color: #4ade80;
+}
+
+.diffStatsDel {
+  color: #f87171;
+}
+
+.diffContent {
+  max-height: 200px;
+  overflow-y: auto;
+  background: #111;
+  border-radius: 0 0 6px 6px;
+  padding: 4px 0;
+  font-family: "SF Mono", "Cascadia Code", "Fira Code", monospace;
+  font-size: 11px;
+  line-height: 1.5;
+}
+
+.diffLine {
+  display: flex;
+  padding: 0 10px;
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+
+.diffPrefix {
+  flex-shrink: 0;
+  width: 16px;
+  color: #666;
+  user-select: none;
+}
+
+.diffAdd {
+  background: rgba(74, 222, 128, 0.1);
+  color: #4ade80;
+}
+
+.diffAdd .diffPrefix {
+  color: #4ade80;
+}
+
+.diffDel {
+  background: rgba(248, 113, 113, 0.1);
+  color: #f87171;
+}
+
+.diffDel .diffPrefix {
+  color: #f87171;
+}

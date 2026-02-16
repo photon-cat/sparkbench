@@ -6,6 +6,12 @@ import SendIcon from "@mui/icons-material/Send";
 import AddIcon from "@mui/icons-material/Add";
 import AutoAwesomeIcon from "@mui/icons-material/AutoAwesome";
 import ArrowBackIcon from "@mui/icons-material/ArrowBack";
+import CheckIcon from "@mui/icons-material/Check";
+import UndoIcon from "@mui/icons-material/Undo";
+import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
+import ExpandLessIcon from "@mui/icons-material/ExpandLess";
+import StopIcon from "@mui/icons-material/Stop";
+import { diffLines } from "@/lib/diff";
 import styles from "./SparkyChat.module.css";
 
 interface ChatMessage {
@@ -22,6 +28,14 @@ interface ChatSession {
   updatedAt: string;
 }
 
+export interface FileSnapshot {
+  diagram: string;
+  sketch: string;
+  pcb: string | null;
+  libraries: string;
+  files: { name: string; content: string }[];
+}
+
 interface SparkyChatProps {
   open: boolean;
   onToggle: () => void;
@@ -32,6 +46,13 @@ interface SparkyChatProps {
   librariesTxt: string;
   projectFiles: { name: string; content: string }[];
   onProjectChanged?: () => void;
+  onChangesReady?: (snapshot: FileSnapshot) => void;
+  onRevertChanges?: (snapshot: FileSnapshot) => void;
+  onAcceptChanges?: () => void;
+  onSimStart?: () => void;
+  onSimStop?: () => void;
+  pendingReview?: FileSnapshot | null;
+  currentSnapshot?: FileSnapshot | null;
 }
 
 const SUGGESTIONS = [
@@ -52,6 +73,119 @@ function deriveTitle(messages: ChatMessage[]): string {
   return text.length < first.content.length ? text + "..." : text;
 }
 
+// --- Diff Review Component ---
+
+function DiffReview({
+  pendingReview,
+  currentSnapshot,
+  onAccept,
+  onReject,
+}: {
+  pendingReview: FileSnapshot;
+  currentSnapshot: FileSnapshot;
+  onAccept: () => void;
+  onReject: () => void;
+}) {
+  const [expandedFile, setExpandedFile] = useState<string | null>(null);
+
+  // Compute which files changed
+  const changedFiles: { name: string; oldText: string; newText: string }[] = [];
+
+  if (pendingReview.sketch !== currentSnapshot.sketch) {
+    changedFiles.push({ name: "sketch.ino", oldText: pendingReview.sketch, newText: currentSnapshot.sketch });
+  }
+  if (pendingReview.diagram !== currentSnapshot.diagram) {
+    changedFiles.push({ name: "diagram.json", oldText: pendingReview.diagram, newText: currentSnapshot.diagram });
+  }
+  if ((pendingReview.pcb || "") !== (currentSnapshot.pcb || "")) {
+    changedFiles.push({ name: "board.kicad_pcb", oldText: pendingReview.pcb || "", newText: currentSnapshot.pcb || "" });
+  }
+  if (pendingReview.libraries !== currentSnapshot.libraries) {
+    changedFiles.push({ name: "libraries.txt", oldText: pendingReview.libraries, newText: currentSnapshot.libraries });
+  }
+
+  // Check additional files
+  const oldFileMap = new Map(pendingReview.files.map(f => [f.name, f.content]));
+  const newFileMap = new Map(currentSnapshot.files.map(f => [f.name, f.content]));
+  const allFileNames = new Set([...oldFileMap.keys(), ...newFileMap.keys()]);
+  for (const name of allFileNames) {
+    const oldContent = oldFileMap.get(name) || "";
+    const newContent = newFileMap.get(name) || "";
+    if (oldContent !== newContent) {
+      changedFiles.push({ name, oldText: oldContent, newText: newContent });
+    }
+  }
+
+  if (changedFiles.length === 0) return null;
+
+  return (
+    <div className={styles.diffBar}>
+      <div className={styles.diffHeader}>
+        <span className={styles.diffTitle}>
+          Sparky modified {changedFiles.length} file{changedFiles.length !== 1 ? "s" : ""}
+        </span>
+        <div className={styles.diffActions}>
+          <button className={styles.rejectBtn} onClick={onReject} title="Revert changes">
+            <UndoIcon sx={{ fontSize: 14 }} />
+            Reject
+          </button>
+          <button className={styles.acceptBtn} onClick={onAccept} title="Accept changes">
+            <CheckIcon sx={{ fontSize: 14 }} />
+            Accept
+          </button>
+        </div>
+      </div>
+      <div className={styles.diffFiles}>
+        {changedFiles.map((file) => {
+          const isExpanded = expandedFile === file.name;
+          const diff = isExpanded ? diffLines(file.oldText, file.newText) : [];
+          const addCount = isExpanded ? diff.filter(d => d.type === "add").length : 0;
+          const delCount = isExpanded ? diff.filter(d => d.type === "del").length : 0;
+
+          return (
+            <div key={file.name} className={styles.diffFile}>
+              <button
+                className={styles.diffFileHeader}
+                onClick={() => setExpandedFile(isExpanded ? null : file.name)}
+              >
+                {isExpanded ? <ExpandLessIcon sx={{ fontSize: 14 }} /> : <ExpandMoreIcon sx={{ fontSize: 14 }} />}
+                <span className={styles.diffFileName}>{file.name}</span>
+                {isExpanded && (
+                  <span className={styles.diffStats}>
+                    <span className={styles.diffStatsAdd}>+{addCount}</span>
+                    <span className={styles.diffStatsDel}>-{delCount}</span>
+                  </span>
+                )}
+              </button>
+              {isExpanded && (
+                <div className={styles.diffContent}>
+                  {diff.map((line, idx) => (
+                    <div
+                      key={idx}
+                      className={`${styles.diffLine} ${
+                        line.type === "add" ? styles.diffAdd :
+                        line.type === "del" ? styles.diffDel :
+                        ""
+                      }`}
+                    >
+                      <span className={styles.diffPrefix}>
+                        {line.type === "add" ? "+" : line.type === "del" ? "-" : " "}
+                      </span>
+                      <span>{line.content}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+// --- Main Component ---
+
 export default function SparkyChat({
   open,
   onToggle,
@@ -62,6 +196,13 @@ export default function SparkyChat({
   librariesTxt,
   projectFiles,
   onProjectChanged,
+  onChangesReady,
+  onRevertChanges,
+  onAcceptChanges,
+  onSimStart,
+  onSimStop,
+  pendingReview,
+  currentSnapshot,
 }: SparkyChatProps) {
   const [chats, setChats] = useState<ChatSession[]>([]);
   const [activeChatId, setActiveChatId] = useState<string | null>(null);
@@ -153,6 +294,15 @@ export default function SparkyChat({
 
   const sendMessage = useCallback(async (text: string) => {
     if (!text.trim() || streaming) return;
+
+    // Snapshot current state before sending
+    const snapshot: FileSnapshot = {
+      diagram: diagramJson,
+      sketch: sketchCode,
+      pcb: pcbText,
+      libraries: librariesTxt,
+      files: [...projectFiles],
+    };
 
     // If no active chat, create one
     let chatId = activeChatId;
@@ -248,8 +398,27 @@ export default function SparkyChat({
                   return { ...c, messages: msgs };
                 }));
                 break;
+              case "sim_command":
+                if (event.action === "start") {
+                  // Reload files first so the build uses the latest code
+                  if (filesChanged && onProjectChanged) {
+                    onProjectChanged();
+                    filesChanged = false; // don't trigger diff review for sim runs
+                  }
+                  // Small delay to let file reload settle before build
+                  setTimeout(() => onSimStart?.(), 300);
+                } else if (event.action === "stop") {
+                  onSimStop?.();
+                }
+                break;
               case "done":
-                if (filesChanged && onProjectChanged) onProjectChanged();
+                if (filesChanged) {
+                  if (onChangesReady) {
+                    onChangesReady(snapshot);
+                  } else if (onProjectChanged) {
+                    onProjectChanged();
+                  }
+                }
                 break;
               case "error":
                 currentContent += `\n\n[Error: ${event.message}]`;
@@ -289,7 +458,7 @@ export default function SparkyChat({
         return prev;
       });
     }
-  }, [streaming, activeChatId, chats, slug, diagramJson, sketchCode, pcbText, librariesTxt, projectFiles, onProjectChanged, saveChats]);
+  }, [streaming, activeChatId, chats, slug, diagramJson, sketchCode, pcbText, librariesTxt, projectFiles, onProjectChanged, onChangesReady, onSimStart, onSimStop, saveChats]);
 
   // --- Resize logic ---
   const handleResizeStart = useCallback((e: React.MouseEvent) => {
@@ -401,6 +570,16 @@ export default function SparkyChat({
               </div>
             ) : (
               <>
+                {/* Diff review banner */}
+                {pendingReview && currentSnapshot && onAcceptChanges && onRevertChanges && (
+                  <DiffReview
+                    pendingReview={pendingReview}
+                    currentSnapshot={currentSnapshot}
+                    onAccept={onAcceptChanges}
+                    onReject={() => onRevertChanges(pendingReview)}
+                  />
+                )}
+
                 {/* Body */}
                 <div className={styles.body}>
                   {/* Welcome + suggestions when empty */}
@@ -463,14 +642,24 @@ export default function SparkyChat({
                       rows={1}
                       disabled={streaming}
                     />
-                    <button
-                      className={styles.sendBtn}
-                      onClick={() => sendMessage(input)}
-                      disabled={streaming || !input.trim()}
-                      title="Send"
-                    >
-                      <SendIcon sx={{ fontSize: 18 }} />
-                    </button>
+                    {streaming ? (
+                      <button
+                        className={styles.stopBtn}
+                        onClick={() => abortRef.current?.abort()}
+                        title="Stop agent"
+                      >
+                        <StopIcon sx={{ fontSize: 18 }} />
+                      </button>
+                    ) : (
+                      <button
+                        className={styles.sendBtn}
+                        onClick={() => sendMessage(input)}
+                        disabled={!input.trim()}
+                        title="Send"
+                      >
+                        <SendIcon sx={{ fontSize: 18 }} />
+                      </button>
+                    )}
                   </div>
                 </div>
               </>

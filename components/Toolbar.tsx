@@ -10,6 +10,7 @@ import ArrowDropDownIcon from "@mui/icons-material/ArrowDropDown";
 import FileUploadIcon from "@mui/icons-material/FileUpload";
 import FileDownloadIcon from "@mui/icons-material/FileDownload";
 import FolderZipIcon from "@mui/icons-material/FolderZip";
+import ContentCopyIcon from "@mui/icons-material/ContentCopy";
 import EditIcon from "@mui/icons-material/Edit";
 import SettingsIcon from "@mui/icons-material/Settings";
 import AutoAwesomeIcon from "@mui/icons-material/AutoAwesome";
@@ -21,6 +22,7 @@ interface ToolbarProps {
   onImportWokwi?: (json: unknown) => void;
   onExportWokwi?: () => void;
   onDownloadZip?: () => void;
+  onCopyProject?: () => void;
   lastSaved?: Date | null;
   dirty?: boolean;
   sparkyOpen?: boolean;
@@ -31,7 +33,7 @@ function formatTime(date: Date): string {
   return date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" });
 }
 
-export default function Toolbar({ projectName, onSave, onImportWokwi, onExportWokwi, onDownloadZip, lastSaved, dirty, sparkyOpen, onSparkyToggle }: ToolbarProps) {
+export default function Toolbar({ projectName, onSave, onImportWokwi, onExportWokwi, onDownloadZip, onCopyProject, lastSaved, dirty, sparkyOpen, onSparkyToggle }: ToolbarProps) {
   const [saving, setSaving] = useState(false);
   const [dropdownAnchor, setDropdownAnchor] = useState<null | HTMLElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -99,6 +101,12 @@ export default function Toolbar({ projectName, onSave, onImportWokwi, onExportWo
             },
           }}
         >
+          <MenuItem onClick={() => { onCopyProject?.(); setDropdownAnchor(null); }}>
+            <ListItemIcon sx={{ color: "inherit", minWidth: 28 }}>
+              <ContentCopyIcon sx={{ fontSize: 16 }} />
+            </ListItemIcon>
+            <ListItemText>Make a copy</ListItemText>
+          </MenuItem>
           <MenuItem onClick={() => { onDownloadZip?.(); setDropdownAnchor(null); }}>
             <ListItemIcon sx={{ color: "inherit", minWidth: 28 }}>
               <FolderZipIcon sx={{ fontSize: 16 }} />

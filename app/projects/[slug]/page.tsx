@@ -1,13 +1,14 @@
 "use client";
 
 import { useState, useRef, useCallback, useEffect } from "react";
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import Toolbar from "@/components/Toolbar";
 import Workbench from "@/components/Workbench";
 import { parseDiagram, findMCUs, type Diagram, type DiagramPart, type DiagramConnection, type MCUInfo } from "@/lib/diagram-parser";
 import { useSimulation } from "@/hooks/useSimulation";
 import { fetchDiagram, fetchSketch, saveDiagram, saveSketch, fetchPCB, savePCB, fetchLibraries, saveLibraries } from "@/lib/api";
 import { importWokwi, exportToWokwi } from "@/lib/diagram-io";
+import type { FileSnapshot } from "@/components/SparkyChat";
 
 // Short prefix overrides for generating unique part IDs
 const SHORT_PREFIX: Record<string, string> = {
@@ -51,6 +52,7 @@ function generatePartId(type: string, existingIds?: Set<string>): string {
 
 export default function ProjectPage() {
   const { slug } = useParams<{ slug: string }>();
+  const router = useRouter();
 
   const [diagram, setDiagram] = useState<Diagram | null>(null);
   const [sketchCode, setSketchCode] = useState("");
@@ -66,6 +68,7 @@ export default function ProjectPage() {
   const [mcuOptions, setMcuOptions] = useState<{ id: string; label: string }[]>([]);
   const [sparkyOpen, setSparkyOpen] = useState(false);
   const [librariesTxt, setLibrariesTxt] = useState("");
+  const [pendingReview, setPendingReview] = useState<FileSnapshot | null>(null);
 
   // Auto-detect MCUs when diagram changes
   useEffect(() => {
@@ -675,6 +678,68 @@ export default function ProjectPage() {
       .catch((err) => console.error("Failed to reload libraries:", err));
   }, [slug]);
 
+  // Called when Sparky finishes modifying files — load new state and show diff
+  const handleChangesReady = useCallback((snapshot: FileSnapshot) => {
+    setPendingReview(snapshot);
+    handleProjectChanged(); // load new files from disk
+  }, [handleProjectChanged]);
+
+  // Accept agent changes — just clear the review state
+  const handleAcceptChanges = useCallback(() => {
+    setPendingReview(null);
+    setDirty(true);
+  }, []);
+
+  // Reject agent changes — write the old snapshot back and reload
+  const handleRevertChanges = useCallback(async (snapshot: FileSnapshot) => {
+    if (!slug) return;
+    try {
+      await Promise.all([
+        saveDiagram(slug, snapshot.diagram),
+        saveSketch(slug, snapshot.sketch, snapshot.files),
+        ...(snapshot.pcb !== null ? [savePCB(slug, snapshot.pcb)] : []),
+        ...(snapshot.libraries ? [saveLibraries(slug, snapshot.libraries)] : []),
+      ]);
+      // Restore local state from snapshot
+      const parsed = parseDiagram(JSON.parse(snapshot.diagram));
+      setDiagram(parsed);
+      setDiagramJson(snapshot.diagram);
+      setSketchCode(snapshot.sketch);
+      setProjectFiles(snapshot.files);
+      setPcbText(snapshot.pcb);
+      setLibrariesTxt(snapshot.libraries);
+    } catch (err) {
+      console.error("Failed to revert changes:", err);
+    }
+    setPendingReview(null);
+  }, [slug]);
+
+  // Build current snapshot for diff comparison
+  const currentSnapshot: FileSnapshot = {
+    diagram: diagramJson,
+    sketch: sketchCode,
+    pcb: pcbText,
+    libraries: librariesTxt,
+    files: projectFiles,
+  };
+
+  // Copy project
+  const handleCopyProject = useCallback(async () => {
+    if (!slug) return;
+    try {
+      const res = await fetch("/api/projects/copy", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ sourceSlug: slug }),
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const { slug: newSlug } = await res.json();
+      router.push(`/projects/${newSlug}`);
+    } catch (err) {
+      console.error("Failed to copy project:", err);
+    }
+  }, [slug, router]);
+
   const handleSaveOutline = useCallback(async (svgText: string) => {
     // Add/update outline.svg in project files so it appears in the sidebar
     setProjectFiles((prev) => {
@@ -922,7 +987,7 @@ export default function ProjectPage() {
 
   return (
     <div style={{ height: "100vh", display: "flex", flexDirection: "column" }}>
-      <Toolbar projectName={slug} onSave={handleSave} onImportWokwi={handleImportWokwi} onExportWokwi={handleExportWokwi} onDownloadZip={handleDownloadZip} lastSaved={lastSaved} dirty={dirty} sparkyOpen={sparkyOpen} onSparkyToggle={() => setSparkyOpen((v) => !v)} />
+      <Toolbar projectName={slug} onSave={handleSave} onImportWokwi={handleImportWokwi} onExportWokwi={handleExportWokwi} onDownloadZip={handleDownloadZip} onCopyProject={handleCopyProject} lastSaved={lastSaved} dirty={dirty} sparkyOpen={sparkyOpen} onSparkyToggle={() => setSparkyOpen((v) => !v)} />
       <Workbench
         diagram={diagram}
         runner={runner}
@@ -976,6 +1041,13 @@ export default function ProjectPage() {
         onSparkyToggle={() => setSparkyOpen((v) => !v)}
         slug={slug}
         onProjectChanged={handleProjectChanged}
+        onChangesReady={handleChangesReady}
+        onRevertChanges={handleRevertChanges}
+        onAcceptChanges={handleAcceptChanges}
+        onSimStart={handleStart}
+        onSimStop={handleStop}
+        pendingReview={pendingReview}
+        currentSnapshot={pendingReview ? currentSnapshot : null}
       />
     </div>
   );

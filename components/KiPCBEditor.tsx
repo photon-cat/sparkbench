@@ -325,7 +325,7 @@ export default function KiPCBEditor({
                 </div>
 
                 {/* Canvas */}
-                <div style={{ flex: 1, position: "relative" }}>
+                <div style={{ flex: 1, position: "relative", overflow: "hidden" }}>
                     <KiPCBCanvas
                         ref={canvasHandleRef}
                         pcbTree={pcbTree}

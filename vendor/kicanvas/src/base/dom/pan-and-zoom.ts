@@ -47,14 +47,16 @@ export class PanAndZoom {
         let startPosition: TouchList | null = null;
 
         this.target.addEventListener("touchstart", (e: TouchEvent) => {
+            e.preventDefault();
             if (e.touches.length === 2) {
                 startDistance = this.#getDistanceBetweenTouches(e.touches);
             } else if (e.touches.length === 1) {
                 startPosition = e.touches;
             }
-        });
+        }, { passive: false });
 
         this.target.addEventListener("touchmove", (e: TouchEvent) => {
+            e.preventDefault();
             if (e.touches.length === 2) {
                 if (startDistance !== null) {
                     const currentDistance = this.#getDistanceBetweenTouches(
@@ -80,7 +82,7 @@ export class PanAndZoom {
                 }
                 startPosition = e.touches;
             }
-        });
+        }, { passive: false });
 
         this.target.addEventListener("touchend", () => {
             startDistance = null;
@@ -107,7 +109,8 @@ export class PanAndZoom {
             }
         });
 
-        this.target.addEventListener("mouseup", (e: MouseEvent) => {
+        // Listen on window so mouseup outside the canvas still ends the drag
+        window.addEventListener("mouseup", (e: MouseEvent) => {
             if (e.button === 1 || e.button === 2) {
                 dragging = false;
                 dragStartPosition = null;
@@ -196,6 +199,8 @@ export class PanAndZoom {
     }
 
     #handle_pan(dx: number, dy: number) {
+        if (dx === 0 && dy === 0) return;
+
         const delta = new Vec2(dx * pan_speed, dy * pan_speed).multiply(
             1 / this.camera.zoom,
         );
@@ -208,18 +213,16 @@ export class PanAndZoom {
     }
 
     #handle_zoom(delta: number, mouse?: Vec2) {
+        const old_zoom = this.camera.zoom;
         this.camera.zoom *= Math.exp(delta * -zoom_speed);
         this.camera.zoom = Math.min(
             this.max_zoom,
             Math.max(this.camera.zoom, this.min_zoom),
         );
 
-        if (mouse != null) {
-            const mouse_world = this.camera.screen_to_world(mouse);
-            const new_world = this.camera.screen_to_world(mouse);
-            const center_delta = mouse_world.sub(new_world);
-
-            this.camera.translate(center_delta);
+        // Skip redraw if zoom didn't actually change (clamped at min/max)
+        if (this.camera.zoom === old_zoom) {
+            return;
         }
 
         if (this.callback) {
