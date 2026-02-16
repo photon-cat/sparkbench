@@ -1,5 +1,6 @@
 "use client";
 
+import { useState, useCallback, useRef } from "react";
 import dynamic from "next/dynamic";
 import styles from "./Workbench.module.css";
 import EditorPanel from "./EditorPanel";
@@ -134,91 +135,126 @@ export default function Workbench({
   pendingReview,
   currentSnapshot,
 }: WorkbenchProps) {
+  const [chatWidth, setChatWidth] = useState(380);
+  const dividerRef = useRef<{ startX: number; startWidth: number } | null>(null);
+
+  const handleDividerDown = useCallback((e: React.MouseEvent) => {
+    e.preventDefault();
+    dividerRef.current = { startX: e.clientX, startWidth: chatWidth };
+    const div = e.currentTarget as HTMLElement;
+    div.classList.add(styles.chatDividerActive);
+
+    const onMove = (ev: MouseEvent) => {
+      if (!dividerRef.current) return;
+      const delta = dividerRef.current.startX - ev.clientX;
+      setChatWidth(Math.min(Math.max(dividerRef.current.startWidth + delta, 280), 700));
+    };
+    const onUp = () => {
+      dividerRef.current = null;
+      div.classList.remove(styles.chatDividerActive);
+      document.removeEventListener("mousemove", onMove);
+      document.removeEventListener("mouseup", onUp);
+      document.body.style.cursor = "";
+      document.body.style.userSelect = "";
+    };
+    document.body.style.cursor = "ew-resize";
+    document.body.style.userSelect = "none";
+    document.addEventListener("mousemove", onMove);
+    document.addEventListener("mouseup", onUp);
+  }, [chatWidth]);
+
   return (
     <div className={styles.workbench}>
-      <div className={styles.splitContainer}>
-        <SplitPane
-          left={
-            <EditorPanel
-              sketchCode={sketchCode}
-              diagramJson={diagramJson}
-              pcbText={pcbText}
-              projectFiles={projectFiles}
-              onSketchChange={onSketchChange}
-              onDiagramChange={onDiagramChange}
-              onPcbChange={onPcbChange}
-              onAddFile={onAddFile}
-              onDeleteFile={onDeleteFile}
-              onRenameFile={onRenameFile}
-              onFileContentChange={onFileContentChange}
-              librariesTxt={librariesTxt}
-              onLibrariesChange={onLibrariesChange}
-            />
-          }
-          right={
-            <SimulationPanel
-              diagram={diagram}
-              runner={runner}
-              status={status}
-              serialOutput={serialOutput}
-              pcbText={pcbText}
-              onPcbSave={onPcbSave}
-              onStart={onStart}
-              onStop={onStop}
-              onPause={onPause}
-              onResume={onResume}
-              onRestart={onRestart}
-              onAddPart={onAddPart}
-              onPartMove={onPartMove}
-              onAddConnection={onAddConnection}
-              onUpdateConnection={onUpdateConnection}
-              onDeleteConnection={onDeleteConnection}
-              onWireColorChange={onWireColorChange}
-              selectedPartId={selectedPartId}
-              onPartSelect={onPartSelect}
-              onDeletePart={onDeletePart}
-              onPartRotate={onPartRotate}
-              onDuplicatePart={onDuplicatePart}
-              onPartAttrChange={onPartAttrChange}
-              placingPartId={placingPartId}
-              onFinishPlacing={onFinishPlacing}
-              showGrid={showGrid}
-              onUndo={onUndo}
-              onRedo={onRedo}
-              canUndo={canUndo}
-              canRedo={canRedo}
-              onToggleGrid={onToggleGrid}
-              onUpdateFromDiagram={onUpdateFromDiagram}
-              onSaveOutline={onSaveOutline}
-              mcuId={mcuId}
-              mcuOptions={mcuOptions}
-              onMcuChange={onMcuChange}
-              librariesTxt={librariesTxt}
-              onLibrariesChange={onLibrariesChange}
-            />
-          }
-        />
+      <div className={styles.mainRow}>
+        <div className={styles.splitContainer}>
+          <SplitPane
+            left={
+              <EditorPanel
+                sketchCode={sketchCode}
+                diagramJson={diagramJson}
+                pcbText={pcbText}
+                projectFiles={projectFiles}
+                onSketchChange={onSketchChange}
+                onDiagramChange={onDiagramChange}
+                onPcbChange={onPcbChange}
+                onAddFile={onAddFile}
+                onDeleteFile={onDeleteFile}
+                onRenameFile={onRenameFile}
+                onFileContentChange={onFileContentChange}
+                librariesTxt={librariesTxt}
+                onLibrariesChange={onLibrariesChange}
+              />
+            }
+            right={
+              <SimulationPanel
+                diagram={diagram}
+                runner={runner}
+                status={status}
+                serialOutput={serialOutput}
+                pcbText={pcbText}
+                onPcbSave={onPcbSave}
+                onStart={onStart}
+                onStop={onStop}
+                onPause={onPause}
+                onResume={onResume}
+                onRestart={onRestart}
+                onAddPart={onAddPart}
+                onPartMove={onPartMove}
+                onAddConnection={onAddConnection}
+                onUpdateConnection={onUpdateConnection}
+                onDeleteConnection={onDeleteConnection}
+                onWireColorChange={onWireColorChange}
+                selectedPartId={selectedPartId}
+                onPartSelect={onPartSelect}
+                onDeletePart={onDeletePart}
+                onPartRotate={onPartRotate}
+                onDuplicatePart={onDuplicatePart}
+                onPartAttrChange={onPartAttrChange}
+                placingPartId={placingPartId}
+                onFinishPlacing={onFinishPlacing}
+                showGrid={showGrid}
+                onUndo={onUndo}
+                onRedo={onRedo}
+                canUndo={canUndo}
+                canRedo={canRedo}
+                onToggleGrid={onToggleGrid}
+                onUpdateFromDiagram={onUpdateFromDiagram}
+                onSaveOutline={onSaveOutline}
+                mcuId={mcuId}
+                mcuOptions={mcuOptions}
+                onMcuChange={onMcuChange}
+                librariesTxt={librariesTxt}
+                onLibrariesChange={onLibrariesChange}
+              />
+            }
+          />
+        </div>
+        {!!sparkyOpen && slug && onSparkyToggle && (
+          <>
+            <div className={styles.chatDivider} onMouseDown={handleDividerDown} />
+            <div className={styles.chatSidePanel} style={{ width: chatWidth }}>
+              <SparkyChat
+                open={!!sparkyOpen}
+                onToggle={onSparkyToggle}
+                slug={slug}
+                diagramJson={diagramJson}
+                sketchCode={sketchCode}
+                pcbText={pcbText}
+                librariesTxt={librariesTxt || ""}
+                projectFiles={projectFiles}
+                onProjectChanged={onProjectChanged}
+                onChangesReady={onChangesReady}
+                onRevertChanges={onRevertChanges}
+                onAcceptChanges={onAcceptChanges}
+                onSimStart={onSimStart}
+                onSimStop={onSimStop}
+                pendingReview={pendingReview}
+                currentSnapshot={currentSnapshot}
+              />
+            </div>
+          </>
+        )}
       </div>
-      {slug && onSparkyToggle && (
-        <SparkyChat
-          open={!!sparkyOpen}
-          onToggle={onSparkyToggle}
-          slug={slug}
-          diagramJson={diagramJson}
-          sketchCode={sketchCode}
-          pcbText={pcbText}
-          librariesTxt={librariesTxt || ""}
-          projectFiles={projectFiles}
-          onProjectChanged={onProjectChanged}
-          onChangesReady={onChangesReady}
-          onRevertChanges={onRevertChanges}
-          onAcceptChanges={onAcceptChanges}
-          onSimStart={onSimStart}
-          onSimStop={onSimStop}
-          pendingReview={pendingReview}
-          currentSnapshot={currentSnapshot}
-        />
-      )}
     </div>
   );
 }

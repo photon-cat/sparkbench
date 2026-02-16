@@ -64,6 +64,7 @@ export class EditableBoardViewer extends BoardViewer {
     ): void {
         let bestBBox: BBox | null = null;
         let bestPriority = -1;
+        let bestArea = Infinity;
 
         for (const { layer: _, bbox } of items) {
             const ctx = bbox.context;
@@ -84,9 +85,13 @@ export class EditableBoardViewer extends BoardViewer {
                 priority = 1;
             }
 
-            if (priority > bestPriority) {
+            // Prefer higher priority; at equal priority prefer smaller bbox
+            // so clicking a button inside a shield selects the button, not the shield.
+            const area = bbox.w * bbox.h;
+            if (priority > bestPriority || (priority === bestPriority && area < bestArea)) {
                 bestPriority = priority;
                 bestBBox = bbox;
+                bestArea = area;
             }
         }
 

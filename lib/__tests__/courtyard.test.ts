@@ -100,6 +100,7 @@ let allPass = true;
 
 for (const { name, gen } of cases) {
   const fpDef = gen();
+  if (!fpDef.courtyard) continue;
   const design = makeMiniDesign(name, fpDef.pads, fpDef.courtyard);
   const tree = buildKicadPCBTree(design) as SExpr;
 

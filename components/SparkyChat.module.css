@@ -50,6 +50,17 @@
   animation: slideUp 0.2s ease;
 }
 
+/* ===== Panel — docked right (inside flex layout) ===== */
+.panelRight {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  background: #1a1a1a;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
 /* ===== Resize handle at top edge ===== */
 .resizeHandle {
   height: 8px;
@@ -328,19 +339,19 @@
   word-break: break-word;
   font-size: 14px;
   line-height: 1.6;
-  max-width: 80%;
 }
 
 .messageUser .messageContent {
-  background: #2563eb;
-  color: #fff;
+  background: #2a2a2a;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  color: #ddd;
   border-bottom-right-radius: 4px;
 }
 
 .messageAssistant .messageContent {
-  background: #222;
+  background: transparent;
   color: #ddd;
-  border-bottom-left-radius: 4px;
+  padding: 4px 0;
 }
 
 .messageAssistant .messageContent code {
@@ -363,61 +374,122 @@
   padding: 0;
 }
 
-/* ===== Tool badges ===== */
+/* ===== Tool cards ===== */
 .toolRow {
   display: flex;
-  flex-wrap: wrap;
+  flex-direction: column;
   gap: 4px;
-  padding: 0 4px;
+  padding: 0;
 }
 
+.toolCard {
+  display: flex;
+  flex-direction: column;
+  background: #1a1a1a;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 8px;
+  overflow: hidden;
+  font-size: 12px;
+}
+
+.toolCardHeader {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  color: #999;
+}
+
+.toolCardIcon {
+  color: #f59e0b;
+  font-size: 13px;
+  font-weight: 600;
+  flex-shrink: 0;
+}
+
+.toolCardLabel {
+  color: #bbb;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.toolCardBody {
+  padding: 6px 10px;
+  background: #111;
+  font-family: "SF Mono", "Cascadia Code", "Fira Code", monospace;
+  font-size: 11px;
+  line-height: 1.5;
+  color: #8b8b8b;
+  white-space: pre-wrap;
+  word-break: break-all;
+  max-height: 80px;
+  overflow-y: auto;
+}
+
+.toolCardBody code {
+  color: #e8ab6a;
+}
+
+/* Collapsed inline badges for less important tools */
 .toolBadge {
   display: inline-flex;
   align-items: center;
   gap: 4px;
   padding: 2px 8px;
-  background: rgba(245, 158, 11, 0.06);
-  border: 1px solid rgba(245, 158, 11, 0.15);
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.06);
   border-radius: 10px;
   font-size: 11px;
-  color: #999;
+  color: #666;
 }
 
 .toolName {
-  color: #f59e0b;
-  font-weight: 600;
+  color: #888;
+  font-weight: 500;
 }
 
 .toolDetail {
-  color: #666;
+  color: #555;
   max-width: 180px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-/* ===== Thinking indicator ===== */
-.thinking {
+/* ===== Status indicator (replaces thinking dots) ===== */
+.statusIndicator {
   display: flex;
   align-items: center;
-  gap: 5px;
-  padding: 10px 14px;
+  gap: 8px;
+  padding: 8px 14px;
 }
 
-.dot {
-  width: 5px;
-  height: 5px;
+.statusSpinner {
+  width: 14px;
+  height: 14px;
   border-radius: 50%;
-  background: #f59e0b;
-  animation: pulse 1.4s infinite ease-in-out;
+  border: 2px solid rgba(245, 158, 11, 0.2);
+  border-top-color: #f59e0b;
+  animation: spin 0.8s linear infinite;
 }
 
-.dot:nth-child(2) { animation-delay: 0.2s; }
-.dot:nth-child(3) { animation-delay: 0.4s; }
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
 
-@keyframes pulse {
-  0%, 80%, 100% { opacity: 0.2; transform: scale(0.8); }
-  40% { opacity: 1; transform: scale(1); }
+.statusText {
+  font-size: 13px;
+  color: #888;
+}
+
+.statusAction {
+  color: #f59e0b;
+  font-weight: 500;
+}
+
+.statusDetail {
+  color: #666;
 }
 
 /* ===== Input area ===== */
@@ -449,8 +521,8 @@
   font-family: inherit;
   padding: 4px 0;
   resize: none;
-  min-height: 22px;
-  max-height: 100px;
+  min-height: 60px;
+  max-height: 150px;
   line-height: 1.5;
   outline: none;
 }

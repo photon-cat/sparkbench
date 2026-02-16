@@ -321,41 +321,41 @@ ${projectInstructions}${contextSection}`;
         controller.enqueue(encoder.encode(JSON.stringify(data) + "\n"));
       };
 
-      try {
-        const simServer = createSimulationServer(write);
+      const buildQueryOptions = (resumeId?: string) => ({
+        model: "claude-opus-4-6" as const,
+        systemPrompt: SYSTEM_PROMPT,
+        tools: { type: "preset" as const, preset: "claude_code" as const },
+        allowedTools: ["Read", "Write", "Edit", "Bash", "Glob", "Grep"],
+        disallowedTools: ["TodoWrite", "TodoRead", "Task", "WebFetch", "WebSearch", "NotebookEdit", "mcp__sparkbench__RunSimulation", "mcp__sparkbench__StopSimulation"],
+        permissionMode: "bypassPermissions" as const,
+        allowDangerouslySkipPermissions: true,
+        canUseTool: buildPermissionHandler(projectDir),
+        mcpServers: { sparkbench: createSimulationServer(write) },
+        cwd: projectDir,
+        maxTurns: 30,
+        includePartialMessages: true,
+        ...(resumeId ? { resume: resumeId } : {}),
+        env: {
+          HOME: process.env.HOME,
+          PATH: process.env.PATH,
+          ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY,
+          PLATFORMIO_CORE_DIR: process.env.PLATFORMIO_CORE_DIR,
+        },
+        stderr: () => {},
+      });
 
+      async function runQuery(resumeId?: string) {
         const q = query({
           prompt,
-          options: {
-            model: "claude-opus-4-6",
-            systemPrompt: SYSTEM_PROMPT,
-            tools: { type: "preset", preset: "claude_code" },
-            allowedTools: ["Read", "Write", "Edit", "Bash", "Glob", "Grep", "mcp__sparkbench__RunSimulation", "mcp__sparkbench__StopSimulation"],
-            disallowedTools: ["TodoWrite", "TodoRead", "Task", "WebFetch", "WebSearch", "NotebookEdit"],
-            permissionMode: "bypassPermissions",
-            allowDangerouslySkipPermissions: true,
-            canUseTool: buildPermissionHandler(projectDir),
-            mcpServers: { sparkbench: simServer },
-            cwd: projectDir,
-            maxTurns: 30,
-            includePartialMessages: true,
-            ...(existingSession ? { resume: existingSession } : {}),
-            env: {
-              HOME: process.env.HOME,
-              PATH: process.env.PATH,
-              ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY,
-              PLATFORMIO_CORE_DIR: process.env.PLATFORMIO_CORE_DIR,
-            },
-            stderr: () => {},
-          },
+          options: buildQueryOptions(resumeId),
         });
 
         let fullText = "";
         let turnCount = 0;
 
         for await (const msg of q) {
-          // Capture session ID
-          if ("session_id" in msg && (msg as any).session_id && !sessions.has(slug)) {
+          // Capture/update session ID
+          if ("session_id" in msg && (msg as any).session_id) {
             sessions.set(slug, (msg as any).session_id);
             saveSessions();
           }
@@ -401,8 +401,24 @@ ${projectInstructions}${contextSection}`;
             }
           }
         }
+      }
+
+      try {
+        await runQuery(existingSession);
       } catch (err: any) {
-        write({ type: "error", message: err.message });
+        // If resume failed, clear the stale session and retry fresh
+        if (existingSession) {
+          console.warn(`[sparky] Resume failed for ${slug}, starting fresh: ${err.message}`);
+          sessions.delete(slug);
+          saveSessions();
+          try {
+            await runQuery();
+          } catch (retryErr: any) {
+            write({ type: "error", message: retryErr.message });
+          }
+        } else {
+          write({ type: "error", message: err.message });
+        }
       } finally {
         controller.close();
       }

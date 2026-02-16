@@ -194,10 +194,12 @@ function buildFootprintExpr(
     }
   }
 
-  // Courtyard rectangle — always computed from actual pad bounding box
-  if (fp.pads.length > 0) {
+  // Courtyard rectangle — computed from pad bounding box.
+  // Only emitted when the footprint has a courtyard defined.
+  // Footprints like Arduino shields intentionally omit courtyard
+  // so other components can be placed inside them.
+  if (fp.courtyard && fp.pads.length > 0) {
     const crtYdLayer = fp.layer === "F.Cu" ? "F.CrtYd" : "B.CrtYd";
-    // Compute pad bounding box center
     let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
     for (const pad of fp.pads) {
       const hw = pad.width / 2;

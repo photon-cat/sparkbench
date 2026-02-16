@@ -630,16 +630,58 @@ export default function ProjectPage() {
 
   const handleUpdatePCBFromDiagram = useCallback(async () => {
     if (!diagram) return;
-    const [{ extractNetlist }, { initPCBFromSchematic }, { buildKicadPCBTree }, { serializeSExpr }] = await Promise.all([
+    const [{ extractNetlist }, { initPCBFromSchematic }, { buildKicadPCBTree }, { serializeSExpr }, { listify }, { findChildren, getLayer, replaceEdgeCuts, getFootprintRef, getAt }] = await Promise.all([
       import("@/lib/netlist"),
       import("@/lib/pcb-parser"),
       import("@/lib/kicanvas-factory"),
       import("@/lib/sexpr-serializer"),
+      import("@kicanvas/kicad/tokenizer"),
+      import("@/lib/sexpr-mutate"),
     ]);
 
+    // Extract existing footprint positions from old PCB so we can preserve them
+    let existingPositions: Map<string, { x: number; y: number; rotation: number }> | undefined;
+    if (pcbText) {
+      try {
+        const oldTree = listify(pcbText)[0] as unknown[];
+        existingPositions = new Map();
+        for (const fp of findChildren(oldTree as any, "footprint")) {
+          const ref = getFootprintRef(fp);
+          const at = getAt(fp);
+          if (ref && at) {
+            existingPositions.set(ref, { x: at.x, y: at.y, rotation: at.rotation });
+          }
+        }
+      } catch (err) {
+        console.warn("[PCB] Could not read existing footprint positions:", err);
+      }
+    }
+
     const netlist = extractNetlist(diagram);
-    const design = initPCBFromSchematic(diagram, netlist);
+    const design = initPCBFromSchematic(diagram, netlist, existingPositions);
     const tree = buildKicadPCBTree(design);
+
+    // Preserve existing board outline (Edge.Cuts) if there's already a PCB
+    if (pcbText) {
+      try {
+        const oldTree = listify(pcbText)[0] as unknown[];
+        // Collect Edge.Cuts gr_line/gr_arc nodes from existing PCB
+        const edgeCutNodes: unknown[][] = [];
+        for (const tag of ["gr_line", "gr_arc"]) {
+          for (const node of findChildren(oldTree as any, tag)) {
+            if (getLayer(node) === "Edge.Cuts") {
+              edgeCutNodes.push(node as unknown[]);
+            }
+          }
+        }
+        if (edgeCutNodes.length > 0) {
+          replaceEdgeCuts(tree as any, edgeCutNodes as any);
+        }
+      } catch (err) {
+        console.warn("[PCB] Could not preserve outline:", err);
+      }
+    }
+
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const text = serializeSExpr(tree as any);
 
@@ -647,7 +689,7 @@ export default function ProjectPage() {
     if (slug) {
       await savePCB(slug, text);
     }
-  }, [diagram, slug]);
+  }, [diagram, slug, pcbText]);
 
   // Reload project files from disk (called after Sparky agent modifies files)
   const handleProjectChanged = useCallback(() => {

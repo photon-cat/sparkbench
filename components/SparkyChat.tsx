@@ -62,6 +62,67 @@ const SUGGESTIONS = [
   "Explain this circuit",
 ];
 
+/** Tools that get rich card rendering */
+const RICH_TOOLS = new Set(["Write", "Edit", "Bash", "Read"]);
+
+/** Derive a human-readable status label from the last tool call */
+function toolStatusLabel(tools: { name: string; detail: string }[]): { action: string; detail: string } {
+  if (tools.length === 0) return { action: "Planning", detail: "next moves" };
+  const last = tools[tools.length - 1];
+  switch (last.name) {
+    case "Write": return { action: "Writing", detail: last.detail || "file" };
+    case "Edit": return { action: "Editing", detail: last.detail || "file" };
+    case "Read": return { action: "Reading", detail: last.detail || "file" };
+    case "Bash": return { action: "Running", detail: last.detail?.slice(0, 60) || "command" };
+    case "Glob": return { action: "Searching", detail: last.detail || "files" };
+    case "Grep": return { action: "Searching", detail: last.detail || "code" };
+    default: return { action: "Using", detail: last.name };
+  }
+}
+
+function ToolCard({ tool }: { tool: { name: string; detail: string } }) {
+  if (!RICH_TOOLS.has(tool.name)) {
+    return (
+      <span className={styles.toolBadge}>
+        <span className={styles.toolName}>{tool.name}</span>
+        {tool.detail && <span className={styles.toolDetail}>{tool.detail}</span>}
+      </span>
+    );
+  }
+
+  let label = "";
+  let body = "";
+  switch (tool.name) {
+    case "Write":
+      label = `Wrote ${tool.detail || "file"}`;
+      break;
+    case "Edit":
+      label = `Edited ${tool.detail || "file"}`;
+      break;
+    case "Read":
+      label = `Read ${tool.detail || "file"}`;
+      break;
+    case "Bash":
+      label = "Ran command";
+      body = tool.detail || "";
+      break;
+  }
+
+  return (
+    <div className={styles.toolCard}>
+      <div className={styles.toolCardHeader}>
+        <span className={styles.toolCardIcon}>{tool.name === "Bash" ? "$" : tool.name === "Read" ? ">" : "+"}</span>
+        <span className={styles.toolCardLabel}>{label}</span>
+      </div>
+      {body && (
+        <div className={styles.toolCardBody}>
+          <code>{body}</code>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function generateId(): string {
   return Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
 }
@@ -209,14 +270,10 @@ export default function SparkyChat({
   const [showHistory, setShowHistory] = useState(false);
   const [input, setInput] = useState("");
   const [streaming, setStreaming] = useState(false);
-  const [panelHeight, setPanelHeight] = useState(420);
   const [loaded, setLoaded] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const abortRef = useRef<AbortController | null>(null);
-  const resizingRef = useRef(false);
-  const startYRef = useRef(0);
-  const startHeightRef = useRef(0);
 
   const activeChat = chats.find((c) => c.id === activeChatId) || null;
   const messages = activeChat?.messages || [];
@@ -460,34 +517,6 @@ export default function SparkyChat({
     }
   }, [streaming, activeChatId, chats, slug, diagramJson, sketchCode, pcbText, librariesTxt, projectFiles, onProjectChanged, onChangesReady, onSimStart, onSimStop, saveChats]);
 
-  // --- Resize logic ---
-  const handleResizeStart = useCallback((e: React.MouseEvent) => {
-    e.preventDefault();
-    resizingRef.current = true;
-    startYRef.current = e.clientY;
-    startHeightRef.current = panelHeight;
-
-    const handleResizeMove = (ev: MouseEvent) => {
-      if (!resizingRef.current) return;
-      const delta = startYRef.current - ev.clientY;
-      const newHeight = Math.min(Math.max(startHeightRef.current + delta, 200), window.innerHeight - 60);
-      setPanelHeight(newHeight);
-    };
-
-    const handleResizeEnd = () => {
-      resizingRef.current = false;
-      document.removeEventListener("mousemove", handleResizeMove);
-      document.removeEventListener("mouseup", handleResizeEnd);
-      document.body.style.cursor = "";
-      document.body.style.userSelect = "";
-    };
-
-    document.body.style.cursor = "ns-resize";
-    document.body.style.userSelect = "none";
-    document.addEventListener("mousemove", handleResizeMove);
-    document.addEventListener("mouseup", handleResizeEnd);
-  }, [panelHeight]);
-
   const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
     if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) {
       e.preventDefault();
@@ -502,22 +531,9 @@ export default function SparkyChat({
 
   return (
     <>
-      {/* Centered bottom handle — visible when closed */}
-      <button
-        className={`${styles.handle} ${open ? styles.handleHidden : ""}`}
-        onClick={onToggle}
-        title="Toggle Sparky"
-      >
-        <AutoAwesomeIcon sx={{ fontSize: 20 }} />
-      </button>
-
-      {/* Floating panel */}
+      {/* Sidebar panel */}
       {open && (
-        <div className={styles.panel} style={{ height: panelHeight }}>
-            {/* Resize handle */}
-            <div className={styles.resizeHandle} onMouseDown={handleResizeStart}>
-              <div className={styles.resizeGrip} />
-            </div>
+        <div className={styles.panelRight}>
             {/* Header */}
             <div className={styles.header}>
               <div className={styles.headerLeft}>
@@ -600,30 +616,36 @@ export default function SparkyChat({
                   {/* Messages */}
                   {messages.length > 0 && (
                     <div className={styles.messages}>
-                      {messages.map((msg, i) => (
-                        <div key={i} className={`${styles.message} ${msg.role === "user" ? styles.messageUser : styles.messageAssistant}`}>
-                          {msg.tools && msg.tools.length > 0 && (
-                            <div className={styles.toolRow}>
-                              {msg.tools.map((tool, j) => (
-                                <span key={j} className={styles.toolBadge}>
-                                  <span className={styles.toolName}>{tool.name}</span>
-                                  {tool.detail && <span className={styles.toolDetail}>{tool.detail}</span>}
-                                </span>
-                              ))}
-                            </div>
-                          )}
-                          {msg.content && (
-                            <div className={styles.messageContent}>{msg.content}</div>
-                          )}
-                          {msg.role === "assistant" && !msg.content && streaming && i === messages.length - 1 && (
-                            <div className={styles.thinking}>
-                              <div className={styles.dot} />
-                              <div className={styles.dot} />
-                              <div className={styles.dot} />
-                            </div>
-                          )}
-                        </div>
-                      ))}
+                      {messages.map((msg, i) => {
+                        const isLastAssistant = msg.role === "assistant" && i === messages.length - 1;
+                        const isStreaming = isLastAssistant && streaming;
+                        return (
+                          <div key={i} className={`${styles.message} ${msg.role === "user" ? styles.messageUser : styles.messageAssistant}`}>
+                            {msg.tools && msg.tools.length > 0 && (
+                              <div className={styles.toolRow}>
+                                {msg.tools.map((tool, j) => (
+                                  <ToolCard key={j} tool={tool} />
+                                ))}
+                              </div>
+                            )}
+                            {msg.content && (
+                              <div className={styles.messageContent}>{msg.content}</div>
+                            )}
+                            {isStreaming && (() => {
+                              const status = toolStatusLabel(msg.tools || []);
+                              return (
+                                <div className={styles.statusIndicator}>
+                                  <div className={styles.statusSpinner} />
+                                  <span className={styles.statusText}>
+                                    <span className={styles.statusAction}>{status.action}</span>{" "}
+                                    <span className={styles.statusDetail}>{status.detail}</span>
+                                  </span>
+                                </div>
+                              );
+                            })()}
+                          </div>
+                        );
+                      })}
                       <div ref={messagesEndRef} />
                     </div>
                   )}

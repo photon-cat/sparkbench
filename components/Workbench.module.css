@@ -5,8 +5,36 @@
   overflow: hidden;
 }
 
+.mainRow {
+  flex: 1;
+  display: flex;
+  flex-direction: row;
+  overflow: hidden;
+}
+
 .splitContainer {
   flex: 1;
   position: relative;
   overflow: hidden;
+}
+
+.chatSidePanel {
+  position: relative;
+  flex-shrink: 0;
+  overflow: hidden;
+  border-left: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.chatDivider {
+  width: 4px;
+  flex-shrink: 0;
+  cursor: ew-resize;
+  background: transparent;
+  transition: background 0.15s;
+  z-index: 10;
+}
+
+.chatDivider:hover,
+.chatDividerActive {
+  background: rgba(245, 158, 11, 0.4);
 }

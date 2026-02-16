@@ -5,7 +5,7 @@ const SMD_TOP: AnyLayerId[] = ["F.Cu"];
 
 export interface FootprintDef {
   pads: PCBPad[];
-  courtyard: { width: number; height: number };
+  courtyard?: { width: number; height: number };
   silkLines: { x1: number; y1: number; x2: number; y2: number }[];
 }
 
@@ -156,6 +156,115 @@ export function generateHeader(
   };
 }
 
+/**
+ * Arduino Uno R2 Shield footprint — 4 header strips matching the Uno's
+ * pin layout, positioned so the board sits on top of the Arduino as a hat.
+ *
+ * Pad coordinates taken from the official Arduino_UNO_R2.kicad_mod footprint.
+ * Origin is at pad 1 (pin D0). All pads are 1.6mm diameter, 1.0mm drill, through-hole.
+ *
+ * 30 pads total:
+ *   Top (y=0):    Pads 1-8 (D0-D7), Pads 9-14 (D8-D13)
+ *   Bottom (y=48.26): Pads 15-22 (A0-A5, GND.1, AREF), Pads 23-30 (Power)
+ *
+ * Pin names match wokwi-arduino-uno naming: 0-13, A0-A5, 5V, 3.3V,
+ * GND.1, GND.2, GND.3, VIN, RESET, IOREF, AREF
+ */
+export function generateArduinoUnoShield(ref: string): FootprintDef {
+  const pads: PCBPad[] = [];
+  const drillDia = 1.0;
+  const padDia = 1.6;
+
+  function addPin(id: string, x: number, y: number, shape: "circle" | "rect" = "circle") {
+    pads.push({
+      id: `${ref}:${id}`,
+      shape,
+      x, y,
+      width: padDia, height: padDia,
+      drill: drillDia,
+      layers: ALL_CU,
+    });
+  }
+
+  // === Top row (y=0) — Digital headers ===
+  // Pads 1-8: D0-D7 (2.54mm pitch, x=0 to 17.78)
+  addPin("0",  0,     0, "rect"); // Pad 1 — rect marks pin 1
+  addPin("1",  2.54,  0);
+  addPin("2",  5.08,  0);
+  addPin("3",  7.62,  0);
+  addPin("4",  10.16, 0);
+  addPin("5",  12.7,  0);
+  addPin("6",  15.24, 0);
+  addPin("7",  17.78, 0);
+
+  // Pads 9-14: D8-D13 (gap then 2.54mm pitch, x=22.86 to 35.56)
+  addPin("8",  22.86, 0);
+  addPin("9",  25.4,  0);
+  addPin("10", 27.94, 0);
+  addPin("11", 30.48, 0);
+  addPin("12", 33.02, 0);
+  addPin("13", 35.56, 0);
+
+  // === Bottom row (y=48.26) — Analog + Power headers ===
+  // Pads 15-22: Analog header (right to left, x=35.56 to 17.78)
+  addPin("A0",    35.56, 48.26);
+  addPin("A1",    33.02, 48.26);
+  addPin("A2",    30.48, 48.26);
+  addPin("A3",    27.94, 48.26);
+  addPin("A4",    25.4,  48.26);
+  addPin("A5",    22.86, 48.26);
+  addPin("GND.1", 20.32, 48.26);
+  addPin("AREF",  17.78, 48.26);
+
+  // Pads 23-30: Power header (right to left, x=13.72 to -4.06)
+  addPin("VIN",   13.72, 48.26);
+  addPin("GND.2", 11.18, 48.26);
+  addPin("GND.3", 8.64,  48.26);
+  addPin("5V",    6.1,   48.26);
+  addPin("3.3V",  3.56,  48.26);
+  addPin("RESET", 1.02,  48.26);
+  addPin("IOREF", -1.52, 48.26);
+  addPin("NC",    -4.06, 48.26);
+
+  // Silkscreen outline from Arduino_UNO_R2.kicad_mod (F.SilkS layer)
+  // Shows characteristic Arduino board shape with USB/barrel jack notches and angled corners
+  const silkLines = [
+    // Left notch (barrel jack area)
+    { x1: -34.42, y1: 29.72, x2: -34.42, y2: 41.4 },
+    { x1: -34.42, y1: 41.4,  x2: -28.07, y2: 41.4 },
+    // Upper-left notch (USB area)
+    { x1: -29.97, y1: 0.51,  x2: -29.97, y2: 9.65 },
+    { x1: -29.97, y1: 9.65,  x2: -28.07, y2: 9.65 },
+    // Left edge segments
+    { x1: -28.07, y1: -2.67, x2: -28.07, y2: 0.51 },
+    { x1: -28.07, y1: 0.51,  x2: -29.97, y2: 0.51 },
+    { x1: -28.07, y1: 9.65,  x2: -28.07, y2: 29.72 },
+    { x1: -28.07, y1: 29.72, x2: -34.42, y2: 29.72 },
+    { x1: -28.07, y1: 41.4,  x2: -28.07, y2: 50.93 },
+    // Bottom edge
+    { x1: -28.07, y1: 50.93, x2: 36.58,  y2: 50.93 },
+    // Bottom-right angled corner
+    { x1: 36.58,  y1: 50.93, x2: 38.23,  y2: 49.28 },
+    // Top edge
+    { x1: 38.23,  y1: -2.67, x2: -28.07, y2: -2.67 },
+    // Top-right corner
+    { x1: 38.23,  y1: 0,     x2: 38.23,  y2: -2.67 },
+    // Right edge with angled corners
+    { x1: 38.23,  y1: 37.85, x2: 40.77,  y2: 35.31 },
+    { x1: 38.23,  y1: 49.28, x2: 38.23,  y2: 37.85 },
+    { x1: 40.77,  y1: 2.54,  x2: 38.23,  y2: 0 },
+    { x1: 40.77,  y1: 35.31, x2: 40.77,  y2: 2.54 },
+  ];
+
+  return {
+    pads,
+    // No courtyard — the shield interior is open for placing components.
+    // Only the header pads themselves block placement (via pad clearance).
+    courtyard: undefined,
+    silkLines,
+  };
+}
+
 // --- Registry: schematic part type → footprint generator ---
 
 export interface FootprintMapping {
@@ -210,6 +319,11 @@ export const FOOTPRINT_REGISTRY: FootprintMapping[] = [
     footprintType: "DIP-28",
     generate: (ref) => generateDIP(ref, 28),
   },
+  {
+    type: "wokwi-arduino-uno",
+    footprintType: "Arduino-Uno-Shield",
+    generate: (ref) => generateArduinoUnoShield(ref),
+  },
 ];
 
 /** Complete footprint library — every entry here can be selected from any part's dropdown. */
@@ -260,6 +374,8 @@ export const FOOTPRINT_LIBRARY: { label: string; value: string; group: string }[
   { label: "Switch SPDT THT", value: "SW-SPDT-THT", group: "Switch" },
   // Misc
   { label: "Buzzer 12mm", value: "Buzzer-12mm", group: "Misc" },
+  // Arduino
+  { label: "Arduino Uno Shield", value: "Arduino-Uno-Shield", group: "Arduino" },
 ];
 
 /** Available footprint options per part type (for UI dropdown — shown first, before generic library). */
@@ -298,6 +414,9 @@ export const FOOTPRINT_OPTIONS: Record<string, { label: string; value: string }[
   "sb-atmega328": [
     { label: "DIP-28 THT", value: "DIP-28" },
     { label: "DIP-28 wide", value: "DIP-28W" },
+  ],
+  "wokwi-arduino-uno": [
+    { label: "Arduino Uno Shield", value: "Arduino-Uno-Shield" },
   ],
 };
 
@@ -350,6 +469,8 @@ const FOOTPRINT_GENERATORS: Record<string, (ref: string) => FootprintDef> = {
   "SW-SPDT-THT": (ref) => generateHeader(ref, 1, 3, 2.54),
   // Misc
   "Buzzer-12mm": (ref) => generateHeader(ref, 1, 2, 7.6),
+  // Arduino
+  "Arduino-Uno-Shield": (ref) => generateArduinoUnoShield(ref),
 };
 
 export function getFootprintForType(partType: string): FootprintMapping | undefined {

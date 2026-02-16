@@ -290,7 +290,8 @@ export interface BBoxRect {
 /**
  * Extract the courtyard bounding box of a footprint in board-space.
  * Looks for fp_rect on F.CrtYd or B.CrtYd layers.
- * Falls back to computing bbox from pads if no courtyard rect exists.
+ * Returns null if no courtyard rect exists — footprints without a courtyard
+ * (e.g. Arduino shields) allow other components to be placed inside them.
  */
 export function getFootprintCourtyard(fp: List): BBoxRect | null {
   const at = getAt(fp);
@@ -318,28 +319,8 @@ export function getFootprintCourtyard(fp: List): BBoxRect | null {
     }
   }
 
-  // Fallback: compute from pads with 0.25mm margin
-  const pads = findChildren(fp, "pad");
-  if (pads.length === 0) return null;
-  let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
-  for (const pad of pads) {
-    const padAt = getAt(pad);
-    if (!padAt) continue;
-    const sizeNode = findChild(pad, "size");
-    const w = sizeNode && typeof sizeNode[1] === "number" ? sizeNode[1] : 1;
-    const h = sizeNode && typeof sizeNode[2] === "number" ? sizeNode[2] : 1;
-    minX = Math.min(minX, padAt.x - w / 2);
-    minY = Math.min(minY, padAt.y - h / 2);
-    maxX = Math.max(maxX, padAt.x + w / 2);
-    maxY = Math.max(maxY, padAt.y + h / 2);
-  }
-  const margin = 0.25;
-  return {
-    x1: at.x + minX - margin,
-    y1: at.y + minY - margin,
-    x2: at.x + maxX + margin,
-    y2: at.y + maxY + margin,
-  };
+  // No courtyard rect found — this footprint has no placement restriction.
+  return null;
 }
 
 /**

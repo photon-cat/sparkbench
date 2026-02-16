@@ -129,6 +129,26 @@ function distToSegment(px: number, py: number, x1: number, y1: number, x2: numbe
     return Math.hypot(px - (x1 + t * dx), py - (y1 + t * dy));
 }
 
+/** Check if a world-space point is near any pad of a footprint. */
+function isNearFootprintPad(fp: List, wx: number, wy: number, threshold: number): boolean {
+    const at = getAt(fp);
+    if (!at) return false;
+
+    const pads = findChildren(fp, "pad");
+    for (const pad of pads) {
+        const padAt = getAt(pad);
+        if (!padAt) continue;
+        const sizeNode = findChild(pad, "size");
+        const pw = sizeNode && typeof sizeNode[1] === "number" ? sizeNode[1] : 1;
+        const ph = sizeNode && typeof sizeNode[2] === "number" ? sizeNode[2] : 1;
+        const padRadius = Math.max(pw, ph) / 2 + threshold;
+        const dx = wx - (at.x + padAt.x);
+        const dy = wy - (at.y + padAt.y);
+        if (dx * dx + dy * dy <= padRadius * padRadius) return true;
+    }
+    return false;
+}
+
 /** Move all Edge.Cuts gr_line/gr_arc nodes by dx, dy. */
 function moveEdgeCuts(tree: List, dx: number, dy: number): void {
     for (const tag of ["gr_line", "gr_arc"]) {
@@ -194,10 +214,10 @@ export function useKiPCBDrag({
 
             const sel = selectedRefRef.current;
 
-            // Try footprint drag first
+            // Try footprint drag — only if click lands on a pad of the selected footprint
             if (sel) {
                 const fp = findFootprintByRef(pcbTreeRef.current, sel);
-                if (fp) {
+                if (fp && isNearFootprintPad(fp, worldPos.x, worldPos.y, 1)) {
                     const at = getAt(fp);
                     if (at) {
                         dragRef.current = {

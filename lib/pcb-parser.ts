@@ -27,11 +27,13 @@ export function parsePCBDesign(json: unknown): PCBDesign {
 
 /**
  * Create a new PCBDesign from a schematic diagram and its netlist.
- * Places footprints in a grid and assigns net names to pads.
+ * If existingPositions is provided, footprints that already exist in the PCB
+ * keep their positions; only new footprints are placed in a grid.
  */
 export function initPCBFromSchematic(
   diagram: Diagram,
   netlist: Netlist,
+  existingPositions?: Map<string, { x: number; y: number; rotation: number }>,
 ): PCBDesign {
   const footprints: PCBFootprint[] = [];
   const COLS = 4;
@@ -46,9 +48,10 @@ export function initPCBFromSchematic(
     name: n.name,
   }));
 
-  let idx = 0;
+  let newIdx = 0; // only incremented for NEW footprints that need grid placement
+  let hasArduinoShield = false;
   for (const part of diagram.parts) {
-    if (part.type === "wokwi-arduino-uno") continue;
+    if (part.type === "wokwi-arduino-uno") hasArduinoShield = true;
 
     // Use per-instance footprint if set, otherwise fall back to registry default
     const instanceFp = part.footprint;
@@ -59,22 +62,35 @@ export function initPCBFromSchematic(
     const fpType = instanceFp ?? mapping?.footprintType;
     if (!fpDef || !fpType) continue;
 
-    const col = idx % COLS;
-    const row = Math.floor(idx / COLS);
-
     const pads = fpDef.pads.map((pad) => ({
       ...pad,
       net: netlist.pinToNet.get(pad.id),
     }));
+
+    // Preserve position if this footprint already exists in the PCB
+    const existing = existingPositions?.get(part.id);
+    let x: number, y: number, rotation: number;
+    if (existing) {
+      x = existing.x;
+      y = existing.y;
+      rotation = existing.rotation;
+    } else {
+      const col = newIdx % COLS;
+      const row = Math.floor(newIdx / COLS);
+      x = OFFSET_X + col * SPACING_X;
+      y = OFFSET_Y + row * SPACING_Y;
+      rotation = 0;
+      newIdx++;
+    }
 
     footprints.push({
       uuid: generateUUID(),
       ref: part.id,
       value: part.value ?? part.attrs?.value,
       footprintType: fpType,
-      x: OFFSET_X + col * SPACING_X,
-      y: OFFSET_Y + row * SPACING_Y,
-      rotation: 0,
+      x,
+      y,
+      rotation,
       layer: "F.Cu",
       pads,
       silkscreen: fpDef.silkLines.length > 0
@@ -82,11 +98,16 @@ export function initPCBFromSchematic(
         : undefined,
       courtyard: fpDef.courtyard,
     });
-    idx++;
   }
 
-  const boardW = Math.max(100, OFFSET_X * 2 + COLS * SPACING_X);
-  const boardH = Math.max(80, OFFSET_Y * 2 + Math.ceil(idx / COLS) * SPACING_Y);
+  // Use Arduino Uno shield dimensions when an Arduino is present,
+  // otherwise auto-size to fit all footprints
+  const boardW = hasArduinoShield
+    ? 68.6
+    : Math.max(100, OFFSET_X * 2 + COLS * SPACING_X);
+  const boardH = hasArduinoShield
+    ? 53.3
+    : Math.max(80, OFFSET_Y * 2 + Math.ceil(footprints.length / COLS) * SPACING_Y);
 
   return {
     version: 2,
