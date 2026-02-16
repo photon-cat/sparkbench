@@ -46,10 +46,39 @@
   (net 11 Net-11)
   (net 12 Net-12)
   (net 13 Net-13)
+  (net 14 Net-14)
+  (net 15 Net-15)
+  (net 16 Net-16)
+  (net 17 Net-17)
+  (net 18 Net-18)
+  (gr_line
+    (start 0 0)
+    (end 68.6 0)
+    (layer Edge.Cuts)
+    (stroke (width 0.05) (type solid))
+  )
+  (gr_line
+    (start 68.6 0)
+    (end 68.6 53.3)
+    (layer Edge.Cuts)
+    (stroke (width 0.05) (type solid))
+  )
+  (gr_line
+    (start 68.6 53.3)
+    (end 0 53.3)
+    (layer Edge.Cuts)
+    (stroke (width 0.05) (type solid))
+  )
+  (gr_line
+    (start 0 53.3)
+    (end 0 0)
+    (layer Edge.Cuts)
+    (stroke (width 0.05) (type solid))
+  )
   (footprint Arduino-Uno-Shield
     (layer F.Cu)
-    (uuid b27085b1-91ff-4b09-bb1d-62f9becbe871)
-    (at 44 18.5 0)
+    (uuid bb203d6c-1d4b-45bc-b095-150d5715d2d1)
+    (at 10 10)
     (attr through_hole)
     (fp_text reference uno
       (at 0 -2)
@@ -190,25 +219,28 @@
       (size 1.6 1.6)
       (layers F.Cu B.Cu)
       (drill 1)
-      (net 8 Net-8)
+      (net 1 Net-1)
     )
     (pad uno:3 thru_hole circle
       (at 7.62 0)
       (size 1.6 1.6)
       (layers F.Cu B.Cu)
       (drill 1)
+      (net 2 Net-2)
     )
     (pad uno:4 thru_hole circle
       (at 10.16 0)
       (size 1.6 1.6)
       (layers F.Cu B.Cu)
       (drill 1)
+      (net 3 Net-3)
     )
     (pad uno:5 thru_hole circle
       (at 12.7 0)
       (size 1.6 1.6)
       (layers F.Cu B.Cu)
       (drill 1)
+      (net 14 Net-14)
     )
     (pad uno:6 thru_hole circle
       (at 15.24 0)
@@ -233,7 +265,7 @@
       (size 1.6 1.6)
       (layers F.Cu B.Cu)
       (drill 1)
-      (net 13 Net-13)
+      (net 18 Net-18)
     )
     (pad uno:10 thru_hole circle
       (at 27.94 0)
@@ -246,28 +278,25 @@
       (size 1.6 1.6)
       (layers F.Cu B.Cu)
       (drill 1)
-      (net 6 Net-6)
     )
     (pad uno:12 thru_hole circle
       (at 33.02 0)
       (size 1.6 1.6)
       (layers F.Cu B.Cu)
       (drill 1)
-      (net 4 Net-4)
     )
     (pad uno:13 thru_hole circle
       (at 35.56 0)
       (size 1.6 1.6)
       (layers F.Cu B.Cu)
       (drill 1)
-      (net 1 Net-1)
     )
     (pad uno:A0 thru_hole circle
       (at 35.56 48.26)
       (size 1.6 1.6)
       (layers F.Cu B.Cu)
       (drill 1)
-      (net 10 Net-10)
+      (net 16 Net-16)
     )
     (pad uno:A1 thru_hole circle
       (at 33.02 48.26)
@@ -304,7 +333,7 @@
       (size 1.6 1.6)
       (layers F.Cu B.Cu)
       (drill 1)
-      (net 3 Net-3)
+      (net 5 Net-5)
     )
     (pad uno:AREF thru_hole circle
       (at 17.78 48.26)
@@ -323,21 +352,21 @@
       (size 1.6 1.6)
       (layers F.Cu B.Cu)
       (drill 1)
-      (net 9 Net-9)
+      (net 15 Net-15)
     )
     (pad uno:GND.3 thru_hole circle
       (at 8.64 48.26)
       (size 1.6 1.6)
       (layers F.Cu B.Cu)
       (drill 1)
-      (net 12 Net-12)
+      (net 17 Net-17)
     )
     (pad uno:5V thru_hole circle
       (at 6.1 48.26)
       (size 1.6 1.6)
       (layers F.Cu B.Cu)
       (drill 1)
-      (net 11 Net-11)
+      (net 4 Net-4)
     )
     (pad uno:3.3V thru_hole circle
       (at 3.56 48.26)
@@ -364,10 +393,176 @@
       (drill 1)
     )
   )
+  (footprint DIP-16
+    (layer F.Cu)
+    (uuid "04baef14-6e92-444b-b489-2ed7520efe18")
+    (at 35 10)
+    (attr through_hole)
+    (fp_text reference sr1
+      (at 0 -2)
+      (layer F.SilkS)
+      (effects
+        (font
+          (size 1 1)
+          (thickness 0.15)
+        )
+      )
+    )
+    (fp_text value DIP-16
+      (at 0 2)
+      (layer F.Fab)
+      (effects
+        (font
+          (size 1 1)
+          (thickness 0.15)
+        )
+      )
+    )
+    (fp_line
+      (start 1.3 -0.5)
+      (end 6.32 -0.5)
+      (layer F.SilkS)
+      (stroke (width 0.12) (type solid))
+    )
+    (fp_line
+      (start 6.32 -0.5)
+      (end 6.32 18.28)
+      (layer F.SilkS)
+      (stroke (width 0.12) (type solid))
+    )
+    (fp_line
+      (start 6.32 18.28)
+      (end 1.3 18.28)
+      (layer F.SilkS)
+      (stroke (width 0.12) (type solid))
+    )
+    (fp_line
+      (start 1.3 18.28)
+      (end 1.3 -0.5)
+      (layer F.SilkS)
+      (stroke (width 0.12) (type solid))
+    )
+    (fp_rect
+      (start -1.05 -1.05)
+      (end 8.67 18.83)
+      (layer F.CrtYd)
+      (stroke (width 0.05) (type solid))
+    )
+    (pad sr1:1 thru_hole circle
+      (at 0 0)
+      (size 1.6 1.6)
+      (layers F.Cu B.Cu)
+      (drill 1)
+      (net 7 Net-7)
+    )
+    (pad sr1:16 thru_hole circle
+      (at 7.62 0)
+      (size 1.6 1.6)
+      (layers F.Cu B.Cu)
+      (drill 1)
+      (net 4 Net-4)
+    )
+    (pad sr1:2 thru_hole circle
+      (at 0 2.54)
+      (size 1.6 1.6)
+      (layers F.Cu B.Cu)
+      (drill 1)
+      (net 8 Net-8)
+    )
+    (pad sr1:15 thru_hole circle
+      (at 7.62 2.54)
+      (size 1.6 1.6)
+      (layers F.Cu B.Cu)
+      (drill 1)
+      (net 6 Net-6)
+    )
+    (pad sr1:3 thru_hole circle
+      (at 0 5.08)
+      (size 1.6 1.6)
+      (layers F.Cu B.Cu)
+      (drill 1)
+      (net 9 Net-9)
+    )
+    (pad sr1:14 thru_hole circle
+      (at 7.62 5.08)
+      (size 1.6 1.6)
+      (layers F.Cu B.Cu)
+      (drill 1)
+      (net 1 Net-1)
+    )
+    (pad sr1:4 thru_hole circle
+      (at 0 7.62)
+      (size 1.6 1.6)
+      (layers F.Cu B.Cu)
+      (drill 1)
+      (net 10 Net-10)
+    )
+    (pad sr1:13 thru_hole circle
+      (at 7.62 7.62)
+      (size 1.6 1.6)
+      (layers F.Cu B.Cu)
+      (drill 1)
+      (net 5 Net-5)
+    )
+    (pad sr1:5 thru_hole circle
+      (at 0 10.16)
+      (size 1.6 1.6)
+      (layers F.Cu B.Cu)
+      (drill 1)
+      (net 11 Net-11)
+    )
+    (pad sr1:12 thru_hole circle
+      (at 7.62 10.16)
+      (size 1.6 1.6)
+      (layers F.Cu B.Cu)
+      (drill 1)
+      (net 3 Net-3)
+    )
+    (pad sr1:6 thru_hole circle
+      (at 0 12.7)
+      (size 1.6 1.6)
+      (layers F.Cu B.Cu)
+      (drill 1)
+      (net 12 Net-12)
+    )
+    (pad sr1:11 thru_hole circle
+      (at 7.62 12.7)
+      (size 1.6 1.6)
+      (layers F.Cu B.Cu)
+      (drill 1)
+      (net 2 Net-2)
+    )
+    (pad sr1:7 thru_hole circle
+      (at 0 15.24)
+      (size 1.6 1.6)
+      (layers F.Cu B.Cu)
+      (drill 1)
+      (net 13 Net-13)
+    )
+    (pad sr1:10 thru_hole circle
+      (at 7.62 15.24)
+      (size 1.6 1.6)
+      (layers F.Cu B.Cu)
+      (drill 1)
+    )
+    (pad sr1:8 thru_hole circle
+      (at 0 17.78)
+      (size 1.6 1.6)
+      (layers F.Cu B.Cu)
+      (drill 1)
+      (net 5 Net-5)
+    )
+    (pad sr1:9 thru_hole circle
+      (at 7.62 17.78)
+      (size 1.6 1.6)
+      (layers F.Cu B.Cu)
+      (drill 1)
+    )
+  )
   (footprint LED-THT-3mm
     (layer F.Cu)
-    (uuid "0e77d93d-3e5c-42b2-b306-d29e1b32ca6e")
-    (at 54 55.5 0)
+    (uuid a01bb2d6-4099-4081-9a8a-3e1655aa657d)
+    (at 60 10)
     (attr through_hole)
     (fp_text reference led1
       (at 0 -2)
@@ -400,18 +595,20 @@
       (size 1.7 1.7)
       (layers F.Cu B.Cu)
       (drill 1)
+      (net 6 Net-6)
     )
     (pad led1:2 thru_hole circle
       (at 0 2.54)
       (size 1.7 1.7)
       (layers F.Cu B.Cu)
       (drill 1)
+      (net 5 Net-5)
     )
   )
   (footprint LED-THT-3mm
     (layer F.Cu)
-    (uuid b449aba5-a927-4989-858d-cee2e667cebb)
-    (at 58.5 55.5 0)
+    (uuid "56c587db-795f-40aa-bf78-c0f035921b12")
+    (at 85 10)
     (attr through_hole)
     (fp_text reference led2
       (at 0 -2)
@@ -444,18 +641,20 @@
       (size 1.7 1.7)
       (layers F.Cu B.Cu)
       (drill 1)
+      (net 7 Net-7)
     )
     (pad led2:2 thru_hole circle
       (at 0 2.54)
       (size 1.7 1.7)
       (layers F.Cu B.Cu)
       (drill 1)
+      (net 5 Net-5)
     )
   )
   (footprint LED-THT-3mm
     (layer F.Cu)
-    (uuid "3d8b39ea-5bca-4fde-a23a-83368d1c8ae6")
-    (at 63 55.5 0)
+    (uuid "2e14b549-abe0-441d-a898-458f396eb763")
+    (at 10 30)
     (attr through_hole)
     (fp_text reference led3
       (at 0 -2)
@@ -488,20 +687,22 @@
       (size 1.7 1.7)
       (layers F.Cu B.Cu)
       (drill 1)
+      (net 8 Net-8)
     )
     (pad led3:2 thru_hole circle
       (at 0 2.54)
       (size 1.7 1.7)
       (layers F.Cu B.Cu)
       (drill 1)
+      (net 5 Net-5)
     )
   )
-  (footprint Axial-0.4in
+  (footprint LED-THT-3mm
     (layer F.Cu)
-    (uuid "9bd2c6be-40a5-4ef8-9aac-435ff3001b93")
-    (at 46.5 39 90)
+    (uuid "07176450-126c-4d56-942c-203f6c03f86f")
+    (at 35 30)
     (attr through_hole)
-    (fp_text reference r1
+    (fp_text reference led4
       (at 0 -2)
       (layer F.SilkS)
       (effects
@@ -511,7 +712,7 @@
         )
       )
     )
-    (fp_text value "220"
+    (fp_text value LED-THT-3mm
       (at 0 2)
       (layer F.Fab)
       (effects
@@ -523,77 +724,31 @@
     )
     (fp_rect
       (start -1.1 -1.1)
-      (end 1.1 11.26)
+      (end 1.1 3.64)
       (layer F.CrtYd)
       (stroke (width 0.05) (type solid))
     )
-    (pad r1:1 thru_hole circle
+    (pad led4:1 thru_hole circle
       (at 0 0)
       (size 1.7 1.7)
       (layers F.Cu B.Cu)
       (drill 1)
-      (net 1 Net-1)
+      (net 9 Net-9)
     )
-    (pad r1:2 thru_hole circle
-      (at 0 10.16)
-      (size 1.7 1.7)
-      (layers F.Cu B.Cu)
-      (drill 1)
-      (net 2 Net-2)
-    )
-  )
-  (footprint Axial-0.4in
-    (layer F.Cu)
-    (uuid "714fb81e-1d89-44ec-a12c-d0acc1b4de0f")
-    (at 46.5 44.5 90)
-    (attr through_hole)
-    (fp_text reference r2
-      (at 0 -2)
-      (layer F.SilkS)
-      (effects
-        (font
-          (size 1 1)
-          (thickness 0.15)
-        )
-      )
-    )
-    (fp_text value "220"
-      (at 0 2)
-      (layer F.Fab)
-      (effects
-        (font
-          (size 1 1)
-          (thickness 0.15)
-        )
-      )
-    )
-    (fp_rect
-      (start -1.1 -1.1)
-      (end 1.1 11.26)
-      (layer F.CrtYd)
-      (stroke (width 0.05) (type solid))
-    )
-    (pad r2:1 thru_hole circle
-      (at 0 0)
-      (size 1.7 1.7)
-      (layers F.Cu B.Cu)
-      (drill 1)
-      (net 4 Net-4)
-    )
-    (pad r2:2 thru_hole circle
-      (at 0 10.16)
+    (pad led4:2 thru_hole circle
+      (at 0 2.54)
       (size 1.7 1.7)
       (layers F.Cu B.Cu)
       (drill 1)
       (net 5 Net-5)
     )
   )
-  (footprint Axial-0.4in
+  (footprint LED-THT-3mm
     (layer F.Cu)
-    (uuid d0e70231-e58b-4a3c-933d-2dcb894a47f9)
-    (at 46.5 49.5 90)
+    (uuid "01a51d80-f347-46aa-aa61-a800cac8da08")
+    (at 60 30)
     (attr through_hole)
-    (fp_text reference r3
+    (fp_text reference led5
       (at 0 -2)
       (layer F.SilkS)
       (effects
@@ -603,7 +758,7 @@
         )
       )
     )
-    (fp_text value "220"
+    (fp_text value LED-THT-3mm
       (at 0 2)
       (layer F.Fab)
       (effects
@@ -615,29 +770,167 @@
     )
     (fp_rect
       (start -1.1 -1.1)
-      (end 1.1 11.26)
+      (end 1.1 3.64)
       (layer F.CrtYd)
       (stroke (width 0.05) (type solid))
     )
-    (pad r3:1 thru_hole circle
+    (pad led5:1 thru_hole circle
       (at 0 0)
       (size 1.7 1.7)
       (layers F.Cu B.Cu)
       (drill 1)
-      (net 6 Net-6)
+      (net 10 Net-10)
     )
-    (pad r3:2 thru_hole circle
-      (at 0 10.16)
+    (pad led5:2 thru_hole circle
+      (at 0 2.54)
       (size 1.7 1.7)
       (layers F.Cu B.Cu)
       (drill 1)
-      (net 7 Net-7)
+      (net 5 Net-5)
+    )
+  )
+  (footprint LED-THT-3mm
+    (layer F.Cu)
+    (uuid "18f20945-6430-4c83-b65e-cb736d44d3dc")
+    (at 85 30)
+    (attr through_hole)
+    (fp_text reference led6
+      (at 0 -2)
+      (layer F.SilkS)
+      (effects
+        (font
+          (size 1 1)
+          (thickness 0.15)
+        )
+      )
+    )
+    (fp_text value LED-THT-3mm
+      (at 0 2)
+      (layer F.Fab)
+      (effects
+        (font
+          (size 1 1)
+          (thickness 0.15)
+        )
+      )
+    )
+    (fp_rect
+      (start -1.1 -1.1)
+      (end 1.1 3.64)
+      (layer F.CrtYd)
+      (stroke (width 0.05) (type solid))
+    )
+    (pad led6:1 thru_hole circle
+      (at 0 0)
+      (size 1.7 1.7)
+      (layers F.Cu B.Cu)
+      (drill 1)
+      (net 11 Net-11)
+    )
+    (pad led6:2 thru_hole circle
+      (at 0 2.54)
+      (size 1.7 1.7)
+      (layers F.Cu B.Cu)
+      (drill 1)
+      (net 5 Net-5)
+    )
+  )
+  (footprint LED-THT-3mm
+    (layer F.Cu)
+    (uuid "89d62ce1-5fea-4ea3-8bd7-400fff84c35b")
+    (at 10 50)
+    (attr through_hole)
+    (fp_text reference led7
+      (at 0 -2)
+      (layer F.SilkS)
+      (effects
+        (font
+          (size 1 1)
+          (thickness 0.15)
+        )
+      )
+    )
+    (fp_text value LED-THT-3mm
+      (at 0 2)
+      (layer F.Fab)
+      (effects
+        (font
+          (size 1 1)
+          (thickness 0.15)
+        )
+      )
+    )
+    (fp_rect
+      (start -1.1 -1.1)
+      (end 1.1 3.64)
+      (layer F.CrtYd)
+      (stroke (width 0.05) (type solid))
+    )
+    (pad led7:1 thru_hole circle
+      (at 0 0)
+      (size 1.7 1.7)
+      (layers F.Cu B.Cu)
+      (drill 1)
+      (net 12 Net-12)
+    )
+    (pad led7:2 thru_hole circle
+      (at 0 2.54)
+      (size 1.7 1.7)
+      (layers F.Cu B.Cu)
+      (drill 1)
+      (net 5 Net-5)
+    )
+  )
+  (footprint LED-THT-3mm
+    (layer F.Cu)
+    (uuid a6b9f013-a7d7-4d5c-8581-c96de471ece6)
+    (at 35 50)
+    (attr through_hole)
+    (fp_text reference led8
+      (at 0 -2)
+      (layer F.SilkS)
+      (effects
+        (font
+          (size 1 1)
+          (thickness 0.15)
+        )
+      )
+    )
+    (fp_text value LED-THT-3mm
+      (at 0 2)
+      (layer F.Fab)
+      (effects
+        (font
+          (size 1 1)
+          (thickness 0.15)
+        )
+      )
+    )
+    (fp_rect
+      (start -1.1 -1.1)
+      (end 1.1 3.64)
+      (layer F.CrtYd)
+      (stroke (width 0.05) (type solid))
+    )
+    (pad led8:1 thru_hole circle
+      (at 0 0)
+      (size 1.7 1.7)
+      (layers F.Cu B.Cu)
+      (drill 1)
+      (net 13 Net-13)
+    )
+    (pad led8:2 thru_hole circle
+      (at 0 2.54)
+      (size 1.7 1.7)
+      (layers F.Cu B.Cu)
+      (drill 1)
+      (net 5 Net-5)
     )
   )
   (footprint SW-THT-6mm
     (layer F.Cu)
-    (uuid "50643d6d-b069-48a2-a3d8-6d32cf15ceba")
-    (at 69 30 0)
+    (uuid "05cc9314-e82d-45bf-9fa8-657e61b9ad9e")
+    (at 60 50)
     (attr through_hole)
     (fp_text reference btn1
       (at 0 -2)
@@ -670,6 +963,7 @@
       (size 1.7 1.7)
       (layers F.Cu B.Cu)
       (drill 1)
+      (net 15 Net-15)
     )
     (pad btn1:2 thru_hole circle
       (at 6.5 0)
@@ -688,12 +982,13 @@
       (size 1.7 1.7)
       (layers F.Cu B.Cu)
       (drill 1)
+      (net 14 Net-14)
     )
   )
   (footprint Header-1x3
     (layer F.Cu)
-    (uuid f8edd1a8-a00d-4a51-8c33-f194ddf81571)
-    (at 78 49.5 0)
+    (uuid "3e69958e-96ab-4f19-a3b6-dacbca7fdcb1")
+    (at 85 50)
     (attr through_hole)
     (fp_text reference servo1
       (at 0 -2)
@@ -726,46 +1021,21 @@
       (size 1.7 1.7)
       (layers F.Cu B.Cu)
       (drill 1)
+      (net 17 Net-17)
     )
     (pad servo1:2 thru_hole circle
       (at 0 2.54)
       (size 1.7 1.7)
       (layers F.Cu B.Cu)
       (drill 1)
+      (net 4 Net-4)
     )
     (pad servo1:3 thru_hole circle
       (at 0 5.08)
       (size 1.7 1.7)
       (layers F.Cu B.Cu)
       (drill 1)
+      (net 18 Net-18)
     )
-  )
-  (gr_line
-    (start 0 0)
-    (end 100 0)
-    (layer Edge.Cuts)
-    (width 0.1)
-    (uuid "8ede82be-1f0a-4d85-8cc7-9692faf6c99b")
-  )
-  (gr_line
-    (start 100 0)
-    (end 100 120)
-    (layer Edge.Cuts)
-    (width 0.1)
-    (uuid "298c1c61-9047-4556-a2f3-e54265908137")
-  )
-  (gr_line
-    (start 100 120)
-    (end 0 120)
-    (layer Edge.Cuts)
-    (width 0.1)
-    (uuid "66c59116-8678-44eb-b154-0a8c14528381")
-  )
-  (gr_line
-    (start 0 120)
-    (end 0 0)
-    (layer Edge.Cuts)
-    (width 0.1)
-    (uuid d6bdb69f-4532-4962-8fd8-880dcd894667)
   )
 )
