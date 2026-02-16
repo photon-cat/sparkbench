@@ -1,0 +1,36 @@
+name: BMP180 + SSD1306 + Encoder Test
+version: 1
+
+steps:
+  # Wait for BMP180 initialization
+  - wait-serial: "BMP180 ready"
+
+  # Wait for initial temperature reading
+  - wait-serial: "T:24.0"
+
+  # Change the temperature
+  - set-control:
+      part-id: bmp1
+      control: temperature
+      value: 30.5
+
+  # Verify new temperature appears
+  - wait-serial: "T:30.5"
+
+  # Change the pressure
+  - set-control:
+      part-id: bmp1
+      control: pressure
+      value: 90000
+
+  # Verify new pressure appears
+  - wait-serial: "P:90000"
+
+  # Rotate encoder clockwise 3 steps
+  - set-control:
+      part-id: encoder1
+      control: rotate-cw
+      value: 3
+
+  # Verify encoder position updated
+  - wait-serial: "ENC:"

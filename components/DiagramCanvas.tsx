@@ -738,7 +738,7 @@ export default function DiagramCanvas({
     // Collect sensor parts for SensorPanel
     const sensors: { id: string; type: string; wc: WiredComponent }[] = [];
     for (const [id, wc] of wired) {
-      if (wc.part.type === "wokwi-dht22" || wc.part.type === "wokwi-mpu6050") {
+      if (wc.part.type === "wokwi-dht22" || wc.part.type === "wokwi-mpu6050" || wc.part.type === "wokwi-bmp180") {
         sensors.push({ id, type: wc.part.type, wc });
       }
     }

@@ -1,0 +1,35 @@
+{
+  "version": 1,
+  "author": "sparkbench",
+  "editor": "sparkbench",
+  "parts": [
+    { "type": "wokwi-arduino-uno", "id": "uno", "top": 250, "left": 15, "attrs": {} },
+    { "type": "wokwi-bmp180", "id": "pitot", "top": 20, "left": 20, "attrs": { "temperature": "15", "pressure": "101325", "address": "0x77" } },
+    { "type": "wokwi-bmp180", "id": "static", "top": 20, "left": 120, "attrs": { "temperature": "15", "pressure": "101325", "address": "0x76" } },
+    { "type": "wokwi-ssd1306", "id": "oled1", "top": 20, "left": 240, "attrs": {} },
+    { "type": "wokwi-ky-040", "id": "encoder1", "top": 20, "left": 420, "attrs": {} },
+    { "type": "wokwi-servo", "id": "throttle", "top": 160, "left": 420, "attrs": {} }
+  ],
+  "connections": [
+    ["uno:A4", "pitot:SDA", "green", []],
+    ["uno:A5", "pitot:SCL", "blue", []],
+    ["uno:5V", "pitot:VCC", "red", []],
+    ["uno:GND.1", "pitot:GND", "black", []],
+    ["uno:A4", "static:SDA", "green", []],
+    ["uno:A5", "static:SCL", "blue", []],
+    ["uno:5V", "static:VCC", "red", []],
+    ["uno:GND.2", "static:GND", "black", []],
+    ["uno:A4", "oled1:DATA", "green", []],
+    ["uno:A5", "oled1:CLK", "blue", []],
+    ["uno:5V", "oled1:VIN", "red", []],
+    ["uno:GND.3", "oled1:GND", "black", []],
+    ["uno:2", "encoder1:CLK", "green", []],
+    ["uno:3", "encoder1:DT", "green", []],
+    ["uno:4", "encoder1:SW", "green", []],
+    ["uno:5V", "encoder1:VCC", "red", []],
+    ["uno:GND.4", "encoder1:GND", "black", []],
+    ["uno:9", "throttle:PWM", "orange", []],
+    ["uno:5V", "throttle:V+", "red", []],
+    ["uno:GND.5", "throttle:GND", "black", []]
+  ]
+}

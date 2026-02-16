@@ -549,6 +549,41 @@ function usbcSvg(): string {
   return s;
 }
 
+// ──────────────────────────── BMP180 sensor ────────────────────────────
+const BMP180_W = 5 * UNIT;
+const BMP180_H = 3 * UNIT;
+const BMP180_PINS: PinInfo[] = [
+  { name: "VCC",  x: 0 * UNIT, y: BMP180_H, number: 1, signals: [{ type: "power", signal: "VCC" }] },
+  { name: "GND",  x: 1 * UNIT, y: BMP180_H, number: 2, signals: [{ type: "power", signal: "GND" }] },
+  { name: "SCL",  x: 2 * UNIT, y: BMP180_H, number: 3, signals: [{ type: "i2c", signal: "SCL" }] },
+  { name: "SDA",  x: 3 * UNIT, y: BMP180_H, number: 4, signals: [{ type: "i2c", signal: "SDA" }] },
+  { name: "3.3V", x: 4 * UNIT, y: BMP180_H, number: 5, signals: [{ type: "power", signal: "VCC" }] },
+];
+function bmp180Svg(): string {
+  const w = BMP180_W;
+  const h = BMP180_H;
+  const bx = 0.3 * UNIT;
+  const bw = w - 0.6 * UNIT;
+  const by = 0.3 * UNIT;
+  const bh = h - 0.6 * UNIT;
+  let s = `<svg width="${w}" height="${h}" style="overflow:visible" xmlns="http://www.w3.org/2000/svg">`;
+  // PCB board
+  s += `<rect x="${bx}" y="${by}" width="${bw}" height="${bh}" rx="2" fill="#1a5c2a" stroke="#0d3518" stroke-width="1"/>`;
+  // Sensor chip (silver square)
+  const cx = w / 2 - 5;
+  const cy = h / 2 - 5;
+  s += `<rect x="${cx}" y="${cy}" width="10" height="10" rx="1" fill="#bbb" stroke="#999" stroke-width="0.5"/>`;
+  // Label
+  s += `<text x="${w / 2}" y="${by + 4}" text-anchor="middle" dominant-baseline="middle" fill="#8f8" font-size="3.5" font-family="monospace" font-weight="600">BMP180</text>`;
+  // Bottom pins
+  for (let i = 0; i < 5; i++) {
+    const px = i * UNIT;
+    s += `<line x1="${px}" y1="${h - bx}" x2="${px}" y2="${h}" stroke="${PIN_COLOR}" stroke-width="1"/>`;
+  }
+  s += `</svg>`;
+  return s;
+}
+
 // ──────────────────────────── Registration ────────────────────────────
 
 interface GateDef {
@@ -579,6 +614,7 @@ const GATE_DEFS: GateDef[] = [
   { tag: "sb-crystal",             pins: XTAL_PINS, svgFn: xtalSvg,  width: XTAL_W,  height: XTAL_H },
   { tag: "sb-diode",               pins: DIODE_PINS, svgFn: diodeSvg, width: DIODE_W, height: DIODE_H },
   { tag: "sb-usb-c",               pins: USBC_PINS, svgFn: usbcSvg,  width: USBC_W,  height: USBC_H },
+  { tag: "wokwi-bmp180",           pins: BMP180_PINS, svgFn: bmp180Svg, width: BMP180_W, height: BMP180_H },
 ];
 
 // ──────────────────────────── Text element ────────────────────────────

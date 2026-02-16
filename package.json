@@ -25,6 +25,7 @@
     "@react-three/drei": "^10.7.7",
     "@react-three/fiber": "^9.5.0",
     "@types/three": "^0.182.0",
+    "@types/ws": "^8.18.1",
     "@wokwi/elements": "^1.9.1",
     "allotment": "^1.20.5",
     "avr8js": "^0.20.1",
@@ -35,7 +36,8 @@
     "react": "19.2.3",
     "react-dom": "19.2.3",
     "react-markdown": "^10.1.0",
-    "three": "^0.182.0"
+    "three": "^0.182.0",
+    "ws": "^8.19.0"
   },
   "devDependencies": {
     "@playwright/test": "^1.58.2",

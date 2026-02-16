@@ -36,6 +36,7 @@ const HEADER_TO_LIB: Record<string, string> = {
   "Adafruit_NeoMatrix.h": "adafruit/Adafruit NeoMatrix",
   "Adafruit_NeoPixel.h": "adafruit/Adafruit NeoPixel",
   "Adafruit_SSD1306.h": "adafruit/Adafruit SSD1306",
+  "Adafruit_BMP085.h": "adafruit/Adafruit BMP085 Library",
   "Adafruit_Sensor.h": "adafruit/Adafruit Unified Sensor",
   "Adafruit_SoftServo.h": "adafruit/Adafruit SoftServo",
   "Adafruit_ST7735.h": "adafruit/Adafruit ST7735 and ST7789 Library",

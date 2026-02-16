@@ -159,6 +159,20 @@ function DHT22Controls({ wc }: { wc: WiredComponent }) {
   );
 }
 
+function BMP180Controls({ wc }: { wc: WiredComponent }) {
+  const [temp, setTemp] = useState(24);
+  const [pressure, setPressure] = useState(101325);
+  return (
+    <div style={{ marginTop: 8, borderTop: "1px solid #333", paddingTop: 8 }}>
+      <div style={{ fontSize: 10, color: "#888", marginBottom: 4, fontWeight: 600 }}>Sensor Controls</div>
+      <SensorSlider label="Temp" value={temp} min={-40} max={85} step={0.5} unit="C"
+        onChange={(v) => { setTemp(v); wc.setTemperature?.(v); }} />
+      <SensorSlider label="hPa" value={Math.round(pressure / 100)} min={300} max={1100} step={1} unit=""
+        onChange={(v) => { const pa = v * 100; setPressure(pa); wc.setPressure?.(pa); }} />
+    </div>
+  );
+}
+
 function MPU6050Controls({ wc }: { wc: WiredComponent }) {
   const [ax, setAx] = useState(0);
   const [ay, setAy] = useState(0);
@@ -322,6 +336,9 @@ export default function PartAttributePanel({
       )}
       {wiredComponent && part.type === "wokwi-mpu6050" && (
         <MPU6050Controls wc={wiredComponent} />
+      )}
+      {wiredComponent && part.type === "wokwi-bmp180" && (
+        <BMP180Controls wc={wiredComponent} />
       )}
 
       <div style={{ display: "flex", gap: 6, marginTop: 4 }}>

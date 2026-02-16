@@ -62,6 +62,7 @@ const CATALOG: Category[] = [
       { type: "wokwi-photoresistor-sensor", label: "Photoresistor" },
       { type: "wokwi-ntc-temperature-sensor", label: "NTC Temperature" },
       { type: "wokwi-mpu6050", label: "MPU6050 IMU" },
+      { type: "wokwi-bmp180", label: "BMP180 Barometer" },
     ],
   },
   {

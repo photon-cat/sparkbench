@@ -14,6 +14,7 @@ import { ServoSimulator } from "./servo-sim";
 import { I2CBus } from "./i2c-bus";
 import { DHT22Simulator } from "./dht22-sim";
 import { MPU6050Controller } from "./mpu6050-sim";
+import { BMP180Controller } from "./bmp180-sim";
 import { EncoderSimulator } from "./encoder-sim";
 
 export interface WiredComponent {
@@ -34,6 +35,8 @@ export interface WiredComponent {
   setTemperature?: (celsius: number) => void;
   /** Set DHT22 humidity (%) */
   setHumidity?: (percent: number) => void;
+  /** Set BMP180 pressure (Pa) */
+  setPressure?: (pascals: number) => void;
   /** Set MPU6050 accelerometer (g) */
   setAccel?: (x: number, y: number, z: number) => void;
   /** Set MPU6050 gyroscope (°/s) */
@@ -206,6 +209,25 @@ export function wireComponents(
         part,
         setAccel: (x, y, z) => controller.setAccel(x, y, z),
         setGyro: (x, y, z) => controller.setGyro(x, y, z),
+        cleanup: () => {},
+      });
+    }
+  }
+
+  for (const part of diagram.parts) {
+    if (part.type === "wokwi-bmp180") {
+      const addr = parseInt(part.attrs.address || "0x77", 16);
+      const controller = new BMP180Controller(runner.twi, addr);
+      i2cBus.addDevice(addr, controller);
+      hasI2C = true;
+      const initTemp = parseFloat(part.attrs.temperature || "24");
+      const initPressure = parseFloat(part.attrs.pressure || "101325");
+      controller.setTemperature(initTemp);
+      controller.setPressure(initPressure);
+      wired.set(part.id, {
+        part,
+        setTemperature: (c: number) => controller.setTemperature(c),
+        setPressure: (p: number) => controller.setPressure(p),
         cleanup: () => {},
       });
     }

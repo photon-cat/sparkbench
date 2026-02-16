@@ -1,0 +1,57 @@
+name: Autothrottle System Test
+version: 1
+
+steps:
+  # Wait for system ready
+  - wait-serial: "AT:READY"
+
+  # Verify initial telemetry (0 airspeed, disengaged)
+  - wait-serial: "DIS"
+
+  # Set target speed via encoder
+  - set-control:
+      part-id: encoder1
+      control: rotate-cw
+      value: 2
+
+  # Verify speed set changed (120 + 2*5 = 130)
+  - wait-serial: "AT:SPD_SET=130"
+
+  # Engage autothrottle via button press
+  - set-control:
+      part-id: encoder1
+      control: pressed
+      value: true
+  - delay: 50
+  - set-control:
+      part-id: encoder1
+      control: pressed
+      value: false
+
+  # Verify engaged
+  - wait-serial: "AT:ENGAGED"
+
+  # Simulate airspeed by increasing pitot pressure
+  # At sea level, 130kt IAS = ~67 m/s
+  # Dynamic pressure qc = 0.5 * rho * v^2 = 0.5 * 1.225 * 67^2 = 2748 Pa
+  # Pitot reads total = static + dynamic
+  - set-control:
+      part-id: pitot
+      control: pressure
+      value: 104073
+
+  # Verify airspeed reading appears
+  - wait-serial: "IAS="
+
+  # Disengage
+  - set-control:
+      part-id: encoder1
+      control: pressed
+      value: true
+  - delay: 50
+  - set-control:
+      part-id: encoder1
+      control: pressed
+      value: false
+
+  - wait-serial: "AT:DISENGAGED"

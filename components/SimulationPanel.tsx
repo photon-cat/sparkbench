@@ -237,7 +237,7 @@ export default function SimulationPanel({
               const simRunning = status === "running" || status === "paused";
               // Parts with runtime-changeable values (sensors, analog inputs, etc.)
               const RUNTIME_INTERACTIVE_TYPES = new Set([
-                "wokwi-dht22", "wokwi-mpu6050", "wokwi-ds18b20",
+                "wokwi-dht22", "wokwi-mpu6050", "wokwi-bmp180", "wokwi-ds18b20",
                 "wokwi-potentiometer", "wokwi-slide-potentiometer",
                 "wokwi-analog-joystick", "wokwi-temperature-sensor",
                 "wokwi-hx711", "wokwi-ntc-temperature-sensor",

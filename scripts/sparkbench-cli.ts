@@ -35,6 +35,7 @@ function printHelp() {
   console.log(`  sparkbench <command> [options]\n`);
   console.log(`${BOLD}COMMANDS${RESET}`);
   console.log(`  ${GREEN}test${RESET} <project> [--scenario <file>]   Run a YAML test scenario against the simulator`);
+  console.log(`  ${GREEN}serve${RESET} <project> [--port 8765]        Run headless sim with WebSocket API for external programs`);
   console.log(`  ${GREEN}fuzz${RESET} <project>                       AI-powered security fuzzer (Claude Opus 4.6)`);
   console.log(`  ${GREEN}list${RESET}                                 List all projects with metadata`);
   console.log(`  ${GREEN}help${RESET}                                 Show this help message\n`);
@@ -125,6 +126,24 @@ if (command === "test") {
   }
   try {
     execFileSync("npx", ["tsx", path.join(__dirname, "run-scenario.ts"), ...subArgs], {
+      stdio: "inherit",
+      cwd: ROOT,
+    });
+  } catch (e: any) {
+    process.exit(e.status || 1);
+  }
+  process.exit(0);
+}
+
+if (command === "serve") {
+  const subArgs = args.slice(1);
+  if (subArgs.length === 0) {
+    console.error(`${RED}Error: 'serve' requires a project slug${RESET}`);
+    console.error(`Usage: sparkbench serve <project> [--port 8765]`);
+    process.exit(2);
+  }
+  try {
+    execFileSync("npx", ["tsx", path.join(__dirname, "serve-api.ts"), ...subArgs], {
       stdio: "inherit",
       cwd: ROOT,
     });

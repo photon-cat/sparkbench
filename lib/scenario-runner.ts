@@ -172,6 +172,8 @@ function executeStep(
       wc.setTemperature(Number(value));
     } else if (control === "humidity" && wc.setHumidity) {
       wc.setHumidity(Number(value));
+    } else if (control === "pressure" && wc.setPressure) {
+      wc.setPressure(Number(value));
     } else if (control === "accel" && wc.setAccel) {
       // value is "x,y,z" string
       const [x, y, z] = String(value).split(",").map(Number);

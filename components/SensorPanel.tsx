@@ -107,6 +107,41 @@ function DHT22Controls({ wc }: { wc: WiredComponent }) {
   );
 }
 
+function BMP180Controls({ wc }: { wc: WiredComponent }) {
+  const [temp, setTemp] = useState(24);
+  const [pressure, setPressure] = useState(101325);
+
+  return (
+    <>
+      <Slider
+        label="Temp"
+        value={temp}
+        min={-40}
+        max={85}
+        step={0.5}
+        unit="°C"
+        onChange={(v) => {
+          setTemp(v);
+          wc.setTemperature?.(v);
+        }}
+      />
+      <Slider
+        label="hPa"
+        value={Math.round(pressure / 100)}
+        min={300}
+        max={1100}
+        step={1}
+        unit=""
+        onChange={(v) => {
+          const pa = v * 100;
+          setPressure(pa);
+          wc.setPressure?.(pa);
+        }}
+      />
+    </>
+  );
+}
+
 function MPU6050Controls({ wc }: { wc: WiredComponent }) {
   const [ax, setAx] = useState(0);
   const [ay, setAy] = useState(0);
@@ -188,12 +223,13 @@ export default function SensorPanel({ sensors }: SensorPanelProps) {
               </span>
               <span style={{ fontWeight: 600, fontSize: 11 }}>{s.id}</span>
               <span style={{ fontSize: 10, color: "#666", marginLeft: 4 }}>
-                {s.type === "wokwi-dht22" ? "DHT22" : "MPU6050"}
+                {s.type === "wokwi-dht22" ? "DHT22" : s.type === "wokwi-bmp180" ? "BMP180" : "MPU6050"}
               </span>
             </div>
             {!isCollapsed && (
               <div style={{ paddingLeft: 4 }}>
                 {s.type === "wokwi-dht22" && <DHT22Controls wc={s.wc} />}
+                {s.type === "wokwi-bmp180" && <BMP180Controls wc={s.wc} />}
                 {s.type === "wokwi-mpu6050" && <MPU6050Controls wc={s.wc} />}
               </div>
             )}
