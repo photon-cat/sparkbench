@@ -477,7 +477,7 @@ export default function KiPCBEditor({
                             onClick={onUpdateFromDiagram}
                             style={btnStyle}
                         >
-                            Update from Diagram
+                            Update Footprints from Diagram
                         </button>
                     </div>
 
