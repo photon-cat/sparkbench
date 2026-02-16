@@ -24,6 +24,14 @@ const SILK_COLOR = "#e8e8e0"; // White silkscreen
 const DRILL_COLOR = "#1a1a1a"; // Drill holes
 const VIA_COLOR = "#a0a0a0"; // Via barrel
 
+// Component body colors
+const IC_BODY_COLOR = "#1a1a1a"; // Black IC body
+const IC_NOTCH_COLOR = "#333333"; // IC notch/dimple
+const BTN_BODY_COLOR = "#222222"; // Pushbutton housing
+const BTN_CAP_COLOR = "#cc3333"; // Pushbutton cap
+const HEADER_BODY_COLOR = "#1a1a1a"; // Header plastic
+const HEADER_PIN_COLOR = "#c0c0c0"; // Header pin metal
+
 // ── Shared materials (reused across meshes for performance) ─────────────────
 const copperMaterial = new THREE.MeshStandardMaterial({
   color: COPPER_COLOR, roughness: 0.3, metalness: 0.7,
@@ -40,6 +48,205 @@ const drillMaterial = new THREE.MeshStandardMaterial({
 const viaMaterial = new THREE.MeshStandardMaterial({
   color: VIA_COLOR, roughness: 0.3, metalness: 0.6,
 });
+
+// ── 3D Component Models ─────────────────────────────────────────────────────
+
+/** LED color mapping from reference or value */
+const LED_COLOR_MAP: Record<string, string> = {
+  red: "#ff2020", green: "#20ff20", blue: "#2040ff", yellow: "#ffee00",
+  white: "#f0f0f0", orange: "#ff8800", purple: "#cc20ff",
+};
+
+// Cycle through distinct colors for LEDs without explicit color info
+const LED_CYCLE = ["#ff2020", "#20ff20", "#2040ff", "#ffee00", "#ff8800", "#cc20ff", "#f0f0f0", "#20ffdd"];
+
+function getLedColor(fp: Footprint3D): string {
+  const v = fp.value.toLowerCase();
+  if (LED_COLOR_MAP[v]) return LED_COLOR_MAP[v]!;
+  // Extract number from reference (e.g., "led3" → 3) to cycle colors
+  const numMatch = fp.reference.match(/(\d+)/);
+  if (numMatch) {
+    const idx = (parseInt(numMatch[1]!) - 1) % LED_CYCLE.length;
+    return LED_CYCLE[idx]!;
+  }
+  return "#ff2020";
+}
+
+/**
+ * DIP IC package (e.g., 74HC595, ATmega328)
+ * Pad layout: left row at x=0, right row at x=7.62, y from 0 to (rows-1)*2.54
+ * Body centered at (3.81, (rows-1)*1.27)
+ */
+function DIPModel({ padCount }: { padCount: number }) {
+  const rows = padCount / 2;
+  const pitch = 2.54;
+  const rowSpacing = 7.62;
+  const bodyW = 6.0;  // slightly narrower than pin span
+  const bodyL = (rows - 1) * pitch + 2.0;
+  const bodyH = 3.0;
+  const cx = rowSpacing / 2;  // center between pin rows
+  const cy = ((rows - 1) * pitch) / 2;  // center along pin columns
+
+  return (
+    <group position={[cx, -cy, 0]}>
+      {/* IC body */}
+      <mesh position={[0, 0, bodyH / 2]}>
+        <boxGeometry args={[bodyW, bodyL, bodyH]} />
+        <meshStandardMaterial color={IC_BODY_COLOR} roughness={0.4} metalness={0.1} />
+      </mesh>
+      {/* Pin 1 notch (semicircle indent on top face) */}
+      <mesh position={[0, bodyL / 2 - 0.8, bodyH]} rotation={[-Math.PI / 2, 0, 0]}>
+        <cylinderGeometry args={[0.6, 0.6, 0.15, 16]} />
+        <meshStandardMaterial color={IC_NOTCH_COLOR} roughness={0.6} />
+      </mesh>
+    </group>
+  );
+}
+
+/**
+ * 3mm through-hole LED — realistic proportions
+ * Pad layout: pad1 at (0,0), pad2 at (0,2.54)
+ * Body centered at (0, 1.27), standing upright along Z
+ * Real 3mm LED: 3mm diameter dome, ~1mm rim, ~4.5mm total height above board
+ */
+function LEDModel({ color }: { color: string }) {
+  const cy = -1.27; // center between pads (Y is flipped in group)
+  const radius = 1.5; // 3mm diameter / 2
+  const rimRadius = 1.8; // slightly wider rim at base
+  const bodyH = 3.0; // cylinder portion height
+  const rimH = 1.0; // rim/base height
+
+  return (
+    <group position={[0, cy, 0]}>
+      {/* Rim / base flange */}
+      <mesh position={[0, 0, rimH / 2]} rotation={[-Math.PI / 2, 0, 0]}>
+        <cylinderGeometry args={[rimRadius, rimRadius, rimH, 24]} />
+        <meshStandardMaterial color="#cccccc" roughness={0.4} metalness={0.3} />
+      </mesh>
+      {/* Main cylinder body (tinted/translucent) */}
+      <mesh position={[0, 0, rimH + bodyH / 2]} rotation={[-Math.PI / 2, 0, 0]}>
+        <cylinderGeometry args={[radius, radius, bodyH, 24]} />
+        <meshStandardMaterial
+          color={color}
+          roughness={0.15}
+          metalness={0.0}
+          transparent
+          opacity={0.8}
+          emissive={color}
+          emissiveIntensity={0.25}
+        />
+      </mesh>
+      {/* Dome top (hemisphere) */}
+      <mesh position={[0, 0, rimH + bodyH]} rotation={[-Math.PI / 2, 0, 0]}>
+        <sphereGeometry args={[radius, 20, 12, 0, Math.PI * 2, 0, Math.PI / 2]} />
+        <meshStandardMaterial
+          color={color}
+          roughness={0.1}
+          metalness={0.0}
+          transparent
+          opacity={0.8}
+          emissive={color}
+          emissiveIntensity={0.3}
+        />
+      </mesh>
+    </group>
+  );
+}
+
+/**
+ * 6mm tactile pushbutton
+ * Pad layout: (0,0), (6.5,0), (0,6.5), (6.5,6.5)
+ * Body centered at (3.25, 3.25)
+ */
+function PushbuttonModel() {
+  const cx = 3.25;
+  const cy = -3.25; // Y flipped
+  return (
+    <group position={[cx, cy, 0]}>
+      {/* Button housing */}
+      <mesh position={[0, 0, 1.75]}>
+        <boxGeometry args={[6, 6, 3.5]} />
+        <meshStandardMaterial color={BTN_BODY_COLOR} roughness={0.5} metalness={0.1} />
+      </mesh>
+      {/* Button cap (circular, standing upright) */}
+      <mesh position={[0, 0, 4.0]} rotation={[-Math.PI / 2, 0, 0]}>
+        <cylinderGeometry args={[1.7, 1.7, 1.0, 20]} />
+        <meshStandardMaterial color={BTN_CAP_COLOR} roughness={0.3} metalness={0.1} />
+      </mesh>
+    </group>
+  );
+}
+
+/**
+ * Pin header strip (1xN)
+ * Pads at (0,0), (0,2.54), (0,5.08), ...
+ * Body centered at (0, (N-1)*1.27)
+ */
+function HeaderModel({ pinCount }: { pinCount: number }) {
+  const pitch = 2.54;
+  const bodyL = pinCount * pitch;
+  const bodyW = 2.54;
+  const bodyH = 2.5;
+  const pinSize = 0.5;
+  const cy = -((pinCount - 1) * pitch) / 2;
+
+  return (
+    <group position={[0, cy, 0]}>
+      {/* Plastic housing */}
+      <mesh position={[0, 0, bodyH / 2]}>
+        <boxGeometry args={[bodyW, bodyL, bodyH]} />
+        <meshStandardMaterial color={HEADER_BODY_COLOR} roughness={0.6} metalness={0.0} />
+      </mesh>
+      {/* Metal pins sticking up */}
+      {Array.from({ length: pinCount }).map((_, i) => (
+        <mesh key={i}
+          position={[0, -((pinCount - 1) / 2) * pitch + i * pitch, bodyH + 2.5]}
+        >
+          <boxGeometry args={[pinSize, pinSize, 5]} />
+          <meshStandardMaterial color={HEADER_PIN_COLOR} roughness={0.2} metalness={0.9} />
+        </mesh>
+      ))}
+    </group>
+  );
+}
+
+/** Render a 3D component model for a footprint */
+function ComponentModel3D({ footprint, thickness }: { footprint: Footprint3D; thickness: number }) {
+  const isFront = footprint.layer === "F.Cu";
+  const z = isFront ? 0.04 : -thickness - 0.04;
+  const flipZ = isFront ? 1 : -1;
+  const rot = (-footprint.rotation * Math.PI) / 180;
+  const fpName = footprint.footprintName;
+
+  let model: React.ReactNode = null;
+
+  if (fpName.includes("DIP-")) {
+    const pinMatch = fpName.match(/DIP-(\d+)/);
+    const pins = pinMatch ? parseInt(pinMatch[1]!) : 16;
+    model = <DIPModel padCount={pins} />;
+  } else if (fpName.includes("LED-THT")) {
+    const color = getLedColor(footprint);
+    model = <LEDModel color={color} />;
+  } else if (fpName.includes("SW-THT-6mm")) {
+    model = <PushbuttonModel />;
+  } else if (fpName.match(/Header-1x(\d+)/)) {
+    const pinMatch = fpName.match(/Header-1x(\d+)/);
+    const pins = pinMatch ? parseInt(pinMatch[1]!) : 3;
+    model = <HeaderModel pinCount={pins} />;
+  }
+
+  if (!model) return null;
+
+  return (
+    <group
+      position={[footprint.x, -footprint.y, z]}
+      rotation={[0, 0, rot]}
+      scale={[1, 1, flipZ]}
+    >
+      {model}
+    </group>
+  );
+}
 
 // ── Sub-components ──────────────────────────────────────────────────────────
 
@@ -279,6 +486,11 @@ function PCBScene({ data }: { data: PCB3DData }) {
       {/* Silkscreen */}
       {data.footprints.map((fp) => (
         <SilkscreenLines key={`silk-${fp.reference}`} footprint={fp} thickness={data.thickness} />
+      ))}
+
+      {/* 3D Component models */}
+      {data.footprints.map((fp) => (
+        <ComponentModel3D key={`model-${fp.reference}`} footprint={fp} thickness={data.thickness} />
       ))}
     </>
   );

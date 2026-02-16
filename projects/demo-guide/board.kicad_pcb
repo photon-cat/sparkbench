@@ -78,7 +78,7 @@
   (footprint Arduino-Uno-Shield
     (layer F.Cu)
     (uuid bb203d6c-1d4b-45bc-b095-150d5715d2d1)
-    (at 10 10)
+    (at 10 8.5 0)
     (attr through_hole)
     (fp_text reference uno
       (at 0 -2)
@@ -396,7 +396,7 @@
   (footprint DIP-16
     (layer F.Cu)
     (uuid "04baef14-6e92-444b-b489-2ed7520efe18")
-    (at 35 10)
+    (at 35 9 0)
     (attr through_hole)
     (fp_text reference sr1
       (at 0 -2)
@@ -700,7 +700,7 @@
   (footprint LED-THT-3mm
     (layer F.Cu)
     (uuid "07176450-126c-4d56-942c-203f6c03f86f")
-    (at 35 30)
+    (at 20.5 28.5 0)
     (attr through_hole)
     (fp_text reference led4
       (at 0 -2)

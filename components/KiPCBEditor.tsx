@@ -9,6 +9,7 @@ import { SExprUndoStack } from "@/lib/sexpr-undo";
 import { serializeSExpr } from "@/lib/sexpr-serializer";
 import { parseSVGString, rectangleToSVG, svgPathToEdgeCuts } from "@/lib/svg-outline-import";
 import { useKiPCBDrag } from "@/hooks/useKiPCBDrag";
+import { useKiPCBRouting } from "@/hooks/useKiPCBRouting";
 import type { KiPCBCanvasHandle } from "./KiPCBCanvas";
 import KiPCBToolPalette, { type PCBTool } from "./KiPCBToolPalette";
 import KiPCBLayerPanel from "./KiPCBLayerPanel";
@@ -163,6 +164,19 @@ export default function KiPCBEditor({
         onTreeChange: handleTreeChange,
         onSelectRef: handleSelectByRef,
         canvasElement: canvasHandleRef.current?.canvas ?? null,
+    });
+
+    // Wire up routing + via hook
+    useKiPCBRouting({
+        viewer: canvasHandleRef.current?.viewer ?? null,
+        pcbTree,
+        undoStack: undoStackRef.current,
+        activeLayer: activeLayer as "F.Cu" | "B.Cu",
+        onTreeChange: handleTreeChange,
+        onLayerChange: setActiveLayer,
+        canvasElement: canvasHandleRef.current?.canvas ?? null,
+        activeRoute: activeTool === "route",
+        activeVia: activeTool === "via",
     });
 
     // Board stats from tree
@@ -320,6 +334,10 @@ export default function KiPCBEditor({
                 case "x":
                     if (!e.ctrlKey && !e.metaKey) setActiveTool("route");
                     break;
+                case "v":
+                    // Don't switch tool if mid-route (V inserts via in routing hook)
+                    if (!e.ctrlKey && !e.metaKey && activeTool !== "route") setActiveTool("via");
+                    break;
                 case "z":
                     if (!e.ctrlKey && !e.metaKey) setActiveTool("zone");
                     break;
@@ -340,7 +358,7 @@ export default function KiPCBEditor({
 
         window.addEventListener("keydown", handler);
         return () => window.removeEventListener("keydown", handler);
-    }, [pcbTree, onSave]);
+    }, [pcbTree, onSave, activeTool]);
 
     const btnStyle: React.CSSProperties = {
         padding: "4px 8px",

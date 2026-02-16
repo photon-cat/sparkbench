@@ -30,6 +30,7 @@ export interface Pad3D {
 export interface Footprint3D {
   reference: string;
   value: string;
+  footprintName: string;
   x: number;
   y: number;
   rotation: number;
@@ -223,6 +224,7 @@ export function extractPCB3DData(board: KicadPCB): PCB3DData {
     footprints.push({
       reference: fp.reference ?? "",
       value: fp.value ?? "",
+      footprintName: fp.library_link ?? "",
       x: fpX,
       y: fpY,
       rotation: fpRot,

@@ -397,6 +397,55 @@ export function checkCourtyardOverlap(
   return null;
 }
 
+// ── Segment & Via helpers ────────────────────────────────────────
+
+/** Build a KiCad segment S-expression node */
+export function buildSegmentNode(
+  x1: number, y1: number, x2: number, y2: number,
+  width: number, layer: string, netNum: number, uuid: string,
+): List {
+  return [
+    "segment",
+    ["start", round(x1), round(y1)],
+    ["end", round(x2), round(y2)],
+    ["width", width],
+    ["layer", layer],
+    ["net", netNum],
+    ["uuid", uuid],
+  ] as unknown as List;
+}
+
+/** Build a KiCad via S-expression node */
+export function buildViaNode(
+  x: number, y: number,
+  diameter: number, drill: number,
+  layers: [string, string], netNum: number, uuid: string,
+): List {
+  return [
+    "via",
+    ["at", round(x), round(y)],
+    ["size", diameter],
+    ["drill", drill],
+    ["layers", ...layers],
+    ["net", netNum],
+    ["uuid", uuid],
+  ] as unknown as List;
+}
+
+function round(v: number): number {
+  return Math.round(v * 10000) / 10000;
+}
+
+/** Resolve net name → net number from pcb tree */
+export function getNetNumber(tree: List, netName: string): number {
+  for (const child of tree) {
+    if (Array.isArray(child) && child[0] === "net") {
+      if (child[2] === netName) return child[1] as number;
+    }
+  }
+  return 0;
+}
+
 // ── Edge.Cuts helpers ────────────────────────────────────────────
 
 /**
