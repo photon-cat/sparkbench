@@ -136,10 +136,11 @@ export default function KiPCBEditor({
         }
     }, []);
 
-    // Handle tree changes from editing hooks
+    // Handle tree changes from editing hooks — persist to disk
     const handleTreeChange = useCallback((newTree: List) => {
         setPcbTree(newTree);
-    }, []);
+        onSave?.(serializeSExpr(newTree));
+    }, [onSave]);
 
     // Handle selection by pad click from drag hook
     const handleSelectByRef = useCallback((ref: string | null) => {
