@@ -9,7 +9,7 @@ const WIRE_COLORS = [
   { name: "orange", hex: "#f80" },
   { name: "purple", hex: "#80f" },
   { name: "pink", hex: "#f6b" },
-  { name: "black", hex: "#555" },
+  { name: "black", hex: "#000" },
   { name: "gray", hex: "#888" },
   { name: "white", hex: "#ddd" },
   { name: "yellow", hex: "#fc0" },

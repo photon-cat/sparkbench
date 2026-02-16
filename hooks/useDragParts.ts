@@ -4,6 +4,7 @@ import { UNIT_PX, FINE_UNIT_PX, getSnapMode, type SnapMode } from "@/lib/constan
 export interface UseDragPartsOptions {
   onPartMove?: (partId: string, top: number, left: number) => void;
   onPartSelect?: (partId: string) => void;
+  onPartDrag?: () => void;
   zoomRef: MutableRefObject<number>;
   lockedRef?: MutableRefObject<boolean>;
 }
@@ -34,11 +35,13 @@ function snapPartPos(partPos: number, pinOffset: number, mode: SnapMode): number
   return snappedAnchor - pinOffset;
 }
 
-export function useDragParts({ onPartMove, onPartSelect, zoomRef, lockedRef }: UseDragPartsOptions) {
+export function useDragParts({ onPartMove, onPartSelect, onPartDrag, zoomRef, lockedRef }: UseDragPartsOptions) {
   const onPartMoveRef = useRef(onPartMove);
   onPartMoveRef.current = onPartMove;
   const onPartSelectRef = useRef(onPartSelect);
   onPartSelectRef.current = onPartSelect;
+  const onPartDragRef = useRef(onPartDrag);
+  onPartDragRef.current = onPartDrag;
 
   const dragRef = useRef<{
     wrapper: HTMLElement;
@@ -94,6 +97,7 @@ export function useDragParts({ onPartMove, onPartSelect, zoomRef, lockedRef }: U
       const snappedTop = snapPartPos(rawTop, drag.pinOffsetY, mode);
       wrapper.style.left = `${snappedLeft}px`;
       wrapper.style.top = `${snappedTop}px`;
+      onPartDragRef.current?.();
     });
 
     wrapper.addEventListener("pointerup", (e: PointerEvent) => {

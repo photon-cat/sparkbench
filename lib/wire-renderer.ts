@@ -181,7 +181,7 @@ export function renderWires(
 
 function mapColor(color: string): string {
   const map: Record<string, string> = {
-    black: "#555",
+    black: "#000",
     red: "#e00",
     green: "#0c0",
     blue: "#06f",

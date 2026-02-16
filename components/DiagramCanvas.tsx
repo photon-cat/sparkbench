@@ -26,6 +26,7 @@ import {
   MAX_ZOOM,
   getSnapMode,
   snapToGrid,
+  type SnapMode,
 } from "@/lib/constants";
 import { registerDipChips } from "./DipChip";
 import { registerLogicGates } from "./LogicGates";
@@ -196,7 +197,17 @@ export default function DiagramCanvas({
     },
     [onPartSelect],
   );
-  const { attachDragHandlers } = useDragParts({ onPartMove: handlePartMove, onPartSelect: handlePartSelectFromDrag, zoomRef, lockedRef });
+  // Live-update wires while dragging a part (reads DOM positions)
+  const dragRafRef = useRef(0);
+  const computePinsRef = useRef<((diag: Diagram) => boolean) | null>(null);
+  const handlePartDrag = useCallback(() => {
+    if (dragRafRef.current) return; // throttle to one per frame
+    dragRafRef.current = requestAnimationFrame(() => {
+      dragRafRef.current = 0;
+      if (diagram) computePinsRef.current?.(diagram);
+    });
+  }, [diagram]);
+  const { attachDragHandlers } = useDragParts({ onPartMove: handlePartMove, onPartSelect: handlePartSelectFromDrag, onPartDrag: handlePartDrag, zoomRef, lockedRef });
 
   // Wire handle drag helpers
   const screenToContentForHandle = useCallback((clientX: number, clientY: number) => {
@@ -212,14 +223,22 @@ export default function DiagramCanvas({
     };
   }, []);
 
-  const splitSegment = useCallback((points: Point[], segIdx: number, offset: number): Point[] => {
+  const splitSegment = useCallback((points: Point[], segIdx: number, offset: number, mode: SnapMode = "normal"): Point[] => {
     const p0 = points[segIdx];
     const p1 = points[segIdx + 1];
     const dx = Math.abs(p1.x - p0.x);
     const dy = Math.abs(p1.y - p0.y);
     const isHorizontal = dx > dy;
 
-    const snappedOffset = snapToGrid(offset);
+    // Snap the absolute target position to grid, then derive offset
+    let snappedOffset: number;
+    if (isHorizontal) {
+      const targetY = snapToGrid(p0.y + offset, mode);
+      snappedOffset = targetY - p0.y;
+    } else {
+      const targetX = snapToGrid(p0.x + offset, mode);
+      snappedOffset = targetX - p0.x;
+    }
     if (Math.abs(snappedOffset) < 0.5) return points;
 
     const before = points.slice(0, segIdx + 1);
@@ -264,12 +283,13 @@ export default function DiagramCanvas({
     const ds = dragStateRef.current;
     if (!ds) return;
     const contentPos = screenToContentForHandle(e.clientX, e.clientY);
+    const mode = getSnapMode(e);
 
     const offset = ds.axis === "h"
       ? contentPos.y - ds.startContent.y
       : contentPos.x - ds.startContent.x;
 
-    const newPoints = splitSegment(ds.origPoints, ds.segIdx, offset);
+    const newPoints = splitSegment(ds.origPoints, ds.segIdx, offset, mode);
     dragPreviewRef.current = newPoints;
     setDragPreviewPoints(newPoints);
   }, [screenToContentForHandle, splitSegment]);
@@ -604,8 +624,13 @@ export default function DiagramCanvas({
       const wrapper = el.parentElement;
       const w = (el as any).chipWidth ?? wrapper?.offsetWidth ?? el.offsetWidth ?? 0;
       const h = (el as any).chipHeight ?? wrapper?.offsetHeight ?? el.offsetHeight ?? 0;
+      // Read actual DOM position for pin calculation — the wrapper may have
+      // been moved by drag before the diagram state has caught up.
+      const domTop = wrapper ? parseFloat(wrapper.style.top) || 0 : part.top + ORIGIN_PX;
+      const domLeft = wrapper ? parseFloat(wrapper.style.left) || 0 : part.left + ORIGIN_PX;
+      const livePart = { ...part, top: domTop - ORIGIN_PX, left: domLeft - ORIGIN_PX };
       for (const pin of pins) {
-        const pos = pinToCanvas(part, pin, w, h);
+        const pos = pinToCanvas(livePart, pin, w, h);
         const ref = `${part.id}:${pin.name}`;
         pinPositions.set(ref, pos);
         pinList.push({ ref, x: pos.x, y: pos.y, name: pin.name });
@@ -616,6 +641,7 @@ export default function DiagramCanvas({
     setAllPins(pinList);
     return true;
   }, []);
+  computePinsRef.current = computePinsAndWires;
 
   // Create DOM elements for parts
   useEffect(() => {
@@ -1008,6 +1034,7 @@ export default function DiagramCanvas({
 
             {/* Wire SVG overlay */}
             <svg style={{ position: "absolute", top: 0, left: 0, width: "100%", height: "100%", pointerEvents: "none", zIndex: 5, overflow: "visible" }}>
+              {/* Wire polylines */}
               {wires.map((wire, i) => {
                 const isHighlighted = highlightedWireIndices.has(i);
                 const isSelected = selectedWireIdx === i;
@@ -1019,7 +1046,7 @@ export default function DiagramCanvas({
                       fill="none"
                       stroke="transparent"
                       strokeWidth={12}
-                      style={{ pointerEvents: "stroke", cursor: "pointer" }}
+                      style={{ pointerEvents: isDrawing ? "none" : "stroke", cursor: "pointer" }}
                       onClick={(e) => { e.stopPropagation(); setSelectedWireIdx(i); onPartSelect?.(null); }}
                       onDoubleClick={(e) => { e.stopPropagation(); onDeleteConnection?.(wire.connectionIndex); }}
                     />
@@ -1033,41 +1060,48 @@ export default function DiagramCanvas({
                       opacity={hoveredPin ? (isHighlighted ? 1 : 0.2) : (isSelected ? 1 : 0.85)}
                       style={{ transition: "opacity 0.15s, stroke-width 0.15s", pointerEvents: "none" }}
                     />
-                    {isSelected && pts.length >= 2 && pts.slice(0, -1).map((p0, segIdx) => {
-                      const p1 = pts[segIdx + 1];
-                      const mx = (p0.x + p1.x) / 2;
-                      const my = (p0.y + p1.y) / 2;
-                      const segDx = Math.abs(p1.x - p0.x);
-                      const segDy = Math.abs(p1.y - p0.y);
-                      const isHoriz = segDx > segDy;
-                      if (Math.max(segDx, segDy) < 5) return null;
-                      return (
-                        <g key={`h${segIdx}`}>
-                          <rect
-                            x={mx - 5} y={my - 5} width={10} height={10} rx={2}
-                            fill="#fff" stroke="#06f" strokeWidth={1.5}
-                            style={{ pointerEvents: "all", cursor: isHoriz ? "ns-resize" : "ew-resize" }}
-                            onPointerDown={(e) => handleHandlePointerDown(e, i, segIdx)}
-                            onPointerMove={handleHandlePointerMove}
-                            onPointerUp={handleHandlePointerUp}
-                          />
-                          {isHoriz ? (
-                            <>
-                              <line x1={mx - 3} y1={my - 1.5} x2={mx + 3} y2={my - 1.5} stroke="#06f" strokeWidth={0.8} style={{ pointerEvents: "none" }} />
-                              <line x1={mx - 3} y1={my + 1.5} x2={mx + 3} y2={my + 1.5} stroke="#06f" strokeWidth={0.8} style={{ pointerEvents: "none" }} />
-                            </>
-                          ) : (
-                            <>
-                              <line x1={mx - 1.5} y1={my - 3} x2={mx - 1.5} y2={my + 3} stroke="#06f" strokeWidth={0.8} style={{ pointerEvents: "none" }} />
-                              <line x1={mx + 1.5} y1={my - 3} x2={mx + 1.5} y2={my + 3} stroke="#06f" strokeWidth={0.8} style={{ pointerEvents: "none" }} />
-                            </>
-                          )}
-                        </g>
-                      );
-                    })}
                   </g>
                 );
               })}
+              {/* Wire drag handles — rendered after all wires so they always sit on top */}
+              {selectedWireIdx != null && (() => {
+                const wire = wires[selectedWireIdx];
+                if (!wire) return null;
+                const pts = dragPreviewPoints || wire.points;
+                if (pts.length < 2) return null;
+                return pts.slice(0, -1).map((p0, segIdx) => {
+                  const p1 = pts[segIdx + 1];
+                  const mx = (p0.x + p1.x) / 2;
+                  const my = (p0.y + p1.y) / 2;
+                  const segDx = Math.abs(p1.x - p0.x);
+                  const segDy = Math.abs(p1.y - p0.y);
+                  const isHoriz = segDx > segDy;
+                  if (Math.max(segDx, segDy) < 5) return null;
+                  return (
+                    <g key={`h${segIdx}`}>
+                      <rect
+                        x={mx - 5} y={my - 5} width={10} height={10} rx={2}
+                        fill="#fff" stroke="#06f" strokeWidth={1.5}
+                        style={{ pointerEvents: "all", cursor: isHoriz ? "ns-resize" : "ew-resize" }}
+                        onPointerDown={(e) => handleHandlePointerDown(e, selectedWireIdx, segIdx)}
+                        onPointerMove={handleHandlePointerMove}
+                        onPointerUp={handleHandlePointerUp}
+                      />
+                      {isHoriz ? (
+                        <>
+                          <line x1={mx - 3} y1={my - 1.5} x2={mx + 3} y2={my - 1.5} stroke="#06f" strokeWidth={0.8} style={{ pointerEvents: "none" }} />
+                          <line x1={mx - 3} y1={my + 1.5} x2={mx + 3} y2={my + 1.5} stroke="#06f" strokeWidth={0.8} style={{ pointerEvents: "none" }} />
+                        </>
+                      ) : (
+                        <>
+                          <line x1={mx - 1.5} y1={my - 3} x2={mx - 1.5} y2={my + 3} stroke="#06f" strokeWidth={0.8} style={{ pointerEvents: "none" }} />
+                          <line x1={mx + 1.5} y1={my - 3} x2={mx + 1.5} y2={my + 3} stroke="#06f" strokeWidth={0.8} style={{ pointerEvents: "none" }} />
+                        </>
+                      )}
+                    </g>
+                  );
+                });
+              })()}
               {wireDrawing && (
                 <polyline points={previewPath} fill="none" stroke="#0f0" strokeWidth={2}
                   strokeLinecap="round" strokeLinejoin="round" strokeDasharray="6 3" opacity={0.9}
