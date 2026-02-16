@@ -1000,6 +1000,14 @@ export default function DiagramCanvas({
         onPointerDown={handlePanStart}
         onPointerMove={(e) => { handlePanMove(e); handlePlacementMove(e); }}
         onPointerUp={handlePanEnd}
+        onClick={(e) => {
+          // Deselect parts/wires when clicking empty canvas area
+          const target = e.target as HTMLElement;
+          if (!target.closest("[data-part-id]")) {
+            onPartSelect?.(null);
+            setSelectedWireIdx(null);
+          }
+        }}
         onContextMenu={(e) => {
           e.preventDefault();
           if (isDrawingRef.current) cancelDrawing();
