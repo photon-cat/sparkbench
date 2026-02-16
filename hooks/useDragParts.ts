@@ -59,7 +59,12 @@ export function useDragParts({ onPartMove, onPartSelect, onPartDrag, zoomRef, lo
 
     wrapper.addEventListener("pointerdown", (e: PointerEvent) => {
       if (e.button !== 0) return;
-      if (lockedRef?.current) return;
+      if (lockedRef?.current) {
+        // Still allow selection while sim is running, just no drag
+        e.stopPropagation();
+        onPartSelectRef.current?.(partId);
+        return;
+      }
       e.stopPropagation();
 
       const currentTop = parseFloat(wrapper.style.top) || 0;

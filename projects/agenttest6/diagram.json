@@ -1,0 +1,232 @@
+{
+  "version": 1,
+  "author": "SparkBench",
+  "editor": "wokwi",
+  "parts": [
+    {
+      "type": "wokwi-arduino-uno",
+      "id": "uno",
+      "top": 200,
+      "left": 20,
+      "attrs": {},
+      "footprint": "Arduino-Uno-Shield",
+      "pcbX": 10,
+      "pcbY": 5,
+      "pcbRotation": 0
+    },
+    {
+      "type": "board-ssd1306",
+      "id": "oled",
+      "top": -20,
+      "left": 80,
+      "attrs": {},
+      "footprint": "Header-1x04",
+      "value": "SSD1306 OLED",
+      "pcbX": 10,
+      "pcbY": 62,
+      "pcbRotation": 0
+    },
+    {
+      "type": "wokwi-ky-040",
+      "id": "encoder",
+      "top": 30,
+      "left": 300,
+      "attrs": {},
+      "footprint": "Header-1x05",
+      "value": "KY-040 Encoder",
+      "pcbX": 83,
+      "pcbY": 10,
+      "pcbRotation": 90
+    },
+    {
+      "type": "wokwi-servo",
+      "id": "servo",
+      "top": 340,
+      "left": 300,
+      "attrs": {},
+      "footprint": "Header-1x03",
+      "value": "Servo",
+      "pcbX": 83,
+      "pcbY": 40,
+      "pcbRotation": 90
+    },
+    {
+      "type": "wokwi-mpu6050",
+      "id": "mpu",
+      "top": 50,
+      "left": -140,
+      "attrs": {},
+      "footprint": "Header-1x04",
+      "value": "MPU6050",
+      "pcbX": 22,
+      "pcbY": 62,
+      "pcbRotation": 0
+    }
+  ],
+  "connections": [
+    [
+      "oled:SDA",
+      "uno:A4",
+      "green",
+      [
+        "v16",
+        "*",
+        "h0"
+      ]
+    ],
+    [
+      "oled:SCL",
+      "uno:A5",
+      "blue",
+      [
+        "v20",
+        "*",
+        "h0"
+      ]
+    ],
+    [
+      "oled:VCC",
+      "uno:5V",
+      "red",
+      [
+        "v24",
+        "*",
+        "h0"
+      ]
+    ],
+    [
+      "oled:GND",
+      "uno:GND.2",
+      "black",
+      [
+        "v12",
+        "*",
+        "h0"
+      ]
+    ],
+    [
+      "encoder:CLK",
+      "uno:2",
+      "orange",
+      [
+        "v-16",
+        "*",
+        "h0"
+      ]
+    ],
+    [
+      "encoder:DT",
+      "uno:3",
+      "purple",
+      [
+        "v-20",
+        "*",
+        "h0"
+      ]
+    ],
+    [
+      "encoder:SW",
+      "uno:4",
+      "gold",
+      [
+        "v-24",
+        "*",
+        "h0"
+      ]
+    ],
+    [
+      "encoder:VCC",
+      "uno:5V",
+      "red",
+      [
+        "v-28",
+        "*",
+        "h0"
+      ]
+    ],
+    [
+      "encoder:GND",
+      "uno:GND.1",
+      "black",
+      [
+        "v-12",
+        "*",
+        "h0"
+      ]
+    ],
+    [
+      "servo:PWM",
+      "uno:9",
+      "orange",
+      [
+        "v-16",
+        "*",
+        "h0"
+      ]
+    ],
+    [
+      "servo:V+",
+      "uno:5V",
+      "red",
+      [
+        "v-20",
+        "*",
+        "h0"
+      ]
+    ],
+    [
+      "servo:GND",
+      "uno:GND.3",
+      "black",
+      [
+        "v-12",
+        "*",
+        "h0"
+      ]
+    ],
+    [
+      "mpu:SDA",
+      "uno:A4",
+      "green",
+      [
+        "v16",
+        "*",
+        "h0"
+      ]
+    ],
+    [
+      "mpu:SCL",
+      "uno:A5",
+      "blue",
+      [
+        "v20",
+        "*",
+        "h0"
+      ]
+    ],
+    [
+      "mpu:VCC",
+      "uno:5V",
+      "red",
+      [
+        "v24",
+        "*",
+        "h0"
+      ]
+    ],
+    [
+      "mpu:GND",
+      "uno:GND.1",
+      "black",
+      [
+        "v12",
+        "*",
+        "h0"
+      ]
+    ]
+  ],
+  "boardSize": {
+    "width": 90,
+    "height": 75
+  }
+}

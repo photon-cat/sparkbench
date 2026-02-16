@@ -135,7 +135,7 @@ export default function Workbench({
   pendingReview,
   currentSnapshot,
 }: WorkbenchProps) {
-  const [chatWidth, setChatWidth] = useState(380);
+  const [chatWidth, setChatWidth] = useState(400);
   const dividerRef = useRef<{ startX: number; startWidth: number } | null>(null);
 
   const handleDividerDown = useCallback((e: React.MouseEvent) => {
@@ -248,6 +248,7 @@ export default function Workbench({
                 onAcceptChanges={onAcceptChanges}
                 onSimStart={onSimStart}
                 onSimStop={onSimStop}
+                onUpdatePCB={onUpdateFromDiagram}
                 pendingReview={pendingReview}
                 currentSnapshot={currentSnapshot}
               />

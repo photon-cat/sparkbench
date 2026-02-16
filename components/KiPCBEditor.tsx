@@ -194,6 +194,17 @@ export default function KiPCBEditor({
         e.target.value = "";
     }, [pcbTree, onSaveOutline, onSave]);
 
+    const handleDownloadPCB = useCallback(() => {
+        const text = serializeSExpr(pcbTree);
+        const blob = new Blob([text], { type: "text/plain" });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = "board.kicad_pcb";
+        a.click();
+        URL.revokeObjectURL(url);
+    }, [pcbTree]);
+
     // Keyboard shortcuts for tool switching + save
     useEffect(() => {
         const handler = (e: KeyboardEvent) => {
@@ -415,6 +426,12 @@ export default function KiPCBEditor({
                             style={{ ...btnStyle, background: "#2a3a5c", borderColor: "#3a5a8a" }}
                         >
                             Upload SVG Outline
+                        </button>
+                        <button
+                            onClick={handleDownloadPCB}
+                            style={{ ...btnStyle, background: "#2a3a5c", borderColor: "#3a5a8a" }}
+                        >
+                            Download .kicad_pcb
                         </button>
                     </div>
 

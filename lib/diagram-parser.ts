@@ -7,6 +7,9 @@ export interface DiagramPart {
   attrs: Record<string, string>;
   value?: string;
   footprint?: string;
+  pcbX?: number;
+  pcbY?: number;
+  pcbRotation?: number;
 }
 
 // Each connection: [fromPin, toPin, color, routingHints]
@@ -29,6 +32,7 @@ export interface Diagram {
   connections: DiagramConnection[];
   labels?: DiagramLabel[];
   serialMonitor?: { display: string };
+  boardSize?: { width: number; height: number };
 }
 
 /**
@@ -94,6 +98,7 @@ export function parseDiagram(json: unknown): Diagram {
     connections: d.connections ?? [],
     labels: d.labels ?? [],
     serialMonitor: d.serialMonitor,
+    boardSize: d.boardSize,
   };
 }
 

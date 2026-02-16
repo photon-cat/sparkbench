@@ -12,6 +12,7 @@ import LibraryManager from "./LibraryManager";
 import styles from "./SimulationPanel.module.css";
 import { Diagram, DiagramConnection } from "@/lib/diagram-parser";
 import { AVRRunner } from "@/lib/avr-runner";
+import type { WiredComponent } from "@/lib/wire-components";
 import type { ToolType } from "@/hooks/useWireDrawing";
 
 // Dynamic import for PCB editor (no SSR — WebGL)
@@ -20,6 +21,16 @@ const KiPCBEditor = dynamic(() => import("./KiPCBEditor"), {
   loading: () => (
     <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100%", color: "#888", fontFamily: "monospace" }}>
       Loading PCB editor...
+    </div>
+  ),
+});
+
+// Dynamic import for PCB 3D viewer (no SSR — Three.js/WebGL)
+const PCB3DViewer = dynamic(() => import("./PCB3DViewer"), {
+  ssr: false,
+  loading: () => (
+    <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100%", color: "#888", fontFamily: "monospace" }}>
+      Loading 3D viewer...
     </div>
   ),
 });
@@ -108,10 +119,12 @@ export default function SimulationPanel({
   const [activeTab, setActiveTab] = useState("simulation");
   const [activeTool, setActiveTool] = useState<ToolType>("cursor");
   const [selectedConnectionIdx, setSelectedConnectionIdx] = useState<number | null>(null);
+  const [wiredComponents, setWiredComponents] = useState<Map<string, WiredComponent>>(new Map());
 
   const simTabs = useMemo(() => [
     { id: "simulation", label: "Diagram" },
     { id: "pcb", label: "PCB" },
+    { id: "pcb3d", label: "PCB 3D Viewer" },
     { id: "libraries", label: "Library Manager" },
   ], []);
 
@@ -174,6 +187,7 @@ export default function SimulationPanel({
                 showGrid={showGrid}
                 mcuId={mcuId}
                 simRunning={status === "running" || status === "paused"}
+                onWiredComponentsChange={setWiredComponents}
               />
             </div>
 
@@ -219,6 +233,7 @@ export default function SimulationPanel({
             {selectedPartId && diagram && (
               <PartAttributePanel
                 part={diagram.parts.find((p) => p.id === selectedPartId) ?? null}
+                wiredComponent={wiredComponents.get(selectedPartId) ?? null}
                 onAttrChange={(attr, value) => onPartAttrChange(selectedPartId, attr, value)}
                 onRotate={(angle) => onPartRotate(selectedPartId, angle)}
                 onDelete={() => onDeletePart(selectedPartId)}
@@ -244,6 +259,8 @@ export default function SimulationPanel({
               onUpdateFromDiagram={onUpdateFromDiagram}
               onSaveOutline={onSaveOutline}
             />
+        ) : activeTab === "pcb3d" ? (
+          <PCB3DViewer pcbText={pcbText} />
         ) : activeTab === "libraries" ? (
           <LibraryManager
             librariesTxt={librariesTxt ?? ""}

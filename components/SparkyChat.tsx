@@ -11,6 +11,7 @@ import UndoIcon from "@mui/icons-material/Undo";
 import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
 import ExpandLessIcon from "@mui/icons-material/ExpandLess";
 import StopIcon from "@mui/icons-material/Stop";
+import ReactMarkdown from "react-markdown";
 import { diffLines } from "@/lib/diff";
 import styles from "./SparkyChat.module.css";
 
@@ -51,6 +52,7 @@ interface SparkyChatProps {
   onAcceptChanges?: () => void;
   onSimStart?: () => void;
   onSimStop?: () => void;
+  onUpdatePCB?: () => void;
   pendingReview?: FileSnapshot | null;
   currentSnapshot?: FileSnapshot | null;
 }
@@ -76,6 +78,9 @@ function toolStatusLabel(tools: { name: string; detail: string }[]): { action: s
     case "Bash": return { action: "Running", detail: last.detail?.slice(0, 60) || "command" };
     case "Glob": return { action: "Searching", detail: last.detail || "files" };
     case "Grep": return { action: "Searching", detail: last.detail || "code" };
+    case "mcp__sparkbench__CheckFloorplan": return { action: "Checking", detail: "PCB floorplan" };
+    case "mcp__sparkbench__SetBoardSize": return { action: "Setting", detail: `board size ${last.detail}` };
+    case "mcp__sparkbench__UpdatePCB": return { action: "Updating", detail: "PCB layout" };
     default: return { action: "Using", detail: last.name };
   }
 }
@@ -262,6 +267,7 @@ export default function SparkyChat({
   onAcceptChanges,
   onSimStart,
   onSimStop,
+  onUpdatePCB,
   pendingReview,
   currentSnapshot,
 }: SparkyChatProps) {
@@ -455,6 +461,15 @@ export default function SparkyChat({
                   return { ...c, messages: msgs };
                 }));
                 break;
+              case "pcb_command":
+                if (event.action === "update") {
+                  if (filesChanged && onProjectChanged) {
+                    onProjectChanged();
+                    filesChanged = false;
+                  }
+                  setTimeout(() => onUpdatePCB?.(), 300);
+                }
+                break;
               case "sim_command":
                 if (event.action === "start") {
                   // Reload files first so the build uses the latest code
@@ -515,10 +530,10 @@ export default function SparkyChat({
         return prev;
       });
     }
-  }, [streaming, activeChatId, chats, slug, diagramJson, sketchCode, pcbText, librariesTxt, projectFiles, onProjectChanged, onChangesReady, onSimStart, onSimStop, saveChats]);
+  }, [streaming, activeChatId, chats, slug, diagramJson, sketchCode, pcbText, librariesTxt, projectFiles, onProjectChanged, onChangesReady, onSimStart, onSimStop, onUpdatePCB, saveChats]);
 
   const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
-    if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) {
+    if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
       sendMessage(input);
     }
@@ -629,7 +644,9 @@ export default function SparkyChat({
                               </div>
                             )}
                             {msg.content && (
-                              <div className={styles.messageContent}>{msg.content}</div>
+                              <div className={styles.messageContent}>
+                                <ReactMarkdown>{msg.content}</ReactMarkdown>
+                              </div>
                             )}
                             {isStreaming && (() => {
                               const status = toolStatusLabel(msg.tools || []);

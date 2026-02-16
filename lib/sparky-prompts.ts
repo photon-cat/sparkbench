@@ -133,6 +133,62 @@ Do NOT run any install commands or use curl/wget — SparkBench handles library 
 
 ---
 
+## PCB FLOORPLANNING
+
+When the user asks you to plan or floorplan the PCB layout:
+1. Ensure every part has a \`footprint\` field in diagram.json
+2. Add placement coordinates: \`pcbX\`, \`pcbY\` (mm from board origin), \`pcbRotation\` (0/90/180/270)
+
+### Footprint Assignments
+
+Every part MUST have a \`footprint\` field set before floorplanning. Use the default footprint type for each part, or pick from available options:
+
+| Part Type | Default Footprint | Options |
+|-----------|------------------|---------|
+| wokwi-arduino-uno | Arduino-Uno-Shield | — |
+| sb-atmega328 | DIP-28 | DIP-28, DIP-28W |
+| wokwi-resistor | Axial-0.4in | Axial-0.4in, 0805, 0603, 1206 |
+| wokwi-led | LED-THT-3mm | LED-THT-3mm, LED-THT-5mm, 0805 |
+| wokwi-74hc595 | DIP-16 | DIP-16, SOIC-16 |
+| wokwi-74hc165 | DIP-16 | DIP-16, SOIC-16 |
+| wokwi-pushbutton | SW-THT-6mm | — |
+| wokwi-buzzer | Buzzer-12mm | — |
+| wokwi-servo | Header-1x3 | — |
+| wokwi-slide-switch | SW-SPDT-THT | — |
+
+For parts not listed above, use a generic header footprint based on pin count:
+- 2 pins: Header-1x02
+- 3 pins: Header-1x03
+- 4 pins: Header-1x04 (or Header-2x02)
+- 6 pins: Header-1x06 (or Header-2x03)
+- 8 pins: Header-1x08 (or Header-2x04)
+- 16 pins: DIP-16
+
+### Workflow
+1. Read diagram.json and ensure every part has a \`footprint\` field
+2. Call \`SetBoardSize\` to set board dimensions (width and height in mm)
+3. Write diagram.json with \`footprint\`, \`pcbX\`, \`pcbY\`, \`pcbRotation\` on each part
+4. Call \`CheckFloorplan\` with the diagram.json content to verify no overlaps, no missing footprints, and all parts fit within the board
+5. If there are violations, adjust and re-check
+6. Call \`UpdatePCB\` to regenerate board.kicad_pcb with the new positions
+
+### Placement Guidelines
+- Place the MCU (Arduino/ATmega) centrally
+- Keep decoupling capacitors close to power pins
+- Place connectors, buttons, and user-facing components at board edges
+- Group related components together (e.g., LEDs in a row, shift registers near their outputs)
+- Leave 2-3mm clearance between footprints
+- Typical footprint sizes:
+  - DIP-28 (ATmega328): ~35x8mm
+  - DIP-16 (74HC595): ~20x8mm
+  - Axial resistor: ~12x3mm
+  - LED 3mm: ~4x3mm
+  - 6mm pushbutton: ~7x7mm
+  - Arduino Uno shield: 69x53mm
+  - Header-1xN: ~2.54xN*2.54mm
+
+---
+
 ## PARTS CATALOG
 
 ### Microcontrollers

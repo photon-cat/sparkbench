@@ -34,6 +34,7 @@ export function initPCBFromSchematic(
   diagram: Diagram,
   netlist: Netlist,
   existingPositions?: Map<string, { x: number; y: number; rotation: number }>,
+  boardSize?: { width: number; height: number },
 ): PCBDesign {
   const footprints: PCBFootprint[] = [];
   const COLS = 4;
@@ -67,10 +68,14 @@ export function initPCBFromSchematic(
       net: netlist.pinToNet.get(pad.id),
     }));
 
-    // Preserve position if this footprint already exists in the PCB
+    // Position priority: agent floorplan > existing PCB position > grid fallback
     const existing = existingPositions?.get(part.id);
     let x: number, y: number, rotation: number;
-    if (existing) {
+    if (part.pcbX !== undefined && part.pcbY !== undefined) {
+      x = part.pcbX;
+      y = part.pcbY;
+      rotation = part.pcbRotation ?? 0;
+    } else if (existing) {
       x = existing.x;
       y = existing.y;
       rotation = existing.rotation;
@@ -100,14 +105,11 @@ export function initPCBFromSchematic(
     });
   }
 
-  // Use Arduino Uno shield dimensions when an Arduino is present,
-  // otherwise auto-size to fit all footprints
-  const boardW = hasArduinoShield
-    ? 68.6
-    : Math.max(100, OFFSET_X * 2 + COLS * SPACING_X);
-  const boardH = hasArduinoShield
-    ? 53.3
-    : Math.max(80, OFFSET_Y * 2 + Math.ceil(footprints.length / COLS) * SPACING_Y);
+  // Board dimensions: explicit boardSize > Arduino shield > auto-size
+  const boardW = boardSize?.width
+    ?? (hasArduinoShield ? 68.6 : Math.max(100, OFFSET_X * 2 + COLS * SPACING_X));
+  const boardH = boardSize?.height
+    ?? (hasArduinoShield ? 53.3 : Math.max(80, OFFSET_Y * 2 + Math.ceil(footprints.length / COLS) * SPACING_Y));
 
   return {
     version: 2,

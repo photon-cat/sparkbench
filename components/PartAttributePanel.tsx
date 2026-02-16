@@ -1,9 +1,12 @@
 "use client";
+import { useState } from "react";
 import type { DiagramPart } from "@/lib/diagram-parser";
+import type { WiredComponent } from "@/lib/wire-components";
 import { FOOTPRINT_OPTIONS, FOOTPRINT_LIBRARY } from "@/lib/pcb-footprints";
 
 interface PartAttributePanelProps {
   part: DiagramPart | null;
+  wiredComponent?: WiredComponent | null;
   onAttrChange: (attr: string, value: string) => void;
   onRotate: (angle: number) => void;
   onDelete: () => void;
@@ -106,8 +109,87 @@ const btnStyle: React.CSSProperties = {
   fontFamily: "monospace",
 };
 
+function SensorSlider({
+  label,
+  value,
+  min,
+  max,
+  step,
+  unit,
+  onChange,
+}: {
+  label: string;
+  value: number;
+  min: number;
+  max: number;
+  step: number;
+  unit: string;
+  onChange: (v: number) => void;
+}) {
+  return (
+    <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 3 }}>
+      <span style={{ width: 28, fontSize: 11, color: "#aaa", textAlign: "right", flexShrink: 0 }}>{label}</span>
+      <input
+        type="range"
+        min={min}
+        max={max}
+        step={step}
+        value={value}
+        onChange={(e) => onChange(parseFloat(e.target.value))}
+        style={{ flex: 1, accentColor: "#f59e0b", height: 14 }}
+      />
+      <span style={{ width: 42, fontSize: 11, color: "#f59e0b", textAlign: "right", fontFamily: "monospace", flexShrink: 0 }}>
+        {value.toFixed(step < 1 ? 1 : 0)}{unit}
+      </span>
+    </div>
+  );
+}
+
+function DHT22Controls({ wc }: { wc: WiredComponent }) {
+  const [temp, setTemp] = useState(22);
+  const [hum, setHum] = useState(50);
+  return (
+    <div style={{ marginTop: 8, borderTop: "1px solid #333", paddingTop: 8 }}>
+      <div style={{ fontSize: 10, color: "#888", marginBottom: 4, fontWeight: 600 }}>Sensor Controls</div>
+      <SensorSlider label="Temp" value={temp} min={-40} max={80} step={0.5} unit="C"
+        onChange={(v) => { setTemp(v); wc.setTemperature?.(v); }} />
+      <SensorSlider label="Hum" value={hum} min={0} max={100} step={0.5} unit="%"
+        onChange={(v) => { setHum(v); wc.setHumidity?.(v); }} />
+    </div>
+  );
+}
+
+function MPU6050Controls({ wc }: { wc: WiredComponent }) {
+  const [ax, setAx] = useState(0);
+  const [ay, setAy] = useState(0);
+  const [az, setAz] = useState(1);
+  const [gx, setGx] = useState(0);
+  const [gy, setGy] = useState(0);
+  const [gz, setGz] = useState(0);
+  return (
+    <div style={{ marginTop: 8, borderTop: "1px solid #333", paddingTop: 8 }}>
+      <div style={{ fontSize: 10, color: "#888", marginBottom: 4, fontWeight: 600 }}>Sensor Controls</div>
+      <div style={{ fontSize: 10, color: "#888", marginBottom: 2 }}>Accel (g)</div>
+      <SensorSlider label="X" value={ax} min={-2} max={2} step={0.1} unit="g"
+        onChange={(v) => { setAx(v); wc.setAccel?.(v, ay, az); }} />
+      <SensorSlider label="Y" value={ay} min={-2} max={2} step={0.1} unit="g"
+        onChange={(v) => { setAy(v); wc.setAccel?.(ax, v, az); }} />
+      <SensorSlider label="Z" value={az} min={-2} max={2} step={0.1} unit="g"
+        onChange={(v) => { setAz(v); wc.setAccel?.(ax, ay, v); }} />
+      <div style={{ fontSize: 10, color: "#888", marginTop: 4, marginBottom: 2 }}>Gyro (deg/s)</div>
+      <SensorSlider label="X" value={gx} min={-250} max={250} step={1} unit=""
+        onChange={(v) => { setGx(v); wc.setGyro?.(v, gy, gz); }} />
+      <SensorSlider label="Y" value={gy} min={-250} max={250} step={1} unit=""
+        onChange={(v) => { setGy(v); wc.setGyro?.(gx, v, gz); }} />
+      <SensorSlider label="Z" value={gz} min={-250} max={250} step={1} unit=""
+        onChange={(v) => { setGz(v); wc.setGyro?.(gx, gy, v); }} />
+    </div>
+  );
+}
+
 export default function PartAttributePanel({
   part,
+  wiredComponent,
   onAttrChange,
   onRotate,
   onDelete,
@@ -234,6 +316,13 @@ export default function PartAttributePanel({
           onChange={(v) => onAttrChange("__footprint", v)}
         />
       </div>
+
+      {wiredComponent && part.type === "wokwi-dht22" && (
+        <DHT22Controls wc={wiredComponent} />
+      )}
+      {wiredComponent && part.type === "wokwi-mpu6050" && (
+        <MPU6050Controls wc={wiredComponent} />
+      )}
 
       <div style={{ display: "flex", gap: 6, marginTop: 4 }}>
         <button onClick={() => onRotate(90)} style={btnStyle} title="Rotate 90 (R)">

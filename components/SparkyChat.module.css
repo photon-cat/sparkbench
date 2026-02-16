@@ -335,10 +335,46 @@
 .messageContent {
   padding: 10px 14px;
   border-radius: 12px;
-  white-space: pre-wrap;
   word-break: break-word;
   font-size: 14px;
   line-height: 1.6;
+}
+
+.messageContent p {
+  margin: 0 0 8px;
+}
+
+.messageContent p:last-child {
+  margin-bottom: 0;
+}
+
+.messageContent table {
+  border-collapse: collapse;
+  width: 100%;
+  margin: 8px 0;
+  font-size: 13px;
+}
+
+.messageContent th,
+.messageContent td {
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  padding: 6px 10px;
+  text-align: left;
+}
+
+.messageContent th {
+  background: rgba(255, 255, 255, 0.06);
+  font-weight: 600;
+}
+
+.messageContent ul,
+.messageContent ol {
+  margin: 6px 0;
+  padding-left: 20px;
+}
+
+.messageContent li {
+  margin: 2px 0;
 }
 
 .messageUser .messageContent {

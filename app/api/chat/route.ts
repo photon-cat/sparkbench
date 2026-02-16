@@ -2,6 +2,10 @@ import { query, createSdkMcpServer, tool } from "@anthropic-ai/claude-agent-sdk"
 import type { PermissionResult } from "@anthropic-ai/claude-agent-sdk";
 import { z } from "zod";
 import { buildSystemPrompt } from "@/lib/sparky-prompts";
+import { parseDiagram } from "@/lib/diagram-parser";
+import { extractNetlist } from "@/lib/netlist";
+import { initPCBFromSchematic } from "@/lib/pcb-parser";
+import { getFootprintForType, generateFootprintByType } from "@/lib/pcb-footprints";
 import {
   mkdirSync,
   readFileSync,
@@ -204,6 +208,110 @@ function createSimulationServer(write: (data: Record<string, any>) => void) {
           return { content: [{ type: "text" as const, text: "Simulation stopped." }] };
         },
       ),
+      tool(
+        "CheckFloorplan",
+        "Check the PCB floorplan for courtyard overlaps and out-of-bounds footprints. Call this after setting pcbX/pcbY on parts in diagram.json to validate placement.",
+        { diagramJson: z.string().describe("The full diagram.json content to validate") },
+        async (args) => {
+          try {
+            const diagram = parseDiagram(JSON.parse(args.diagramJson));
+            const netlist = extractNetlist(diagram);
+            const boardSize = diagram.boardSize;
+            const violations: string[] = [];
+
+            // Check for parts without footprints
+            for (const part of diagram.parts) {
+              const hasRegistry = !!getFootprintForType(part.type);
+              const hasInstance = !!part.footprint;
+              if (!hasRegistry && !hasInstance) {
+                violations.push(`Missing footprint: ${part.id} (${part.type}) — set a "footprint" field`);
+              }
+            }
+
+            // Check for parts without pcbX/pcbY
+            for (const part of diagram.parts) {
+              if (part.pcbX === undefined || part.pcbY === undefined) {
+                const hasFootprint = !!getFootprintForType(part.type) || !!part.footprint;
+                if (hasFootprint) {
+                  violations.push(`Missing placement: ${part.id} has no pcbX/pcbY`);
+                }
+              }
+            }
+
+            const pcb = initPCBFromSchematic(diagram, netlist, undefined, boardSize);
+
+            // Check courtyard overlaps between all pairs
+            for (let i = 0; i < pcb.footprints.length; i++) {
+              const a = pcb.footprints[i];
+              if (!a.courtyard) continue;
+              const ax1 = a.x - a.courtyard.width / 2;
+              const ay1 = a.y - a.courtyard.height / 2;
+              const ax2 = a.x + a.courtyard.width / 2;
+              const ay2 = a.y + a.courtyard.height / 2;
+
+              for (let j = i + 1; j < pcb.footprints.length; j++) {
+                const b = pcb.footprints[j];
+                if (!b.courtyard) continue;
+                const bx1 = b.x - b.courtyard.width / 2;
+                const by1 = b.y - b.courtyard.height / 2;
+                const bx2 = b.x + b.courtyard.width / 2;
+                const by2 = b.y + b.courtyard.height / 2;
+
+                if (ax1 < bx2 && ax2 > bx1 && ay1 < by2 && ay2 > by1) {
+                  violations.push(`Overlap: ${a.ref} and ${b.ref}`);
+                }
+              }
+
+              // Check within board outline
+              const bw = pcb.boardOutline.vertices[1]?.x ?? 100;
+              const bh = pcb.boardOutline.vertices[2]?.y ?? 80;
+              if (ax1 < 0 || ay1 < 0 || ax2 > bw || ay2 > bh) {
+                violations.push(`Out of bounds: ${a.ref} (board is ${bw}x${bh}mm)`);
+              }
+            }
+
+            const result = violations.length === 0
+              ? `Floorplan OK: ${pcb.footprints.length} footprints placed, no overlaps, all within ${pcb.boardOutline.vertices[1]?.x ?? 100}x${pcb.boardOutline.vertices[2]?.y ?? 80}mm board.`
+              : `Floorplan has ${violations.length} issue(s):\n${violations.join("\n")}`;
+
+            return { content: [{ type: "text" as const, text: result }] };
+          } catch (e: any) {
+            return { content: [{ type: "text" as const, text: `Error checking floorplan: ${e.message}` }] };
+          }
+        },
+      ),
+      tool(
+        "SetBoardSize",
+        "Set the PCB board dimensions in mm. This adds a boardSize field to diagram.json which overrides auto-sizing.",
+        {
+          width: z.number().describe("Board width in mm"),
+          height: z.number().describe("Board height in mm"),
+          projectDir: z.string().describe("The project directory path"),
+        },
+        async (args) => {
+          try {
+            const diagramPath = join(args.projectDir, "diagram.json");
+            if (!existsSync(diagramPath)) {
+              return { content: [{ type: "text" as const, text: "Error: diagram.json not found" }] };
+            }
+            const raw = JSON.parse(readFileSync(diagramPath, "utf-8"));
+            raw.boardSize = { width: args.width, height: args.height };
+            writeFileSync(diagramPath, JSON.stringify(raw, null, 2) + "\n");
+            return { content: [{ type: "text" as const, text: `Board size set to ${args.width}x${args.height}mm` }] };
+          } catch (e: any) {
+            return { content: [{ type: "text" as const, text: `Error setting board size: ${e.message}` }] };
+          }
+        },
+      ),
+      tool(
+        "UpdatePCB",
+        "Regenerate the PCB layout from diagram.json. Call this after setting pcbX/pcbY positions and verifying with CheckFloorplan. This triggers the frontend to rebuild board.kicad_pcb from the current diagram.",
+        { reason: z.string().optional().describe("Brief reason, e.g. 'apply floorplan positions'") },
+        async (args) => {
+          write({ type: "pcb_command", action: "update" });
+          return { content: [{ type: "text" as const, text: "PCB regeneration triggered. The board layout will update with the new footprint positions from diagram.json." }] };
+        },
+      ),
     ],
   });
 }
@@ -226,6 +334,12 @@ function summarizeTool(name: string, input: Record<string, any>): string {
       return input.reason || "starting simulation";
     case "mcp__sparkbench__StopSimulation":
       return input.reason || "stopping simulation";
+    case "mcp__sparkbench__CheckFloorplan":
+      return "validating PCB floorplan";
+    case "mcp__sparkbench__SetBoardSize":
+      return `${input.width}x${input.height}mm`;
+    case "mcp__sparkbench__UpdatePCB":
+      return input.reason || "regenerating PCB";
     default:
       return "";
   }
@@ -325,7 +439,7 @@ ${projectInstructions}${contextSection}`;
         model: "claude-opus-4-6" as const,
         systemPrompt: SYSTEM_PROMPT,
         tools: { type: "preset" as const, preset: "claude_code" as const },
-        allowedTools: ["Read", "Write", "Edit", "Bash", "Glob", "Grep"],
+        allowedTools: ["Read", "Write", "Edit", "Bash", "Glob", "Grep", "mcp__sparkbench__CheckFloorplan", "mcp__sparkbench__SetBoardSize", "mcp__sparkbench__UpdatePCB"],
         disallowedTools: ["TodoWrite", "TodoRead", "Task", "WebFetch", "WebSearch", "NotebookEdit", "mcp__sparkbench__RunSimulation", "mcp__sparkbench__StopSimulation"],
         permissionMode: "bypassPermissions" as const,
         allowDangerouslySkipPermissions: true,

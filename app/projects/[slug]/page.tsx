@@ -658,11 +658,12 @@ export default function ProjectPage() {
     }
 
     const netlist = extractNetlist(diagram);
-    const design = initPCBFromSchematic(diagram, netlist, existingPositions);
+    const design = initPCBFromSchematic(diagram, netlist, existingPositions, diagram.boardSize);
     const tree = buildKicadPCBTree(design);
 
     // Preserve existing board outline (Edge.Cuts) if there's already a PCB
-    if (pcbText) {
+    // BUT skip if boardSize is explicitly set (agent floorplanning sets its own outline)
+    if (pcbText && !diagram.boardSize) {
       try {
         const oldTree = listify(pcbText)[0] as unknown[];
         // Collect Edge.Cuts gr_line/gr_arc nodes from existing PCB

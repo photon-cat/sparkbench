@@ -100,6 +100,7 @@ export interface DiagramCanvasProps {
   runner: AVRRunner | null;
   mcuId?: string;
   simRunning?: boolean;
+  onWiredComponentsChange?: (wired: Map<string, WiredComponent>) => void;
 }
 
 export default function DiagramCanvas({
@@ -125,6 +126,7 @@ export default function DiagramCanvas({
   runner,
   mcuId,
   simRunning,
+  onWiredComponentsChange,
 }: DiagramCanvasProps) {
   const viewportRef = useRef<HTMLDivElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -724,6 +726,7 @@ export default function DiagramCanvas({
       }
     }
     setSensorEntries(sensors);
+    onWiredComponentsChange?.(wired);
 
     for (const [id, wc] of wired) {
       const el = elementsRef.current.get(id);
@@ -829,6 +832,7 @@ export default function DiagramCanvas({
       }
       cleanupWiring(wiredRef.current);
       setSensorEntries([]);
+      onWiredComponentsChange?.(new Map());
     };
   }, [runner, diagram]);
 
