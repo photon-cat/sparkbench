@@ -114,11 +114,57 @@ npm run dev
 
 Open [http://localhost:3000](http://localhost:3000) to start building.
 
-### Running CI Tests
+### SparkBench CLI
+
+SparkBench includes a command-line tool for running tests and AI-powered security fuzzing directly from your terminal.
 
 ```bash
-npx tsx scripts/run-scenario.ts <project-slug>
+# Run it via npm
+npm run sparkbench -- help
+
+# Or directly with tsx
+npx tsx scripts/sparkbench-cli.ts help
 ```
+
+#### Commands
+
+```
+sparkbench test <project> [--scenario <file>]   Run a YAML test scenario
+sparkbench fuzz <project>                       AI security fuzzer (SparkyFuzzer)
+sparkbench list                                 List all projects
+sparkbench help                                 Show help
+```
+
+#### Running Tests
+
+Compile firmware with PlatformIO, then run a YAML test scenario against the headless AVR simulator:
+
+```bash
+npm run sparkbench -- test combo-safe
+```
+
+Test scenarios support: `delay`, `set-control` (buttons, encoders, pots, sensors), `send-serial`, `wait-serial`, `expect-serial`, `expect-display`, and `clear-serial`.
+
+#### SparkyFuzzer (AI Security Auditor)
+
+SparkyFuzzer uses Claude Opus 4.6 to analyze your firmware source code, identify security vulnerabilities, and generate exploit scenarios that run against the headless simulator to prove exploitability.
+
+```bash
+# Set your API key
+export ANTHROPIC_API_KEY=sk-ant-...
+
+# Fuzz the combo-safe demo (has 3 intentional vulnerabilities)
+npm run sparkbench -- fuzz combo-safe
+```
+
+The fuzzer:
+1. Sends your `sketch.ino` and `diagram.json` to Claude Opus 4.6
+2. Claude identifies potential vulnerabilities (timing side-channels, integer overflows, backdoors, buffer overflows, etc.)
+3. Claude generates YAML test scenarios that exploit each vulnerability
+4. SparkBench runs each scenario headlessly against the AVR simulator
+5. Claude analyzes the results and writes a security report
+
+Reports are saved to `projects/<slug>/fuzzer-report/`.
 
 ## Simulated Components
 
@@ -172,7 +218,9 @@ sparkbench/
 │   └── sparky-prompts.ts   # Sparky system prompt
 ├── vendor/kicanvas/        # KiCanvas fork (WebGL2 PCB renderer)
 ├── scripts/
-│   └── run-scenario.ts     # CLI for headless testing
+│   ├── sparkbench-cli.ts   # CLI entry point (sparkbench command)
+│   ├── run-scenario.ts     # Headless test runner
+│   └── sparky-fuzzer.ts    # AI security fuzzer (SparkyFuzzer)
 ├── projects/               # User projects (diagram.json + sketch.ino)
 └── _build/                 # PlatformIO build directory
 ```

@@ -1,0 +1,34 @@
+{
+  "version": 1,
+  "author": "sparkbench",
+  "editor": "sparkbench",
+  "parts": [
+    { "type": "wokwi-arduino-uno", "id": "uno", "top": 200, "left": 15, "attrs": {} },
+    { "type": "wokwi-ssd1306", "id": "oled1", "top": 10, "left": 180, "attrs": {} },
+    { "type": "wokwi-ky-040", "id": "encoder1", "top": 20, "left": 10, "attrs": {} },
+    { "type": "wokwi-led", "id": "led-green", "top": 120, "left": 280, "attrs": { "color": "green" } },
+    { "type": "wokwi-led", "id": "led-red", "top": 120, "left": 320, "attrs": { "color": "red" } },
+    { "type": "wokwi-resistor", "id": "r1", "top": 160, "left": 280, "attrs": { "value": "220" } },
+    { "type": "wokwi-resistor", "id": "r2", "top": 160, "left": 320, "attrs": { "value": "220" } }
+  ],
+  "connections": [
+    ["uno:A4", "oled1:DATA", "green", []],
+    ["uno:A5", "oled1:CLK", "blue", []],
+    ["uno:5V", "oled1:VIN", "red", []],
+    ["uno:GND.1", "oled1:GND", "black", []],
+
+    ["encoder1:VCC", "uno:5V", "red", ["h200", "v240"]],
+    ["uno:GND.2", "encoder1:GND", "black", ["v19", "h-60", "v-240"]],
+    ["uno:2", "encoder1:CLK", "green", ["h4", "v-96", "h-48"]],
+    ["encoder1:DT", "uno:3", "green", ["h38", "v86"]],
+    ["encoder1:SW", "uno:4", "green", ["h0"]],
+
+    ["uno:12", "r1:1", "green", ["v-40"]],
+    ["r1:2", "led-green:A", "green", []],
+    ["led-green:C", "uno:GND.1", "black", []],
+
+    ["uno:13", "r2:1", "orange", ["v-40"]],
+    ["r2:2", "led-red:A", "orange", []],
+    ["led-red:C", "uno:GND.2", "black", []]
+  ]
+}
