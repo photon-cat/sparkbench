@@ -70,7 +70,7 @@ export default function Toolbar({ projectName, onSave, onImportWokwi, onExportWo
     <div className={styles.toolbar}>
       {/* Logo */}
       <a href="/" className={styles.logo}>
-        <span className={styles.logoW}>Spark</span>Bench
+        <span className={styles.logoW}>Spark</span><span>Bench</span>
       </a>
 
       {/* Save */}

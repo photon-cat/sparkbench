@@ -1,6 +1,16 @@
 // Centralized API helpers with typed fetch wrappers
 
-export async function fetchProjects(): Promise<string[]> {
+export interface ProjectMeta {
+  slug: string;
+  partCount: number;
+  partTypes: string[];
+  lineCount: number;
+  hasPCB: boolean;
+  hasTests: boolean;
+  modifiedAt: string;
+}
+
+export async function fetchProjects(): Promise<ProjectMeta[]> {
   const res = await fetch("/api/projects");
   const data = await res.json();
   if (!Array.isArray(data)) return [];

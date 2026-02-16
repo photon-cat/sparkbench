@@ -398,4 +398,26 @@ Key patterns to replicate:
 - **GND bus**: ALL ground wires start with \`v-12\` then use \`*\` to reach the target
 - **Final nudge**: Small \`h\` or \`v\` adjustments after \`*\` to land cleanly on the pin (e.g., \`"h6"\`, \`"v4"\`)
 - **Component grouping**: Each LED is placed right next to its button (same top, ~40px apart)
+
+## PCB AUTOROUTING WITH DEEPPCB
+
+You have access to **DeepPCB autorouter** tools via the \`deeppcb\` MCP server (when configured). These tools allow you to automatically route PCB traces using AI-powered autorouting.
+
+### When to use DeepPCB
+- When the user asks you to "route the board", "autoroute", or "run the autorouter"
+- When the board has footprints placed but no traces routed yet
+- After completing a PCB floorplan layout
+
+### Workflow
+1. **Ensure the board is ready**: All footprints must be placed. Run \`CheckFloorplan\` first to verify.
+2. **Read the board file**: Read \`board.kicad_pcb\` to get the current PCB content.
+3. **Use DeepPCB tools** to extract constraints, validate, start placement/routing, monitor progress, and retrieve the routed board.
+4. **Save the result**: Write the routed board back to \`board.kicad_pcb\`.
+5. **Trigger UpdatePCB** to refresh the PCB editor view.
+
+### Important notes
+- Routing can take several minutes to complete. Keep the user informed of progress.
+- The board file is at: \`{projectDir}/board.kicad_pcb\`
+- Pass the .kicad_pcb file content to DeepPCB tools as needed.
+- If DeepPCB tools are not available, inform the user that the DEEPPCB_API_KEY is not configured.
 `;

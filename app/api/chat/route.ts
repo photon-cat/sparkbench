@@ -341,6 +341,9 @@ function summarizeTool(name: string, input: Record<string, any>): string {
     case "mcp__sparkbench__UpdatePCB":
       return input.reason || "regenerating PCB";
     default:
+      if (name.startsWith("mcp__deeppcb__")) {
+        return input.reason || input.board_name || name.replace("mcp__deeppcb__", "");
+      }
       return "";
   }
 }
@@ -350,7 +353,9 @@ function displayToolName(name: string): string {
   switch (name) {
     case "mcp__sparkbench__RunSimulation": return "RunSimulation";
     case "mcp__sparkbench__StopSimulation": return "StopSimulation";
-    default: return name;
+    default:
+      if (name.startsWith("mcp__deeppcb__")) return "DeepPCB:" + name.replace("mcp__deeppcb__", "");
+      return name;
   }
 }
 
@@ -439,12 +444,35 @@ ${projectInstructions}${contextSection}`;
         model: "claude-opus-4-6" as const,
         systemPrompt: SYSTEM_PROMPT,
         tools: { type: "preset" as const, preset: "claude_code" as const },
-        allowedTools: ["Read", "Write", "Edit", "Bash", "Glob", "Grep", "mcp__sparkbench__CheckFloorplan", "mcp__sparkbench__SetBoardSize", "mcp__sparkbench__UpdatePCB"],
+        allowedTools: [
+          "Read", "Write", "Edit", "Bash", "Glob", "Grep",
+          "mcp__sparkbench__CheckFloorplan", "mcp__sparkbench__SetBoardSize", "mcp__sparkbench__UpdatePCB",
+          // DeepPCB tools are auto-discovered; allow all from that server
+          ...(process.env.DEEPPCB_API_KEY ? [
+            "mcp__deeppcb__extract_constraints", "mcp__deeppcb__validate_constraints",
+            "mcp__deeppcb__start_placement", "mcp__deeppcb__start_routing",
+            "mcp__deeppcb__check_status", "mcp__deeppcb__get_best_board",
+            // Also allow any tool name pattern the server may expose
+            "mcp__deeppcb__derive_placement_constraints", "mcp__deeppcb__validate_placement_constraints",
+            "mcp__deeppcb__review_placement", "mcp__deeppcb__retrieve_best_board",
+          ] : []),
+        ],
         disallowedTools: ["TodoWrite", "TodoRead", "Task", "WebFetch", "WebSearch", "NotebookEdit", "mcp__sparkbench__RunSimulation", "mcp__sparkbench__StopSimulation"],
         permissionMode: "bypassPermissions" as const,
         allowDangerouslySkipPermissions: true,
         canUseTool: buildPermissionHandler(projectDir),
-        mcpServers: { sparkbench: createSimulationServer(write) },
+        mcpServers: {
+          sparkbench: createSimulationServer(write),
+          ...(process.env.DEEPPCB_API_KEY ? {
+            deeppcb: {
+              type: "sse" as const,
+              url: "https://mcp.deeppcb.ai/agent/tools/sse",
+              headers: {
+                Authorization: `Bearer ${process.env.DEEPPCB_API_KEY}`,
+              },
+            },
+          } : {}),
+        },
         cwd: projectDir,
         maxTurns: 30,
         includePartialMessages: true,

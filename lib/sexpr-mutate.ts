@@ -297,6 +297,8 @@ export function getFootprintCourtyard(fp: List): BBoxRect | null {
   const at = getAt(fp);
   if (!at) return null;
 
+  const rot = at.rotation ?? 0;
+
   // Look for fp_rect on CrtYd layer
   const rects = findChildren(fp, "fp_rect");
   for (const rect of rects) {
@@ -309,11 +311,29 @@ export function getFootprintCourtyard(fp: List): BBoxRect | null {
         const sy = typeof startNode[2] === "number" ? startNode[2] : 0;
         const ex = typeof endNode[1] === "number" ? endNode[1] : 0;
         const ey = typeof endNode[2] === "number" ? endNode[2] : 0;
+
+        // Rotate all 4 corners by footprint rotation, then compute axis-aligned bbox
+        const rad = (rot * Math.PI) / 180;
+        const cos = Math.cos(rad);
+        const sin = Math.sin(rad);
+        const corners = [
+          { x: sx * cos - sy * sin, y: sx * sin + sy * cos },
+          { x: ex * cos - sy * sin, y: ex * sin + sy * cos },
+          { x: ex * cos - ey * sin, y: ex * sin + ey * cos },
+          { x: sx * cos - ey * sin, y: sx * sin + ey * cos },
+        ];
+        let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+        for (const c of corners) {
+          minX = Math.min(minX, c.x);
+          minY = Math.min(minY, c.y);
+          maxX = Math.max(maxX, c.x);
+          maxY = Math.max(maxY, c.y);
+        }
         return {
-          x1: at.x + Math.min(sx, ex),
-          y1: at.y + Math.min(sy, ey),
-          x2: at.x + Math.max(sx, ex),
-          y2: at.y + Math.max(sy, ey),
+          x1: at.x + minX,
+          y1: at.y + minY,
+          x2: at.x + maxX,
+          y2: at.y + maxY,
         };
       }
     }

@@ -1029,7 +1029,7 @@ export default function ProjectPage() {
   }, [handleUndo, handleRedo]);
 
   return (
-    <div style={{ height: "100vh", display: "flex", flexDirection: "column" }}>
+    <div style={{ height: "100vh", display: "flex", flexDirection: "column", overflow: "hidden" }}>
       <Toolbar projectName={slug} onSave={handleSave} onImportWokwi={handleImportWokwi} onExportWokwi={handleExportWokwi} onDownloadZip={handleDownloadZip} onCopyProject={handleCopyProject} lastSaved={lastSaved} dirty={dirty} sparkyOpen={sparkyOpen} onSparkyToggle={() => setSparkyOpen((v) => !v)} />
       <Workbench
         diagram={diagram}

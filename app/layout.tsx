@@ -3,8 +3,8 @@ import "./globals.css";
 import ThemeRegistry from "@/components/ThemeRegistry";
 
 export const metadata: Metadata = {
-  title: "Wokwi Local Simulator",
-  description: "Offline Arduino simulator powered by avr8js",
+  title: "SparkBench",
+  description: "All-in-one hardware development platform powered by Claude Opus 4.6",
 };
 
 export default function RootLayout({

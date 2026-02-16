@@ -3,15 +3,33 @@
 import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { fetchProjects, createProject, saveDiagram, saveSketch, savePCB } from "@/lib/api";
+import type { ProjectMeta } from "@/lib/api";
+import styles from "./Home.module.css";
+
+function timeAgo(iso: string): string {
+  const diff = Date.now() - new Date(iso).getTime();
+  const mins = Math.floor(diff / 60000);
+  if (mins < 1) return "just now";
+  if (mins < 60) return `${mins}m ago`;
+  const hrs = Math.floor(mins / 60);
+  if (hrs < 24) return `${hrs}h ago`;
+  const days = Math.floor(hrs / 24);
+  return `${days}d ago`;
+}
+
+const STACK = [
+  "avr8js", "Next.js 16", "React 19", "Monaco", "Three.js",
+  "KiCanvas", "PlatformIO", "Agent SDK", "MCP",
+];
 
 export default function HomePage() {
   const router = useRouter();
-  const [projects, setProjects] = useState<string[]>([]);
+  const [projects, setProjects] = useState<ProjectMeta[]>([]);
   const [newName, setNewName] = useState("");
   const [creating, setCreating] = useState(false);
   const [error, setError] = useState("");
 
-  // Import ZIP state
+  const [showImport, setShowImport] = useState(false);
   const [importName, setImportName] = useState("");
   const [importFile, setImportFile] = useState<File | null>(null);
   const [importing, setImporting] = useState(false);
@@ -26,14 +44,9 @@ export default function HomePage() {
     if (!newName.trim()) return;
     setCreating(true);
     setError("");
-
     try {
       const data = await createProject(newName.trim());
-      if (data.error) {
-        setError(data.error);
-        setCreating(false);
-        return;
-      }
+      if (data.error) { setError(data.error); setCreating(false); return; }
       router.push(`/projects/${data.slug}`);
     } catch {
       setError("Network error");
@@ -45,252 +58,180 @@ export default function HomePage() {
     if (!importName.trim() || !importFile) return;
     setImporting(true);
     setImportError("");
-
     try {
       const JSZip = (await import("jszip")).default;
       const zip = await JSZip.loadAsync(importFile);
-
-      // Create the project first
       const data = await createProject(importName.trim());
-      if (data.error) {
-        setImportError(data.error);
-        setImporting(false);
-        return;
-      }
+      if (data.error) { setImportError(data.error); setImporting(false); return; }
       const slug = data.slug!;
 
-      // Extract and save diagram.json
       const diagramFile = zip.file("diagram.json");
-      if (diagramFile) {
-        const diagramText = await diagramFile.async("string");
-        await saveDiagram(slug, diagramText);
-      }
+      if (diagramFile) await saveDiagram(slug, await diagramFile.async("string"));
 
-      // Extract and save sketch (try sketch.ino, then any .ino, then main.cpp)
       let sketchFile = zip.file("sketch.ino");
-      if (!sketchFile) {
-        const inoFiles = zip.file(/\.ino$/);
-        if (inoFiles.length > 0) sketchFile = inoFiles[0]!;
-      }
+      if (!sketchFile) { const inos = zip.file(/\.ino$/); if (inos.length > 0) sketchFile = inos[0]!; }
       if (!sketchFile) sketchFile = zip.file("main.cpp");
-      if (sketchFile) {
-        const sketchText = await sketchFile.async("string");
-        await saveSketch(slug, sketchText);
-      }
+      if (sketchFile) await saveSketch(slug, await sketchFile.async("string"));
 
-      // Extract and save PCB if present
       const pcbFile = zip.file("board.kicad_pcb") || zip.file(/\.kicad_pcb$/)[0];
-      if (pcbFile) {
-        const pcbText = await pcbFile.async("string");
-        await savePCB(slug, pcbText);
-      }
+      if (pcbFile) await savePCB(slug, await pcbFile.async("string"));
 
       router.push(`/projects/${slug}`);
     } catch (err) {
-      setImportError(err instanceof Error ? err.message : "Failed to import ZIP");
+      setImportError(err instanceof Error ? err.message : "Failed to import");
       setImporting(false);
     }
   };
 
   return (
-    <div
-      style={{
-        minHeight: "100vh",
-        background: "#111",
-        color: "#e0e0e0",
-        display: "flex",
-        flexDirection: "column",
-        alignItems: "center",
-        paddingTop: 80,
-      }}
-    >
-      {/* Header */}
-      <h1 style={{ fontSize: 36, fontWeight: 700, marginBottom: 8 }}>
-        <span style={{ color: "#f59e0b" }}>Spark</span>Bench
-      </h1>
-      <p style={{ color: "#888", fontSize: 14, marginBottom: 48 }}>
-        Arduino simulator &amp; schematic editor
-      </p>
-
-      {/* New project */}
-      <div
-        style={{
-          background: "#1a1a1a",
-          borderRadius: 12,
-          padding: 32,
-          width: 420,
-          marginBottom: 24,
-        }}
-      >
-        <h2 style={{ fontSize: 16, fontWeight: 600, marginBottom: 16, color: "#ccc" }}>
-          New Project
-        </h2>
-        <div style={{ display: "flex", gap: 8 }}>
-          <input
-            value={newName}
-            onChange={(e) => setNewName(e.target.value)}
-            onKeyDown={(e) => e.key === "Enter" && handleCreate()}
-            placeholder="Project name..."
-            style={{
-              flex: 1,
-              padding: "8px 12px",
-              background: "#252525",
-              border: "1px solid #333",
-              borderRadius: 6,
-              color: "#e0e0e0",
-              fontSize: 14,
-              outline: "none",
-            }}
-          />
-          <button
-            onClick={handleCreate}
-            disabled={creating || !newName.trim()}
-            style={{
-              padding: "8px 20px",
-              background: "#f59e0b",
-              color: "#111",
-              border: "none",
-              borderRadius: 6,
-              fontWeight: 600,
-              fontSize: 14,
-              cursor: creating ? "wait" : "pointer",
-              opacity: !newName.trim() ? 0.5 : 1,
-            }}
-          >
-            {creating ? "Creating..." : "Create"}
-          </button>
-        </div>
-        {error && (
-          <p style={{ color: "#ef4444", fontSize: 13, marginTop: 8 }}>{error}</p>
-        )}
+    <div className={styles.page}>
+      {/* Toolbar */}
+      <div className={styles.header}>
+        <span className={styles.logo}>
+          <span className={styles.logoAccent}>Spark</span>Bench
+        </span>
+        <div className={styles.headerSpacer} />
+        <span className={styles.headerMeta}>v0.1.0</span>
       </div>
 
-      {/* Import ZIP */}
-      <div
-        style={{
-          background: "#1a1a1a",
-          borderRadius: 12,
-          padding: 32,
-          width: 420,
-          marginBottom: 40,
-        }}
-      >
-        <h2 style={{ fontSize: 16, fontWeight: 600, marginBottom: 16, color: "#ccc" }}>
-          Import from ZIP
-        </h2>
-        <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-          <input
-            value={importName}
-            onChange={(e) => setImportName(e.target.value)}
-            placeholder="Project name..."
-            style={{
-              padding: "8px 12px",
-              background: "#252525",
-              border: "1px solid #333",
-              borderRadius: 6,
-              color: "#e0e0e0",
-              fontSize: 14,
-              outline: "none",
-            }}
-          />
-          <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+      {/* Tab bar */}
+      <div className={styles.tabBar}>
+        <div className={`${styles.tab} ${styles.tabActive}`}>projects</div>
+        <div className={styles.tab}>about</div>
+      </div>
+
+      {/* Main */}
+      <div className={styles.main}>
+        <div className={styles.content}>
+          {/* About */}
+          <div className={styles.about}>
+            <div className={styles.aboutTitle}>// what is sparkbench</div>
+            <p>
+              Hardware development platform that combines a code editor, circuit
+              simulator, PCB designer, and AI agent into one tool. Write Arduino
+              firmware, simulate it on a cycle-accurate AVR emulator with real
+              component models, generate KiCAD PCB layouts, and debug with an AI
+              that has full context on your entire embedded project.
+            </p>
+            <div className={styles.aboutTitle}>// under the hood</div>
+            <p>
+              The simulator runs avr8js (ATmega328P emulator at 16MHz) with a custom
+              I2C/SPI/USART bus, GPIO port model, and timer/PWM engine. Components
+              are wired to MCU pins at the register level &mdash; the servo reads
+              real Timer1 ICR pulses, the SSD1306 processes actual I2C transactions,
+              the rotary encoder generates quadrature signals on interrupt pins.
+              SparkBench CI runs these simulations headlessly with YAML test scenarios.
+            </p>
+            <div className={styles.stackRow}>
+              {STACK.map((s) => (
+                <span key={s} className={styles.stackTag}>{s}</span>
+              ))}
+            </div>
+          </div>
+
+          {/* Create row */}
+          <div className={styles.createRow}>
+            <input
+              value={newName}
+              onChange={(e) => setNewName(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && handleCreate()}
+              placeholder="new project name..."
+              className={styles.nameInput}
+            />
             <button
-              onClick={() => fileInputRef.current?.click()}
-              style={{
-                padding: "8px 16px",
-                background: "#252525",
-                border: "1px solid #333",
-                borderRadius: 6,
-                color: "#ccc",
-                fontSize: 13,
-                cursor: "pointer",
-              }}
+              onClick={handleCreate}
+              disabled={creating || !newName.trim()}
+              className={styles.createBtn}
             >
-              {importFile ? importFile.name : "Select ZIP file..."}
+              {creating ? "creating..." : "create"}
+            </button>
+            <button className={styles.importBtn} onClick={() => setShowImport(true)}>
+              import .zip
+            </button>
+          </div>
+          {error && <p className={styles.error}>{error}</p>}
+
+          {/* Guide */}
+          <a href="/projects/demo-guide" className={styles.guideBanner}>
+            <span className={styles.guideLabel}>GUIDE</span>
+            <span className={styles.guideText}>
+              Interactive walkthrough &mdash; code editor, diagram canvas, simulator,
+              PCB editor, 3D viewer, Sparky AI
+            </span>
+            <span className={styles.guideArrow}>&rarr;</span>
+          </a>
+
+          {/* Projects */}
+          <div className={styles.sectionHeader}>
+            <span className={styles.sectionTitle}>projects</span>
+            <span className={styles.projectCount}>{projects.length}</span>
+          </div>
+
+          {projects.length === 0 ? (
+            <div className={styles.emptyState}>no projects yet</div>
+          ) : (
+            <div className={styles.projectList}>
+              {projects.map((p) => (
+                <a key={p.slug} href={`/projects/${p.slug}`} className={styles.projectRow}>
+                  <span className={styles.projectDot} />
+                  <span className={styles.projectName}>{p.slug}</span>
+                  <span className={styles.projectMeta}>
+                    <span>{p.partCount} parts</span>
+                    <span>{p.lineCount} lines</span>
+                    <span>{timeAgo(p.modifiedAt)}</span>
+                  </span>
+                  <span className={styles.projectTags}>
+                    {p.partTypes.map((t) => (
+                      <span key={t} className={styles.partTag}>{t}</span>
+                    ))}
+                  </span>
+                  <span className={styles.badges}>
+                    {p.hasPCB && <span className={`${styles.badge} ${styles.badgePcb}`}>PCB</span>}
+                    {p.hasTests && <span className={`${styles.badge} ${styles.badgeTest}`}>TEST</span>}
+                  </span>
+                </a>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Import modal */}
+      {showImport && (
+        <div className={styles.importOverlay} onClick={() => setShowImport(false)}>
+          <div className={styles.importModal} onClick={(e) => e.stopPropagation()}>
+            <div className={styles.importModalTitle}>import from zip</div>
+            <input
+              value={importName}
+              onChange={(e) => setImportName(e.target.value)}
+              placeholder="project name..."
+              className={styles.nameInput}
+              style={{ width: "100%" }}
+            />
+            <button className={styles.filePickerBtn} onClick={() => fileInputRef.current?.click()}>
+              {importFile ? importFile.name : "select .zip file..."}
             </button>
             <input
               ref={fileInputRef}
               type="file"
               accept=".zip"
               style={{ display: "none" }}
-              onChange={(e) => {
-                setImportFile(e.target.files?.[0] || null);
-                e.target.value = "";
-              }}
+              onChange={(e) => { setImportFile(e.target.files?.[0] || null); e.target.value = ""; }}
             />
-            <button
-              onClick={handleImport}
-              disabled={importing || !importName.trim() || !importFile}
-              style={{
-                padding: "8px 20px",
-                background: "#2563eb",
-                color: "#fff",
-                border: "none",
-                borderRadius: 6,
-                fontWeight: 600,
-                fontSize: 14,
-                cursor: importing ? "wait" : "pointer",
-                opacity: !importName.trim() || !importFile ? 0.5 : 1,
-                marginLeft: "auto",
-              }}
-            >
-              {importing ? "Importing..." : "Import"}
-            </button>
+            {importError && <p className={styles.error}>{importError}</p>}
+            <div className={styles.importModalActions}>
+              <button className={styles.importModalCancel} onClick={() => setShowImport(false)}>cancel</button>
+              <button
+                className={styles.importModalSubmit}
+                disabled={importing || !importName.trim() || !importFile}
+                onClick={handleImport}
+              >
+                {importing ? "importing..." : "import"}
+              </button>
+            </div>
           </div>
         </div>
-        {importError && (
-          <p style={{ color: "#ef4444", fontSize: 13, marginTop: 8 }}>{importError}</p>
-        )}
-      </div>
-
-      {/* Project list */}
-      <div style={{ width: 420 }}>
-        <h2 style={{ fontSize: 16, fontWeight: 600, marginBottom: 12, color: "#ccc" }}>
-          Projects
-        </h2>
-        {projects.length === 0 ? (
-          <p style={{ color: "#666", fontSize: 13 }}>No projects yet</p>
-        ) : (
-          <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-            {projects.map((slug) => (
-              <a
-                key={slug}
-                href={`/projects/${slug}`}
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 12,
-                  padding: "12px 16px",
-                  background: "#1a1a1a",
-                  borderRadius: 8,
-                  color: "#e0e0e0",
-                  textDecoration: "none",
-                  fontSize: 14,
-                  fontWeight: 500,
-                  transition: "background 0.15s",
-                }}
-                onMouseEnter={(e) =>
-                  (e.currentTarget.style.background = "#252525")
-                }
-                onMouseLeave={(e) =>
-                  (e.currentTarget.style.background = "#1a1a1a")
-                }
-              >
-                <span
-                  style={{
-                    width: 8,
-                    height: 8,
-                    borderRadius: "50%",
-                    background: "#f59e0b",
-                    flexShrink: 0,
-                  }}
-                />
-                {slug}
-              </a>
-            ))}
-          </div>
-        )}
-      </div>
+      )}
     </div>
   );
 }

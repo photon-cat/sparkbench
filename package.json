@@ -12,6 +12,7 @@
     "@anthropic-ai/claude-agent-sdk": "^0.2.42",
     "@emotion/react": "^11.14.0",
     "@emotion/styled": "^11.14.1",
+    "@modelcontextprotocol/sdk": "^1.26.0",
     "@monaco-editor/react": "^4.7.0",
     "@mui/icons-material": "^7.3.7",
     "@mui/material": "^7.3.7",

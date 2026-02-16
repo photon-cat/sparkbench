@@ -1,0 +1,266 @@
+{
+  "version": 1,
+  "author": "SparkBench",
+  "editor": "sparkbench",
+  "parts": [
+    {
+      "type": "wokwi-arduino-uno",
+      "id": "uno",
+      "top": 183,
+      "left": 18,
+      "attrs": {}
+    },
+    {
+      "type": "wokwi-led",
+      "id": "led1",
+      "top": 10,
+      "left": 6,
+      "attrs": {
+        "color": "red"
+      }
+    },
+    {
+      "type": "wokwi-led",
+      "id": "led2",
+      "top": 10,
+      "left": 56,
+      "attrs": {
+        "color": "green"
+      }
+    },
+    {
+      "type": "wokwi-led",
+      "id": "led3",
+      "top": 10,
+      "left": 106,
+      "attrs": {
+        "color": "blue"
+      }
+    },
+    {
+      "type": "wokwi-resistor",
+      "id": "r1",
+      "top": 80,
+      "left": 10,
+      "attrs": {
+        "value": "220"
+      }
+    },
+    {
+      "type": "wokwi-resistor",
+      "id": "r2",
+      "top": 80,
+      "left": 60,
+      "attrs": {
+        "value": "220"
+      }
+    },
+    {
+      "type": "wokwi-resistor",
+      "id": "r3",
+      "top": 80,
+      "left": 110,
+      "attrs": {
+        "value": "220"
+      }
+    },
+    {
+      "type": "wokwi-pushbutton",
+      "id": "btn1",
+      "top": 10,
+      "left": 180,
+      "attrs": {
+        "color": "red"
+      }
+    },
+    {
+      "type": "wokwi-potentiometer",
+      "id": "pot1",
+      "top": 10,
+      "left": 280,
+      "attrs": {}
+    },
+    {
+      "type": "wokwi-servo",
+      "id": "servo1",
+      "top": 100,
+      "left": 280,
+      "attrs": {}
+    }
+  ],
+  "connections": [
+    [
+      "uno:13",
+      "r1:1",
+      "orange",
+      [
+        "v-16",
+        "*",
+        "h6"
+      ]
+    ],
+    [
+      "r1:2",
+      "led1:A",
+      "orange",
+      [
+        "v-10",
+        "*",
+        "h0"
+      ]
+    ],
+    [
+      "uno:GND.1",
+      "led1:C",
+      "black",
+      [
+        "v-12",
+        "*",
+        "h-8",
+        "v4"
+      ]
+    ],
+    [
+      "uno:12",
+      "r2:1",
+      "green",
+      [
+        "v-20",
+        "*",
+        "h6"
+      ]
+    ],
+    [
+      "r2:2",
+      "led2:A",
+      "green",
+      [
+        "v-10",
+        "*",
+        "h0"
+      ]
+    ],
+    [
+      "uno:GND.1",
+      "led2:C",
+      "black",
+      [
+        "v-12",
+        "*",
+        "h-8",
+        "v4"
+      ]
+    ],
+    [
+      "uno:11",
+      "r3:1",
+      "blue",
+      [
+        "v-24",
+        "*",
+        "h6"
+      ]
+    ],
+    [
+      "r3:2",
+      "led3:A",
+      "blue",
+      [
+        "v-10",
+        "*",
+        "h0"
+      ]
+    ],
+    [
+      "uno:GND.1",
+      "led3:C",
+      "black",
+      [
+        "v-12",
+        "*",
+        "h-8",
+        "v4"
+      ]
+    ],
+    [
+      "uno:2",
+      "btn1:2.r",
+      "purple",
+      [
+        "v-28",
+        "*",
+        "h10"
+      ]
+    ],
+    [
+      "uno:GND.2",
+      "btn1:1.l",
+      "black",
+      [
+        "v-12",
+        "*",
+        "h-6"
+      ]
+    ],
+    [
+      "uno:A0",
+      "pot1:SIG",
+      "gold",
+      [
+        "v-32",
+        "*",
+        "h0"
+      ]
+    ],
+    [
+      "uno:5V",
+      "pot1:VCC",
+      "red",
+      [
+        "v-36",
+        "*",
+        "h0"
+      ]
+    ],
+    [
+      "uno:GND.3",
+      "pot1:GND",
+      "black",
+      [
+        "v-12",
+        "*",
+        "h0"
+      ]
+    ],
+    [
+      "uno:9",
+      "servo1:PWM",
+      "orange",
+      [
+        "v-40",
+        "*",
+        "h0"
+      ]
+    ],
+    [
+      "uno:5V",
+      "servo1:V+",
+      "red",
+      [
+        "v-36",
+        "*",
+        "h0"
+      ]
+    ],
+    [
+      "uno:GND.3",
+      "servo1:GND",
+      "black",
+      [
+        "v-12",
+        "*",
+        "h0"
+      ]
+    ]
+  ]
+}

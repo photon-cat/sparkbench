@@ -70,6 +70,7 @@ export interface UseKiPCBDragOptions {
     undoStack: SExprUndoStack;
     selectedRef: string | null;
     onTreeChange: (tree: List) => void;
+    onSelectRef?: (ref: string | null) => void;
     canvasElement: HTMLCanvasElement | null;
 }
 
@@ -129,11 +130,20 @@ function distToSegment(px: number, py: number, x1: number, y1: number, x2: numbe
     return Math.hypot(px - (x1 + t * dx), py - (y1 + t * dy));
 }
 
+/** Rotate a local offset (lx,ly) by the footprint rotation (degrees) around its origin. */
+function rotatePoint(lx: number, ly: number, angleDeg: number): { x: number; y: number } {
+    const rad = (angleDeg * Math.PI) / 180;
+    const cos = Math.cos(rad);
+    const sin = Math.sin(rad);
+    return { x: lx * cos - ly * sin, y: lx * sin + ly * cos };
+}
+
 /** Check if a world-space point is near any pad of a footprint. */
 function isNearFootprintPad(fp: List, wx: number, wy: number, threshold: number): boolean {
     const at = getAt(fp);
     if (!at) return false;
 
+    const rot = at.rotation ?? 0;
     const pads = findChildren(fp, "pad");
     for (const pad of pads) {
         const padAt = getAt(pad);
@@ -142,11 +152,50 @@ function isNearFootprintPad(fp: List, wx: number, wy: number, threshold: number)
         const pw = sizeNode && typeof sizeNode[1] === "number" ? sizeNode[1] : 1;
         const ph = sizeNode && typeof sizeNode[2] === "number" ? sizeNode[2] : 1;
         const padRadius = Math.max(pw, ph) / 2 + threshold;
-        const dx = wx - (at.x + padAt.x);
-        const dy = wy - (at.y + padAt.y);
+        // Apply footprint rotation to pad local offset
+        const rp = rotatePoint(padAt.x, padAt.y, rot);
+        const dx = wx - (at.x + rp.x);
+        const dy = wy - (at.y + rp.y);
         if (dx * dx + dy * dy <= padRadius * padRadius) return true;
     }
     return false;
+}
+
+/** Find the footprint whose pad is closest to (wx,wy), within threshold. Returns its ref or null. */
+function findFootprintByPadHit(tree: List, wx: number, wy: number, threshold: number): string | null {
+    const footprints = findChildren(tree, "footprint");
+    let bestDist = threshold * threshold;
+    let bestRef: string | null = null;
+
+    for (const fp of footprints) {
+        const at = getAt(fp);
+        if (!at) continue;
+        const rot = at.rotation ?? 0;
+        const ref = getFootprintRef(fp);
+        if (!ref) continue;
+
+        const pads = findChildren(fp, "pad");
+        for (const pad of pads) {
+            const padAt = getAt(pad);
+            if (!padAt) continue;
+            const sizeNode = findChild(pad, "size");
+            const pw = sizeNode && typeof sizeNode[1] === "number" ? sizeNode[1] : 1;
+            const ph = sizeNode && typeof sizeNode[2] === "number" ? sizeNode[2] : 1;
+            const padRadius = Math.max(pw, ph) / 2;
+            const rp = rotatePoint(padAt.x, padAt.y, rot);
+            const absPadX = at.x + rp.x;
+            const absPadY = at.y + rp.y;
+            const dx = wx - absPadX;
+            const dy = wy - absPadY;
+            const distSq = dx * dx + dy * dy;
+            const hitRadius = padRadius + threshold;
+            if (distSq <= hitRadius * hitRadius && distSq < bestDist) {
+                bestDist = distSq;
+                bestRef = ref;
+            }
+        }
+    }
+    return bestRef;
 }
 
 /** Move all Edge.Cuts gr_line/gr_arc nodes by dx, dy. */
@@ -175,6 +224,7 @@ export function useKiPCBDrag({
     undoStack,
     selectedRef,
     onTreeChange,
+    onSelectRef: onSelectRefCb,
     canvasElement,
 }: UseKiPCBDragOptions) {
     const dragRef = useRef<DragState | null>(null);
@@ -186,6 +236,8 @@ export function useKiPCBDrag({
     selectedRefRef.current = selectedRef;
     const onTreeChangeRef = useRef(onTreeChange);
     onTreeChangeRef.current = onTreeChange;
+    const onSelectRefCbRef = useRef(onSelectRefCb);
+    onSelectRefCbRef.current = onSelectRefCb;
     const undoStackRef = useRef(undoStack);
     undoStackRef.current = undoStack;
 
@@ -223,6 +275,28 @@ export function useKiPCBDrag({
                         dragRef.current = {
                             kind: "footprint",
                             ref: sel,
+                            startX: worldPos.x,
+                            startY: worldPos.y,
+                            origX: at.x,
+                            origY: at.y,
+                        };
+                        return;
+                    }
+                }
+            }
+
+            // Try selecting a different footprint by clicking near any pad
+            const hitRef = findFootprintByPadHit(pcbTreeRef.current, worldPos.x, worldPos.y, 2);
+            if (hitRef && hitRef !== sel) {
+                onSelectRefCbRef.current?.(hitRef);
+                // Also start drag immediately on the newly selected footprint
+                const fp = findFootprintByRef(pcbTreeRef.current, hitRef);
+                if (fp) {
+                    const at = getAt(fp);
+                    if (at) {
+                        dragRef.current = {
+                            kind: "footprint",
+                            ref: hitRef,
                             startX: worldPos.x,
                             startY: worldPos.y,
                             origX: at.x,

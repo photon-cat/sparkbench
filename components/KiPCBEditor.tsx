@@ -79,6 +79,7 @@ interface KiPCBEditorProps {
     onSave?: (text: string) => void;
     onUpdateFromDiagram?: () => void;
     onSaveOutline?: (svgText: string) => void;
+    slug?: string;
 }
 
 export default function KiPCBEditor({
@@ -86,6 +87,7 @@ export default function KiPCBEditor({
     onSave,
     onUpdateFromDiagram,
     onSaveOutline,
+    slug,
 }: KiPCBEditorProps) {
     // Parse initial text into S-expr tree, using empty board if null
     const [pcbTree, setPcbTree] = useState<List>(() =>
@@ -102,6 +104,11 @@ export default function KiPCBEditor({
     // Board outline dimension inputs
     const [outlineWidth, setOutlineWidth] = useState("100");
     const [outlineHeight, setOutlineHeight] = useState("80");
+
+    // DeepPCB autorouter state
+    const [deeppcbStatus, setDeeppcbStatus] = useState<"idle" | "running" | "done" | "error">("idle");
+    const [deeppcbMessage, setDeeppcbMessage] = useState("");
+    const [deeppcbProgress, setDeeppcbProgress] = useState<number | null>(null);
 
     const canvasHandleRef = useRef<KiPCBCanvasHandle>(null);
     const undoStackRef = useRef(new SExprUndoStack());
@@ -134,6 +141,18 @@ export default function KiPCBEditor({
         setPcbTree(newTree);
     }, []);
 
+    // Handle selection by pad click from drag hook
+    const handleSelectByRef = useCallback((ref: string | null) => {
+        setSelectedRef(ref);
+        // Also update selectedItem by finding the footprint in the viewer's board
+        if (ref && canvasHandleRef.current?.viewer?.board) {
+            const fp = canvasHandleRef.current.viewer.board.find_footprint(ref);
+            setSelectedItem(fp ?? null);
+        } else {
+            setSelectedItem(null);
+        }
+    }, []);
+
     // Wire up drag hook
     useKiPCBDrag({
         viewer: canvasHandleRef.current?.viewer ?? null,
@@ -141,6 +160,7 @@ export default function KiPCBEditor({
         undoStack: undoStackRef.current,
         selectedRef,
         onTreeChange: handleTreeChange,
+        onSelectRef: handleSelectByRef,
         canvasElement: canvasHandleRef.current?.canvas ?? null,
     });
 
@@ -204,6 +224,83 @@ export default function KiPCBEditor({
         a.click();
         URL.revokeObjectURL(url);
     }, [pcbTree]);
+
+    // DeepPCB autorouter handler
+    const handleDeepPCBRoute = useCallback(async () => {
+        if (!slug) return;
+        setDeeppcbStatus("running");
+        setDeeppcbMessage("Starting autorouter...");
+        setDeeppcbProgress(null);
+
+        try {
+            // Save current board state first
+            const currentPcb = serializeSExpr(pcbTree);
+            onSave?.(currentPcb);
+
+            const res = await fetch("/api/deeppcb", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ slug }),
+            });
+
+            if (!res.ok && !res.body) {
+                const err = await res.json().catch(() => ({ error: `HTTP ${res.status}` }));
+                throw new Error(err.error || `HTTP ${res.status}`);
+            }
+
+            if (!res.body) throw new Error("No response stream");
+
+            const reader = res.body.getReader();
+            const decoder = new TextDecoder();
+            let buffer = "";
+
+            while (true) {
+                const { done, value } = await reader.read();
+                if (done) break;
+
+                buffer += decoder.decode(value, { stream: true });
+                const lines = buffer.split("\n");
+                buffer = lines.pop() || "";
+
+                for (const line of lines) {
+                    if (!line.trim()) continue;
+                    try {
+                        const event = JSON.parse(line);
+                        switch (event.type) {
+                            case "progress":
+                                setDeeppcbMessage(event.message);
+                                if (event.percent != null) setDeeppcbProgress(event.percent);
+                                break;
+                            case "done":
+                                setDeeppcbStatus("done");
+                                setDeeppcbMessage(event.message);
+                                // Reload the board from server
+                                try {
+                                    const pcbRes = await fetch(`/api/projects/${slug}/pcb`);
+                                    if (pcbRes.ok) {
+                                        const newPcbText = await pcbRes.text();
+                                        const newTree = listify(newPcbText)[0] as List;
+                                        setPcbTree(newTree);
+                                    }
+                                } catch {
+                                    // Board reload failed, user can refresh manually
+                                }
+                                break;
+                            case "error":
+                                setDeeppcbStatus("error");
+                                setDeeppcbMessage(event.message);
+                                break;
+                        }
+                    } catch {
+                        // skip malformed JSON lines
+                    }
+                }
+            }
+        } catch (err: unknown) {
+            setDeeppcbStatus("error");
+            setDeeppcbMessage(err instanceof Error ? err.message : String(err));
+        }
+    }, [slug, pcbTree, onSave]);
 
     // Keyboard shortcuts for tool switching + save
     useEffect(() => {
@@ -434,6 +531,63 @@ export default function KiPCBEditor({
                             Download .kicad_pcb
                         </button>
                     </div>
+
+                    {/* DeepPCB Autorouter */}
+                    {slug && (
+                        <div style={{ marginBottom: 10, borderTop: "1px solid #333", paddingTop: 8 }}>
+                            <div style={{ color: "#888", fontSize: 10, marginBottom: 4 }}>
+                                Autorouter
+                            </div>
+                            <button
+                                onClick={handleDeepPCBRoute}
+                                disabled={deeppcbStatus === "running"}
+                                style={{
+                                    ...btnStyle,
+                                    background: deeppcbStatus === "running" ? "#333" : "#5c2a1a",
+                                    borderColor: deeppcbStatus === "running" ? "#555" : "#8a3a2a",
+                                    cursor: deeppcbStatus === "running" ? "not-allowed" : "pointer",
+                                }}
+                            >
+                                {deeppcbStatus === "running" ? "Routing..." : "Route with DeepPCB"}
+                            </button>
+                            {deeppcbStatus !== "idle" && (
+                                <div
+                                    style={{
+                                        marginTop: 4,
+                                        fontSize: 10,
+                                        color:
+                                            deeppcbStatus === "error"
+                                                ? "#f66"
+                                                : deeppcbStatus === "done"
+                                                  ? "#6f6"
+                                                  : "#aaa",
+                                    }}
+                                >
+                                    {deeppcbMessage}
+                                    {deeppcbProgress != null && (
+                                        <div
+                                            style={{
+                                                marginTop: 2,
+                                                height: 3,
+                                                background: "#333",
+                                                borderRadius: 2,
+                                            }}
+                                        >
+                                            <div
+                                                style={{
+                                                    width: `${deeppcbProgress}%`,
+                                                    height: "100%",
+                                                    background: "#4af",
+                                                    borderRadius: 2,
+                                                    transition: "width 0.3s",
+                                                }}
+                                            />
+                                        </div>
+                                    )}
+                                </div>
+                            )}
+                        </div>
+                    )}
 
                     {/* Cursor position */}
                     <div style={{ marginBottom: 8, borderTop: "1px solid #333", paddingTop: 8 }}>

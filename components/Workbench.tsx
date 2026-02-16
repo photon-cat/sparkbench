@@ -225,6 +225,7 @@ export default function Workbench({
                 onMcuChange={onMcuChange}
                 librariesTxt={librariesTxt}
                 onLibrariesChange={onLibrariesChange}
+                slug={slug}
               />
             }
           />

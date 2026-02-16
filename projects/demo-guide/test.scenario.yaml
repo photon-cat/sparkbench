@@ -1,0 +1,42 @@
+name: Demo Guide - Basic Functionality
+version: 1
+steps:
+  - delay: 500
+
+  # Verify boot message
+  - wait-serial: "SparkBench Demo Guide"
+    timeout: 3000
+
+  # Press button to cycle to pattern 1 (red)
+  - set-control:
+      part-id: btn1
+      control: pressed
+      value: true
+  - delay: 50
+  - set-control:
+      part-id: btn1
+      control: pressed
+      value: false
+  - delay: 200
+  - expect-serial: "Red ON"
+
+  # Press button again for pattern 2 (green)
+  - set-control:
+      part-id: btn1
+      control: pressed
+      value: true
+  - delay: 50
+  - set-control:
+      part-id: btn1
+      control: pressed
+      value: false
+  - delay: 200
+  - expect-serial: "Green ON"
+
+  # Move potentiometer and check servo output
+  - set-control:
+      part-id: pot1
+      control: position
+      value: 0.5
+  - delay: 600
+  - expect-serial: "Servo:"

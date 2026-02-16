@@ -1,0 +1,438 @@
+.page {
+  height: 100vh;
+  background: #1e1e1e;
+  color: #ccc;
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+}
+
+/* ─── Toolbar-style header ─────────────────────────────── */
+
+.header {
+  display: flex;
+  align-items: center;
+  height: 40px;
+  background: #1a1a1a;
+  padding: 0 12px;
+  border-bottom: 1px solid rgba(128, 128, 128, 0.35);
+  flex-shrink: 0;
+}
+
+.logo {
+  font-size: 16px;
+  font-weight: 700;
+  letter-spacing: -0.5px;
+  color: white;
+}
+
+.logoAccent {
+  color: #f59e0b;
+}
+
+.headerSpacer {
+  flex: 1;
+}
+
+.headerMeta {
+  font-size: 11px;
+  color: #666;
+}
+
+/* ─── Tab bar ──────────────────────────────────────────── */
+
+.tabBar {
+  display: flex;
+  align-items: stretch;
+  background: #2a2a2a;
+  height: 32px;
+  border-bottom: 1px solid rgba(128, 128, 128, 0.35);
+  flex-shrink: 0;
+}
+
+.tab {
+  display: flex;
+  align-items: center;
+  padding: 0 16px;
+  font-size: 12px;
+  font-weight: 400;
+  color: #999;
+  background: transparent;
+  border: none;
+  border-right: 1px solid rgba(128, 128, 128, 0.35);
+  cursor: default;
+  white-space: nowrap;
+  height: 100%;
+}
+
+.tabActive {
+  background: #335533;
+  color: white;
+  font-weight: 500;
+}
+
+/* ─── Main content (looks like an editor panel) ────────── */
+
+.main {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  background: #222;
+  overflow-y: auto;
+}
+
+.content {
+  max-width: 860px;
+  width: 100%;
+  margin: 0 auto;
+  padding: 20px 24px 48px;
+}
+
+/* ─── About section ────────────────────────────────────── */
+
+.about {
+  margin-bottom: 24px;
+  font-size: 13px;
+  color: #999;
+  line-height: 1.6;
+  border-bottom: 1px solid #333;
+  padding-bottom: 20px;
+}
+
+.about p {
+  margin-bottom: 8px;
+}
+
+.aboutTitle {
+  font-size: 13px;
+  font-weight: 500;
+  color: #ccc;
+  margin-bottom: 8px;
+  font-family: "Cascadia Code", "Fira Code", Consolas, monospace;
+}
+
+.stackRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.stackTag {
+  padding: 2px 8px;
+  background: #2a2a2a;
+  border: 1px solid #3a3a3a;
+  border-radius: 3px;
+  font-size: 11px;
+  color: #aaa;
+  font-family: "Cascadia Code", "Fira Code", Consolas, monospace;
+}
+
+/* ─── Create / Import row ──────────────────────────────── */
+
+.createRow {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 20px;
+  align-items: center;
+}
+
+.nameInput {
+  padding: 5px 10px;
+  background: #1a1a1a;
+  border: 1px solid #555;
+  border-radius: 4px;
+  color: #e0e0e0;
+  font-size: 13px;
+  font-family: inherit;
+  outline: none;
+  width: 240px;
+  height: 28px;
+}
+
+.nameInput:focus {
+  border-color: #f59e0b;
+}
+
+.createBtn {
+  padding: 0 14px;
+  background: #335533;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  height: 28px;
+  font-family: inherit;
+}
+
+.createBtn:hover {
+  background: #446644;
+}
+
+.createBtn:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.importBtn {
+  padding: 0 10px;
+  background: #333;
+  color: #ccc;
+  border: 1px solid #555;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 500;
+  cursor: pointer;
+  height: 28px;
+  font-family: inherit;
+}
+
+.importBtn:hover {
+  background: #444;
+  color: #fff;
+}
+
+.error {
+  color: #f44336;
+  font-size: 12px;
+  margin-top: 4px;
+}
+
+/* ─── Guide banner ─────────────────────────────────────── */
+
+.guideBanner {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: #252526;
+  border: 1px solid #3a3a3a;
+  border-left: 3px solid #f59e0b;
+  padding: 10px 14px;
+  margin-bottom: 16px;
+  text-decoration: none;
+  color: inherit;
+  font-size: 12px;
+}
+
+.guideBanner:hover {
+  background: #2a2a2a;
+}
+
+.guideLabel {
+  font-weight: 600;
+  color: #f59e0b;
+  font-size: 11px;
+  font-family: "Cascadia Code", "Fira Code", Consolas, monospace;
+  flex-shrink: 0;
+}
+
+.guideText {
+  color: #999;
+  font-size: 12px;
+}
+
+.guideArrow {
+  color: #555;
+  margin-left: auto;
+  flex-shrink: 0;
+}
+
+/* ─── Section headers ──────────────────────────────────── */
+
+.sectionHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+  padding-bottom: 6px;
+  border-bottom: 1px solid #333;
+}
+
+.sectionTitle {
+  font-size: 12px;
+  font-weight: 500;
+  color: #888;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  font-family: "Cascadia Code", "Fira Code", Consolas, monospace;
+}
+
+.projectCount {
+  font-size: 11px;
+  color: #555;
+  font-family: "Cascadia Code", "Fira Code", Consolas, monospace;
+}
+
+/* ─── Project list (table-like rows, not cards) ────────── */
+
+.projectList {
+  display: flex;
+  flex-direction: column;
+}
+
+.projectRow {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 10px;
+  text-decoration: none;
+  color: inherit;
+  border-bottom: 1px solid #2a2a2a;
+  font-size: 12px;
+}
+
+.projectRow:hover {
+  background: #252526;
+}
+
+.projectDot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #f59e0b;
+  flex-shrink: 0;
+}
+
+.projectName {
+  font-weight: 500;
+  color: #e0e0e0;
+  min-width: 160px;
+  font-family: "Cascadia Code", "Fira Code", Consolas, monospace;
+  font-size: 12px;
+}
+
+.projectMeta {
+  display: flex;
+  gap: 16px;
+  font-size: 11px;
+  color: #666;
+  font-family: "Cascadia Code", "Fira Code", Consolas, monospace;
+  flex-shrink: 0;
+}
+
+.projectTags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  flex: 1;
+}
+
+.partTag {
+  padding: 1px 6px;
+  background: #2a2a2a;
+  border: 1px solid #333;
+  border-radius: 3px;
+  font-size: 10px;
+  color: #888;
+  font-family: "Cascadia Code", "Fira Code", Consolas, monospace;
+}
+
+.badges {
+  display: flex;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+.badge {
+  padding: 1px 6px;
+  border-radius: 3px;
+  font-size: 10px;
+  font-weight: 600;
+  font-family: "Cascadia Code", "Fira Code", Consolas, monospace;
+}
+
+.badgePcb {
+  background: #1a2e1a;
+  color: #4caf50;
+  border: 1px solid #2e4a2e;
+}
+
+.badgeTest {
+  background: #1a1a2e;
+  color: #7c7cff;
+  border: 1px solid #2e2e4a;
+}
+
+.emptyState {
+  color: #555;
+  font-size: 12px;
+  padding: 24px 0;
+  font-family: "Cascadia Code", "Fira Code", Consolas, monospace;
+}
+
+/* ─── Import modal ─────────────────────────────────────── */
+
+.importOverlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100;
+}
+
+.importModal {
+  background: #252526;
+  border: 1px solid #555;
+  padding: 16px 20px;
+  width: 380px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.importModalTitle {
+  font-size: 13px;
+  font-weight: 600;
+  color: #ccc;
+}
+
+.importModalActions {
+  display: flex;
+  gap: 6px;
+  justify-content: flex-end;
+  margin-top: 4px;
+}
+
+.importModalCancel {
+  padding: 4px 12px;
+  background: #333;
+  border: 1px solid #555;
+  border-radius: 4px;
+  color: #999;
+  font-size: 12px;
+  cursor: pointer;
+  font-family: inherit;
+}
+
+.importModalSubmit {
+  padding: 4px 14px;
+  background: #335533;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  font-weight: 500;
+  font-size: 12px;
+  cursor: pointer;
+  font-family: inherit;
+}
+
+.importModalSubmit:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.filePickerBtn {
+  padding: 5px 10px;
+  background: #1a1a1a;
+  border: 1px solid #555;
+  border-radius: 4px;
+  color: #ccc;
+  font-size: 12px;
+  cursor: pointer;
+  text-align: left;
+  font-family: inherit;
+}

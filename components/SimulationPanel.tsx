@@ -74,6 +74,7 @@ interface SimulationPanelProps {
   onMcuChange?: (id: string) => void;
   librariesTxt?: string;
   onLibrariesChange?: (text: string) => void;
+  slug?: string;
 }
 
 export default function SimulationPanel({
@@ -115,6 +116,7 @@ export default function SimulationPanel({
   onMcuChange,
   librariesTxt,
   onLibrariesChange,
+  slug,
 }: SimulationPanelProps) {
   const [activeTab, setActiveTab] = useState("simulation");
   const [activeTool, setActiveTool] = useState<ToolType>("cursor");
@@ -229,17 +231,30 @@ export default function SimulationPanel({
               />
             </div>
 
-            {/* Part attribute panel */}
-            {selectedPartId && diagram && (
-              <PartAttributePanel
-                part={diagram.parts.find((p) => p.id === selectedPartId) ?? null}
-                wiredComponent={wiredComponents.get(selectedPartId) ?? null}
-                onAttrChange={(attr, value) => onPartAttrChange(selectedPartId, attr, value)}
-                onRotate={(angle) => onPartRotate(selectedPartId, angle)}
-                onDelete={() => onDeletePart(selectedPartId)}
-                onClose={() => onPartSelect(null)}
-              />
-            )}
+            {/* Part attribute panel — hide for non-interactive parts while sim is running */}
+            {selectedPartId && diagram && (() => {
+              const part = diagram.parts.find((p) => p.id === selectedPartId) ?? null;
+              const simRunning = status === "running" || status === "paused";
+              // Parts with runtime-changeable values (sensors, analog inputs, etc.)
+              const RUNTIME_INTERACTIVE_TYPES = new Set([
+                "wokwi-dht22", "wokwi-mpu6050", "wokwi-ds18b20",
+                "wokwi-potentiometer", "wokwi-slide-potentiometer",
+                "wokwi-analog-joystick", "wokwi-temperature-sensor",
+                "wokwi-hx711", "wokwi-ntc-temperature-sensor",
+                "wokwi-pir-motion-sensor", "wokwi-clock-generator",
+              ]);
+              const showPanel = !simRunning || (part && RUNTIME_INTERACTIVE_TYPES.has(part.type));
+              return showPanel ? (
+                <PartAttributePanel
+                  part={part}
+                  wiredComponent={wiredComponents.get(selectedPartId) ?? null}
+                  onAttrChange={(attr, value) => onPartAttrChange(selectedPartId, attr, value)}
+                  onRotate={(angle) => onPartRotate(selectedPartId, angle)}
+                  onDelete={() => onDeletePart(selectedPartId)}
+                  onClose={() => onPartSelect(null)}
+                />
+              ) : null;
+            })()}
 
             {/* Wire attribute panel */}
             {selectedConnectionIdx !== null && !selectedPartId && diagram && diagram.connections[selectedConnectionIdx] && (
@@ -258,6 +273,7 @@ export default function SimulationPanel({
               onSave={onPcbSave}
               onUpdateFromDiagram={onUpdateFromDiagram}
               onSaveOutline={onSaveOutline}
+              slug={slug}
             />
         ) : activeTab === "pcb3d" ? (
           <PCB3DViewer pcbText={pcbText} />
