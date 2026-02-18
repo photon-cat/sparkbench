@@ -1,44 +1,53 @@
 import { NextResponse } from "next/server";
-import { readFile, readdir, writeFile, unlink } from "fs/promises";
-import { existsSync } from "fs";
-import path from "path";
-
-const PROJECTS_DIR = path.join(process.cwd(), "projects");
+import { eq } from "drizzle-orm";
+import { db } from "@/lib/db";
+import { projects } from "@/lib/db/schema";
+import { uploadFile, downloadFile, deleteFile, listProjectFiles } from "@/lib/storage";
 
 export async function GET(
   _request: Request,
-  { params }: { params: Promise<{ slug: string }> }
+  { params }: { params: Promise<{ slug: string }> },
 ) {
   try {
     const { slug } = await params;
 
-    // Validate slug (prevent path traversal)
     if (!/^[a-zA-Z0-9_-]+$/.test(slug)) {
       return NextResponse.json(
         { error: "Invalid project slug" },
-        { status: 400 }
+        { status: 400 },
       );
     }
 
-    const projectDir = path.join(PROJECTS_DIR, slug);
-    if (!existsSync(projectDir)) {
+    const rows = await db
+      .select({ id: projects.id })
+      .from(projects)
+      .where(eq(projects.slug, slug))
+      .limit(1);
+
+    if (rows.length === 0) {
       return NextResponse.json(
         { error: `Project "${slug}" not found` },
-        { status: 404 }
+        { status: 404 },
       );
     }
 
-    // Read main sketch
-    const sketchPath = path.join(projectDir, "sketch.ino");
-    const sketch = await readFile(sketchPath, "utf-8");
+    const project = rows[0];
 
-    // Read any extra source files (.h, .cpp, .c) in the project directory
+    // Read main sketch
+    const sketch = (await downloadFile(project.id, "sketch.ino")) || "";
+
+    // Read extra source files (.h, .cpp, .c)
+    const allFiles = await listProjectFiles(project.id);
     const files: { name: string; content: string }[] = [];
-    const entries = await readdir(projectDir);
-    for (const entry of entries) {
-      if (entry !== "sketch.ino" && (entry.endsWith(".h") || entry.endsWith(".cpp") || entry.endsWith(".c"))) {
-        const content = await readFile(path.join(projectDir, entry), "utf-8");
-        files.push({ name: entry, content });
+    for (const name of allFiles) {
+      if (
+        name !== "sketch.ino" &&
+        (name.endsWith(".h") || name.endsWith(".cpp") || name.endsWith(".c"))
+      ) {
+        const content = await downloadFile(project.id, name);
+        if (content !== null) {
+          files.push({ name, content });
+        }
       }
     }
 
@@ -47,14 +56,14 @@ export async function GET(
     const message = err instanceof Error ? err.message : String(err);
     return NextResponse.json(
       { error: `Failed to read sketch: ${message}` },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }
 
 export async function PUT(
   request: Request,
-  { params }: { params: Promise<{ slug: string }> }
+  { params }: { params: Promise<{ slug: string }> },
 ) {
   try {
     const { slug } = await params;
@@ -62,42 +71,75 @@ export async function PUT(
     if (!/^[a-zA-Z0-9_-]+$/.test(slug)) {
       return NextResponse.json(
         { error: "Invalid project slug" },
-        { status: 400 }
+        { status: 400 },
       );
     }
 
-    const projectDir = path.join(PROJECTS_DIR, slug);
-    if (!existsSync(projectDir)) {
+    const rows = await db
+      .select({ id: projects.id, fileManifest: projects.fileManifest })
+      .from(projects)
+      .where(eq(projects.slug, slug))
+      .limit(1);
+
+    if (rows.length === 0) {
       return NextResponse.json(
         { error: `Project "${slug}" not found` },
-        { status: 404 }
+        { status: 404 },
       );
     }
 
+    const project = rows[0];
     const { sketch, files } = await request.json();
-    await writeFile(path.join(projectDir, "sketch.ino"), sketch, "utf-8");
 
-    // Save project files (e.g. .h files) if provided
+    // Upload main sketch
+    await uploadFile(project.id, "sketch.ino", sketch);
+
     if (Array.isArray(files)) {
-      // Get existing extra files to detect deletions
-      const entries = await readdir(projectDir);
-      const existingExtra = new Set(entries.filter((e) => e.endsWith(".h") || e.endsWith(".cpp") || e.endsWith(".c")));
-      const newFileNames = new Set(files.map((f: { name: string }) => f.name));
+      // Get existing extra files
+      const allFiles = await listProjectFiles(project.id);
+      const existingExtra = new Set(
+        allFiles.filter(
+          (e) => e.endsWith(".h") || e.endsWith(".cpp") || e.endsWith(".c"),
+        ),
+      );
+      const newFileNames = new Set(
+        files.map((f: { name: string }) => f.name),
+      );
 
       // Delete removed files
       for (const old of existingExtra) {
         if (!newFileNames.has(old)) {
-          await unlink(path.join(projectDir, old));
+          await deleteFile(project.id, old);
         }
       }
 
       // Write current files
       for (const f of files as { name: string; content: string }[]) {
-        // Validate filename (prevent path traversal)
         if (/^[a-zA-Z0-9_.-]+$/.test(f.name)) {
-          await writeFile(path.join(projectDir, f.name), f.content, "utf-8");
+          await uploadFile(project.id, f.name, f.content);
         }
       }
+
+      // Update file manifest
+      const currentManifest = (project.fileManifest as string[]) || [];
+      const manifestSet = new Set(currentManifest);
+      manifestSet.add("sketch.ino");
+      for (const old of existingExtra) {
+        if (!newFileNames.has(old)) manifestSet.delete(old);
+      }
+      for (const f of files as { name: string }[]) {
+        if (/^[a-zA-Z0-9_.-]+$/.test(f.name)) manifestSet.add(f.name);
+      }
+
+      await db
+        .update(projects)
+        .set({ fileManifest: Array.from(manifestSet), updatedAt: new Date() })
+        .where(eq(projects.id, project.id));
+    } else {
+      await db
+        .update(projects)
+        .set({ updatedAt: new Date() })
+        .where(eq(projects.id, project.id));
     }
 
     return NextResponse.json({ success: true });
@@ -105,7 +147,7 @@ export async function PUT(
     const message = err instanceof Error ? err.message : String(err);
     return NextResponse.json(
       { error: `Failed to save sketch: ${message}` },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }

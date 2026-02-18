@@ -1,9 +1,8 @@
 import { NextResponse } from "next/server";
-import { readFile, writeFile, stat } from "fs/promises";
-import { existsSync } from "fs";
-import path from "path";
-
-const PROJECTS_DIR = path.join(process.cwd(), "projects");
+import { eq } from "drizzle-orm";
+import { db } from "@/lib/db";
+import { projects } from "@/lib/db/schema";
+import { uploadFile, downloadFile } from "@/lib/storage";
 
 export async function GET(
   _request: Request,
@@ -19,20 +18,27 @@ export async function GET(
       );
     }
 
-    const pcbPath = path.join(PROJECTS_DIR, slug, "board.kicad_pcb");
-    if (!existsSync(pcbPath)) {
+    const rows = await db
+      .select({ id: projects.id, updatedAt: projects.updatedAt })
+      .from(projects)
+      .where(eq(projects.slug, slug))
+      .limit(1);
+
+    if (rows.length === 0) {
       return new NextResponse(null, { status: 404 });
     }
 
-    const [content, fileStat] = await Promise.all([
-      readFile(pcbPath, "utf-8"),
-      stat(pcbPath),
-    ]);
+    const project = rows[0];
+    const content = await downloadFile(project.id, "board.kicad_pcb");
+
+    if (content === null) {
+      return new NextResponse(null, { status: 404 });
+    }
 
     return new NextResponse(content, {
       headers: {
         "Content-Type": "text/plain; charset=utf-8",
-        "X-Last-Modified": fileStat.mtime.toISOString(),
+        "X-Last-Modified": project.updatedAt.toISOString(),
       },
     });
   } catch (err) {
@@ -58,16 +64,31 @@ export async function PUT(
       );
     }
 
-    const projectDir = path.join(PROJECTS_DIR, slug);
-    if (!existsSync(projectDir)) {
+    const rows = await db
+      .select({ id: projects.id, fileManifest: projects.fileManifest })
+      .from(projects)
+      .where(eq(projects.slug, slug))
+      .limit(1);
+
+    if (rows.length === 0) {
       return NextResponse.json(
         { error: `Project "${slug}" not found` },
         { status: 404 },
       );
     }
 
+    const project = rows[0];
     const body = await request.text();
-    await writeFile(path.join(projectDir, "board.kicad_pcb"), body, "utf-8");
+
+    await uploadFile(project.id, "board.kicad_pcb", body);
+
+    // Update manifest
+    const manifest = new Set((project.fileManifest as string[]) || []);
+    manifest.add("board.kicad_pcb");
+    await db
+      .update(projects)
+      .set({ fileManifest: Array.from(manifest), updatedAt: new Date() })
+      .where(eq(projects.id, project.id));
 
     return NextResponse.json({ success: true });
   } catch (err) {

@@ -6,39 +6,21 @@ import { parseDiagram } from "@/lib/diagram-parser";
 import { extractNetlist } from "@/lib/netlist";
 import { initPCBFromSchematic } from "@/lib/pcb-parser";
 import { getFootprintForType, generateFootprintByType } from "@/lib/pcb-footprints";
+import { eq } from "drizzle-orm";
+import { db } from "@/lib/db";
+import { projects } from "@/lib/db/schema";
+import { downloadFile, uploadFile, listProjectFiles } from "@/lib/storage";
 import {
   mkdirSync,
   readFileSync,
   existsSync,
   writeFileSync,
   realpathSync,
+  statSync,
 } from "fs";
+import { readdir, readFile, stat } from "fs/promises";
 import { join, resolve } from "path";
-
-const PROJECTS_DIR = join(process.cwd(), "projects");
-const DATA_DIR = join(process.cwd(), "data");
-const SESSIONS_FILE = join(DATA_DIR, "sessions.json");
-
-mkdirSync(DATA_DIR, { recursive: true });
-
-// --- Session Persistence ---
-
-function loadSessions(): Map<string, string> {
-  if (!existsSync(SESSIONS_FILE)) return new Map();
-  try {
-    const data = JSON.parse(readFileSync(SESSIONS_FILE, "utf-8"));
-    return new Map(Object.entries(data));
-  } catch {
-    return new Map();
-  }
-}
-
-function saveSessions(): void {
-  const obj = Object.fromEntries(sessions);
-  writeFileSync(SESSIONS_FILE, JSON.stringify(obj, null, 2));
-}
-
-const sessions = loadSessions();
+import os from "os";
 
 const SYSTEM_PROMPT = buildSystemPrompt();
 
@@ -48,12 +30,10 @@ const SYSTEM_PROMPT = buildSystemPrompt();
 function isInsideDir(dir: string, target: string): boolean {
   try {
     const resolved = resolve(dir, target);
-    // Also resolve symlinks when possible
     let real: string;
     try {
       real = realpathSync(resolved);
     } catch {
-      // File may not exist yet — use the resolved path
       real = resolved;
     }
     return real === dir || real.startsWith(dir + "/");
@@ -72,10 +52,8 @@ function extractPaths(toolName: string, input: Record<string, unknown>): string[
     case "Glob":
     case "Grep":
       return input.path ? [String(input.path)] : [];
-    case "Bash": {
-      // We validate commands separately
+    case "Bash":
       return [];
-    }
     default:
       return [];
   }
@@ -83,25 +61,25 @@ function extractPaths(toolName: string, input: Record<string, unknown>): string[
 
 /** Dangerous patterns for bash commands */
 const BASH_BLOCKED_PATTERNS = [
-  /\.\.\//,                // path traversal
-  /(?:^|\s|[;&|])cd\s/,   // cd command
-  /(?:^|\s|[;&|])rm\s+-rf?\s+\//,  // rm on absolute paths
-  /(?:^|\s|[;&|])curl\s/,  // network access
+  /\.\.\//,
+  /(?:^|\s|[;&|])cd\s/,
+  /(?:^|\s|[;&|])rm\s+-rf?\s+\//,
+  /(?:^|\s|[;&|])curl\s/,
   /(?:^|\s|[;&|])wget\s/,
   /(?:^|\s|[;&|])nc\s/,
   /(?:^|\s|[;&|])ssh\s/,
   /(?:^|\s|[;&|])scp\s/,
-  /(?:^|\s|[;&|])python/,  // script interpreters
+  /(?:^|\s|[;&|])python/,
   /(?:^|\s|[;&|])node\s/,
   /(?:^|\s|[;&|])env\s/,
   /(?:^|\s|[;&|])export\s/,
   /(?:^|\s|[;&|])eval\s/,
   /(?:^|\s|[;&|])exec\s/,
   /(?:^|\s|[;&|])source\s/,
-  />\s*\//,                // redirect to absolute path
+  />\s*\//,
   /(?:^|\s|[;&|])chmod\s/,
   /(?:^|\s|[;&|])chown\s/,
-  /(?:^|\s|[;&|])ln\s/,   // symlink creation
+  /(?:^|\s|[;&|])ln\s/,
   /(?:^|\s|[;&|])mkfifo\s/,
   /(?:^|\s|[;&|])mount\s/,
 ];
@@ -124,20 +102,17 @@ const BASH_ALLOWED_PREFIXES = [
 function isBashCommandAllowed(command: string, projectDir: string): { allowed: boolean; reason?: string } {
   const trimmed = command.trim();
 
-  // Block any command with dangerous patterns
   for (const pattern of BASH_BLOCKED_PATTERNS) {
     if (pattern.test(trimmed)) {
       return { allowed: false, reason: `Blocked pattern: ${pattern}` };
     }
   }
 
-  // Check command starts with an allowed prefix
   const hasAllowed = BASH_ALLOWED_PREFIXES.some(p => trimmed.startsWith(p));
   if (!hasAllowed) {
     return { allowed: false, reason: `Command not in allowlist. Allowed prefixes: ${BASH_ALLOWED_PREFIXES.join(", ")}` };
   }
 
-  // Block any absolute paths outside projectDir
   const absolutePaths = trimmed.match(/\/[\w\/.+-]+/g) || [];
   for (const p of absolutePaths) {
     if (!isInsideDir(projectDir, p)) {
@@ -154,7 +129,6 @@ function buildPermissionHandler(projectDir: string) {
     toolName: string,
     input: Record<string, unknown>,
   ): Promise<PermissionResult> => {
-    // Validate file paths for Read/Write/Edit/Glob/Grep
     const paths = extractPaths(toolName, input);
     for (const p of paths) {
       if (!isInsideDir(projectDir, p)) {
@@ -166,7 +140,6 @@ function buildPermissionHandler(projectDir: string) {
       }
     }
 
-    // Validate Bash commands
     if (toolName === "Bash") {
       const command = String(input.command || "");
       const check = isBashCommandAllowed(command, projectDir);
@@ -219,7 +192,6 @@ function createSimulationServer(write: (data: Record<string, any>) => void) {
             const boardSize = diagram.boardSize;
             const violations: string[] = [];
 
-            // Check for parts without footprints
             for (const part of diagram.parts) {
               const hasRegistry = !!getFootprintForType(part.type);
               const hasInstance = !!part.footprint;
@@ -228,7 +200,6 @@ function createSimulationServer(write: (data: Record<string, any>) => void) {
               }
             }
 
-            // Check for parts without pcbX/pcbY
             for (const part of diagram.parts) {
               if (part.pcbX === undefined || part.pcbY === undefined) {
                 const hasFootprint = !!getFootprintForType(part.type) || !!part.footprint;
@@ -240,7 +211,6 @@ function createSimulationServer(write: (data: Record<string, any>) => void) {
 
             const pcb = initPCBFromSchematic(diagram, netlist, undefined, boardSize);
 
-            // Check courtyard overlaps between all pairs
             for (let i = 0; i < pcb.footprints.length; i++) {
               const a = pcb.footprints[i];
               if (!a.courtyard) continue;
@@ -262,7 +232,6 @@ function createSimulationServer(write: (data: Record<string, any>) => void) {
                 }
               }
 
-              // Check within board outline
               const bw = pcb.boardOutline.vertices[1]?.x ?? 100;
               const bh = pcb.boardOutline.vertices[2]?.y ?? 80;
               if (ax1 < 0 || ay1 < 0 || ax2 > bw || ay2 > bh) {
@@ -359,6 +328,53 @@ function displayToolName(name: string): string {
   }
 }
 
+/** Download project files from MinIO to a temp directory for agent use */
+async function setupTempDir(projectId: string, slug: string): Promise<string> {
+  const tmpDir = join(os.tmpdir(), `sparkbench-${slug}-${Date.now()}`);
+  mkdirSync(tmpDir, { recursive: true });
+
+  const files = await listProjectFiles(projectId);
+  for (const filename of files) {
+    const content = await downloadFile(projectId, filename);
+    if (content !== null) {
+      const filePath = join(tmpDir, filename);
+      // Ensure parent dir exists for nested paths
+      mkdirSync(join(tmpDir, ...filename.split("/").slice(0, -1)), { recursive: true });
+      writeFileSync(filePath, content);
+    }
+  }
+
+  return tmpDir;
+}
+
+/** Sync changed files from temp dir back to MinIO */
+async function syncTempDirToStorage(
+  projectId: string,
+  tmpDir: string,
+  originalFiles: Set<string>,
+): Promise<string[]> {
+  const changedFiles: string[] = [];
+
+  async function walkDir(dir: string, prefix: string = ""): Promise<void> {
+    const entries = await readdir(dir, { withFileTypes: true });
+    for (const entry of entries) {
+      const fullPath = join(dir, entry.name);
+      const relativePath = prefix ? `${prefix}/${entry.name}` : entry.name;
+
+      if (entry.isDirectory()) {
+        await walkDir(fullPath, relativePath);
+      } else {
+        const content = await readFile(fullPath, "utf-8");
+        await uploadFile(projectId, relativePath, content);
+        changedFiles.push(relativePath);
+      }
+    }
+  }
+
+  await walkDir(tmpDir);
+  return changedFiles;
+}
+
 export async function POST(request: Request) {
   const body = await request.json();
   const { message, slug, context } = body as {
@@ -377,10 +393,23 @@ export async function POST(request: Request) {
     return Response.json({ error: "message and slug are required" }, { status: 400 });
   }
 
-  const projectDir = join(PROJECTS_DIR, slug);
-  mkdirSync(projectDir, { recursive: true });
+  // Look up project in DB
+  const rows = await db
+    .select()
+    .from(projects)
+    .where(eq(projects.slug, slug))
+    .limit(1);
 
-  const existingSession = sessions.get(slug);
+  if (rows.length === 0) {
+    return Response.json({ error: "Project not found" }, { status: 404 });
+  }
+
+  const project = rows[0];
+
+  // Set up temp dir with project files from MinIO
+  const tmpDir = await setupTempDir(project.id, slug);
+
+  const existingSession = project.agentSessionId || undefined;
 
   // Build context section from current project state
   let contextSection = "";
@@ -411,7 +440,7 @@ export async function POST(request: Request) {
   let projectInstructions: string;
   if (hasExistingFiles) {
     projectInstructions = `CRITICAL RULES FOR THIS REQUEST:
-- This is an EXISTING project. The files already exist in ${projectDir}.
+- This is an EXISTING project. The files already exist in ${tmpDir}.
 - NEVER overwrite diagram.json or sketch.ino with a blank/new version.
 - To modify diagram.json: use the Edit tool to change specific parts/connections, or Read it first then Write the complete updated version that PRESERVES all existing parts and connections.
 - To modify sketch.ino: use the Edit tool for targeted changes.
@@ -426,13 +455,16 @@ export async function POST(request: Request) {
     ? message
     : `The user says: "${message}"
 
-Project directory: ${projectDir}
+Project directory: ${tmpDir}
 Project slug: ${slug}
 Sketch filename: sketch.ino
 
 ${projectInstructions}${contextSection}`;
 
   const encoder = new TextEncoder();
+
+  // Track original files for sync
+  const originalFiles = new Set(await listProjectFiles(project.id));
 
   const stream = new ReadableStream({
     async start(controller) {
@@ -447,12 +479,10 @@ ${projectInstructions}${contextSection}`;
         allowedTools: [
           "Read", "Write", "Edit", "Bash", "Glob", "Grep",
           "mcp__sparkbench__CheckFloorplan", "mcp__sparkbench__SetBoardSize", "mcp__sparkbench__UpdatePCB",
-          // DeepPCB tools are auto-discovered; allow all from that server
           ...(process.env.DEEPPCB_API_KEY ? [
             "mcp__deeppcb__extract_constraints", "mcp__deeppcb__validate_constraints",
             "mcp__deeppcb__start_placement", "mcp__deeppcb__start_routing",
             "mcp__deeppcb__check_status", "mcp__deeppcb__get_best_board",
-            // Also allow any tool name pattern the server may expose
             "mcp__deeppcb__derive_placement_constraints", "mcp__deeppcb__validate_placement_constraints",
             "mcp__deeppcb__review_placement", "mcp__deeppcb__retrieve_best_board",
           ] : []),
@@ -460,7 +490,7 @@ ${projectInstructions}${contextSection}`;
         disallowedTools: ["TodoWrite", "TodoRead", "Task", "WebFetch", "WebSearch", "NotebookEdit", "mcp__sparkbench__RunSimulation", "mcp__sparkbench__StopSimulation"],
         permissionMode: "bypassPermissions" as const,
         allowDangerouslySkipPermissions: true,
-        canUseTool: buildPermissionHandler(projectDir),
+        canUseTool: buildPermissionHandler(tmpDir),
         mcpServers: {
           sparkbench: createSimulationServer(write),
           ...(process.env.DEEPPCB_API_KEY ? {
@@ -473,7 +503,7 @@ ${projectInstructions}${contextSection}`;
             },
           } : {}),
         },
-        cwd: projectDir,
+        cwd: tmpDir,
         maxTurns: 30,
         includePartialMessages: true,
         ...(resumeId ? { resume: resumeId } : {}),
@@ -498,8 +528,11 @@ ${projectInstructions}${contextSection}`;
         for await (const msg of q) {
           // Capture/update session ID
           if ("session_id" in msg && (msg as any).session_id) {
-            sessions.set(slug, (msg as any).session_id);
-            saveSessions();
+            const sessionId = (msg as any).session_id;
+            await db
+              .update(projects)
+              .set({ agentSessionId: sessionId })
+              .where(eq(projects.id, project.id));
           }
 
           switch (msg.type) {
@@ -551,8 +584,10 @@ ${projectInstructions}${contextSection}`;
         // If resume failed, clear the stale session and retry fresh
         if (existingSession) {
           console.warn(`[sparky] Resume failed for ${slug}, starting fresh: ${err.message}`);
-          sessions.delete(slug);
-          saveSessions();
+          await db
+            .update(projects)
+            .set({ agentSessionId: null })
+            .where(eq(projects.id, project.id));
           try {
             await runQuery();
           } catch (retryErr: any) {
@@ -562,6 +597,40 @@ ${projectInstructions}${contextSection}`;
           write({ type: "error", message: err.message });
         }
       } finally {
+        // Sync changed files from temp dir back to MinIO
+        try {
+          const changedFiles = await syncTempDirToStorage(project.id, tmpDir, originalFiles);
+
+          // Update file manifest and diagram JSON in DB if changed
+          if (changedFiles.length > 0) {
+            const allFiles = await listProjectFiles(project.id);
+            const updates: Record<string, any> = {
+              fileManifest: allFiles,
+              updatedAt: new Date(),
+            };
+
+            // If diagram.json was changed, update the DB column too
+            if (changedFiles.includes("diagram.json")) {
+              const diagramContent = await downloadFile(project.id, "diagram.json");
+              if (diagramContent) {
+                try {
+                  updates.diagramJson = JSON.parse(diagramContent);
+                } catch { /* ignore parse errors */ }
+              }
+            }
+
+            await db
+              .update(projects)
+              .set(updates)
+              .where(eq(projects.id, project.id));
+          }
+        } catch (syncErr) {
+          console.error("[sparky] Failed to sync files back to MinIO:", syncErr);
+        }
+
+        // Clean up temp dir (fire and forget)
+        import("fs/promises").then(fs => fs.rm(tmpDir, { recursive: true, force: true })).catch(() => {});
+
         controller.close();
       }
     },

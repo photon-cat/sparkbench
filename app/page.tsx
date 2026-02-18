@@ -4,6 +4,7 @@ import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { fetchProjects, createProject, saveDiagram, saveSketch, savePCB } from "@/lib/api";
 import type { ProjectMeta } from "@/lib/api";
+import AuthButton from "@/components/AuthButton";
 import styles from "./Home.module.css";
 
 function timeAgo(iso: string): string {
@@ -91,7 +92,8 @@ export default function HomePage() {
           <span className={styles.logoAccent}>Spark</span>Bench
         </span>
         <div className={styles.headerSpacer} />
-        <span className={styles.headerMeta}>v0.1.0</span>
+        <AuthButton />
+        <span className={styles.headerMeta} style={{ marginLeft: 12 }}>v0.1.0</span>
       </div>
 
       {/* Tab bar */}

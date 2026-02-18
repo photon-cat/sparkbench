@@ -3,6 +3,11 @@ import { execFile } from "child_process";
 import { writeFile, readFile, mkdir, rm } from "fs/promises";
 import path from "path";
 import os from "os";
+import { eq } from "drizzle-orm";
+import { nanoid } from "nanoid";
+import { db } from "@/lib/db";
+import { projects, builds } from "@/lib/db/schema";
+import { uploadFile } from "@/lib/storage";
 
 const PIO_CMD = path.join(os.homedir(), ".platformio/penv/bin/platformio");
 const BUILD_DIR = path.join(process.cwd(), "_build");
@@ -130,18 +135,33 @@ function detectLibsFromSource(source: string): string[] {
 
 export async function POST(
   request: NextRequest,
-  { params }: { params: Promise<{ slug: string }> }
+  { params }: { params: Promise<{ slug: string }> },
 ) {
   try {
     const { slug } = await params;
 
-    // Validate slug (prevent path traversal)
     if (!/^[a-zA-Z0-9_-]+$/.test(slug)) {
       return NextResponse.json(
         { success: false, error: "Invalid project slug" },
-        { status: 400 }
+        { status: 400 },
       );
     }
+
+    // Look up project in DB
+    const rows = await db
+      .select({ id: projects.id })
+      .from(projects)
+      .where(eq(projects.slug, slug))
+      .limit(1);
+
+    if (rows.length === 0) {
+      return NextResponse.json(
+        { success: false, error: "Project not found" },
+        { status: 404 },
+      );
+    }
+
+    const project = rows[0];
 
     const data = await request.json();
     const board = data.board || "uno";
@@ -164,7 +184,6 @@ export async function POST(
       "adafruit/DHT sensor library@^1.4.6",
       "adafruit/Adafruit Unified Sensor@^1.1.14",
     ];
-    // Merge: base + detected from #include + explicit from libraries.txt (deduplicate)
     const seen = new Set(baseLibDeps.map((l) => l.toLowerCase()));
     const allLibDeps = [...baseLibDeps];
     for (const lib of [...detectedLibs, ...extraLibs]) {
@@ -218,7 +237,7 @@ ${libDepsStr}
     if (!sketch) {
       return NextResponse.json(
         { success: false, error: "No source code provided" },
-        { status: 400 }
+        { status: 400 },
       );
     }
 
@@ -232,6 +251,9 @@ ${libDepsStr}
 
     // Write main source
     await writeFile(path.join(srcDir, "main.cpp"), sketch);
+
+    // Create build record
+    const buildId = nanoid(10);
 
     // Compile with PlatformIO
     const result = await new Promise<{
@@ -249,11 +271,21 @@ ${libDepsStr}
             stdout: stdout || "",
             stderr: stderr || "",
           });
-        }
+        },
       );
     });
 
     if (result.code !== 0) {
+      // Record failed build
+      await db.insert(builds).values({
+        id: buildId,
+        projectId: project.id,
+        status: "error",
+        board,
+        stdout: result.stdout,
+        stderr: result.stderr,
+      });
+
       return NextResponse.json({
         success: false,
         error: result.stderr || "Compilation failed",
@@ -266,6 +298,21 @@ ${libDepsStr}
     const hexPath = path.join(BUILD_DIR, ".pio", "build", board, "firmware.hex");
     const hex = await readFile(hexPath, "utf-8");
 
+    // Upload firmware.hex to MinIO
+    const hexKey = `builds/${buildId}/firmware.hex`;
+    await uploadFile(project.id, hexKey, hex);
+
+    // Record successful build
+    await db.insert(builds).values({
+      id: buildId,
+      projectId: project.id,
+      status: "success",
+      board,
+      hexKey,
+      stdout: result.stdout,
+      stderr: result.stderr,
+    });
+
     return NextResponse.json({
       success: true,
       firmware: "firmware.hex",
@@ -277,7 +324,7 @@ ${libDepsStr}
     const message = err instanceof Error ? err.message : String(err);
     return NextResponse.json(
       { success: false, error: message },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }

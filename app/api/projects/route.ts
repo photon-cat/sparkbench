@@ -1,11 +1,12 @@
 import { NextResponse } from "next/server";
-import { readdir, mkdir, writeFile, readFile, stat } from "fs/promises";
-import { existsSync } from "fs";
-import path from "path";
+import { eq, desc } from "drizzle-orm";
+import { db } from "@/lib/db";
+import { projects } from "@/lib/db/schema";
+import { generateProjectId } from "@/lib/db/projects";
+import { uploadFile, downloadFile } from "@/lib/storage";
+import { getServerSession } from "@/lib/auth-middleware";
 
 export const dynamic = "force-dynamic";
-
-const PROJECTS_DIR = path.join(process.cwd(), "projects");
 
 interface ProjectMeta {
   slug: string;
@@ -17,22 +18,16 @@ interface ProjectMeta {
   modifiedAt: string;
 }
 
-async function getProjectMeta(slug: string): Promise<ProjectMeta> {
-  const dir = path.join(PROJECTS_DIR, slug);
+function extractMeta(
+  project: typeof projects.$inferSelect,
+): ProjectMeta {
   let partCount = 0;
   let partTypes: string[] = [];
-  let lineCount = 0;
-  let hasPCB = false;
-  let hasTests = false;
-  let modifiedAt = new Date().toISOString();
 
-  try {
-    const diagramPath = path.join(dir, "diagram.json");
-    const raw = await readFile(diagramPath, "utf-8");
-    const diagram = JSON.parse(raw);
-    const parts = diagram.parts || [];
+  const diagram = project.diagramJson as any;
+  if (diagram?.parts) {
+    const parts = diagram.parts;
     partCount = parts.length;
-    // Get unique part types, strip wokwi-/board- prefix for display
     const typeSet = new Set<string>();
     for (const p of parts) {
       const t = (p.type || "")
@@ -44,39 +39,42 @@ async function getProjectMeta(slug: string): Promise<ProjectMeta> {
       }
     }
     partTypes = Array.from(typeSet).slice(0, 6);
+  }
 
-    const s = await stat(diagramPath);
-    modifiedAt = s.mtime.toISOString();
-  } catch { /* ignore */ }
+  const manifest = (project.fileManifest as string[]) || [];
+  const hasPCB = manifest.includes("board.kicad_pcb");
+  const hasTests = manifest.includes("test.scenario.yaml");
 
-  try {
-    const sketch = await readFile(path.join(dir, "sketch.ino"), "utf-8");
-    lineCount = sketch.split("\n").length;
-  } catch { /* ignore */ }
-
-  hasPCB = existsSync(path.join(dir, "board.kicad_pcb"));
-  hasTests = existsSync(path.join(dir, "test.scenario.yaml"));
-
-  return { slug, partCount, partTypes, lineCount, hasPCB, hasTests, modifiedAt };
+  return {
+    slug: project.slug,
+    partCount,
+    partTypes,
+    lineCount: 0, // computed lazily if needed
+    hasPCB,
+    hasTests,
+    modifiedAt: project.updatedAt.toISOString(),
+  };
 }
 
 export async function GET() {
   try {
-    if (!existsSync(PROJECTS_DIR)) {
-      return NextResponse.json([]);
+    const rows = await db
+      .select()
+      .from(projects)
+      .orderBy(desc(projects.updatedAt));
+
+    const metas: ProjectMeta[] = [];
+    for (const row of rows) {
+      const meta = extractMeta(row);
+      // Fetch sketch line count from MinIO
+      const sketch = await downloadFile(row.id, "sketch.ino");
+      if (sketch) {
+        meta.lineCount = sketch.split("\n").length;
+      }
+      metas.push(meta);
     }
 
-    const entries = await readdir(PROJECTS_DIR, { withFileTypes: true });
-    const slugs = entries
-      .filter((e) => e.isDirectory())
-      .map((e) => e.name);
-
-    const projects = await Promise.all(slugs.map(getProjectMeta));
-
-    // Sort by modified date, newest first
-    projects.sort((a, b) => new Date(b.modifiedAt).getTime() - new Date(a.modifiedAt).getTime());
-
-    return NextResponse.json(projects);
+    return NextResponse.json(metas);
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     return NextResponse.json(
@@ -122,7 +120,6 @@ export async function POST(request: Request) {
       );
     }
 
-    // Slugify: lowercase, replace spaces/special chars with hyphens
     const slug = name
       .toLowerCase()
       .replace(/[^a-z0-9]+/g, "-")
@@ -135,25 +132,43 @@ export async function POST(request: Request) {
       );
     }
 
-    const projectDir = path.join(PROJECTS_DIR, slug);
-    if (existsSync(projectDir)) {
+    // Check slug uniqueness
+    const existing = await db
+      .select({ id: projects.id })
+      .from(projects)
+      .where(eq(projects.slug, slug))
+      .limit(1);
+
+    if (existing.length > 0) {
       return NextResponse.json(
         { error: "Project already exists" },
         { status: 409 },
       );
     }
 
-    await mkdir(projectDir, { recursive: true });
-    await writeFile(
-      path.join(projectDir, "sketch.ino"),
-      DEFAULT_SKETCH,
-      "utf-8",
-    );
-    await writeFile(
-      path.join(projectDir, "diagram.json"),
-      JSON.stringify(DEFAULT_DIAGRAM, null, 2),
-      "utf-8",
-    );
+    // Get owner from session (optional — unauthenticated users can create projects)
+    let ownerId: string | null = null;
+    try {
+      const session = await getServerSession();
+      if (session?.user) ownerId = session.user.id;
+    } catch { /* unauthenticated is fine */ }
+
+    const id = generateProjectId();
+    const diagramStr = JSON.stringify(DEFAULT_DIAGRAM, null, 2);
+
+    // Insert DB row
+    await db.insert(projects).values({
+      id,
+      slug,
+      ownerId,
+      title: name,
+      diagramJson: DEFAULT_DIAGRAM,
+      fileManifest: ["sketch.ino", "diagram.json"],
+    });
+
+    // Upload default files to MinIO
+    await uploadFile(id, "sketch.ino", DEFAULT_SKETCH);
+    await uploadFile(id, "diagram.json", diagramStr);
 
     return NextResponse.json({ slug });
   } catch (err) {
