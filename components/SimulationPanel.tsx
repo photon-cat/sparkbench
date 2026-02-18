@@ -284,7 +284,14 @@ export default function SimulationPanel({
           />
         ) : null}
       </div>
-      <SerialMonitor output={serialOutput} visible={activeTab === "simulation" && (status === "running" || status === "paused" || status === "error")} />
+      <SerialMonitor
+        output={serialOutput}
+        visible={activeTab === "simulation" && (status === "running" || status === "paused" || status === "error")}
+        isError={status === "error"}
+        onDebugWithSparky={(errorText) => {
+          window.dispatchEvent(new CustomEvent("sparkbench:debug-with-sparky", { detail: errorText }));
+        }}
+      />
     </div>
   );
 }

@@ -72,6 +72,8 @@ interface WorkbenchProps {
   onSimStop?: () => void;
   pendingReview?: FileSnapshot | null;
   currentSnapshot?: FileSnapshot | null;
+  initialMessage?: string | null;
+  onInitialMessageConsumed?: () => void;
 }
 
 export default function Workbench({
@@ -134,6 +136,8 @@ export default function Workbench({
   onSimStop,
   pendingReview,
   currentSnapshot,
+  initialMessage,
+  onInitialMessageConsumed,
 }: WorkbenchProps) {
   const [chatWidth, setChatWidth] = useState(400);
   const dividerRef = useRef<{ startX: number; startWidth: number } | null>(null);
@@ -252,6 +256,8 @@ export default function Workbench({
                 onUpdatePCB={onUpdateFromDiagram}
                 pendingReview={pendingReview}
                 currentSnapshot={currentSnapshot}
+                initialMessage={initialMessage}
+                onInitialMessageConsumed={onInitialMessageConsumed}
               />
             </div>
           </>

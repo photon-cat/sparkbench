@@ -1,0 +1,283 @@
+{
+  "version": 1,
+  "author": "",
+  "editor": "wokwi",
+  "parts": [
+    {
+      "type": "wokwi-arduino-uno",
+      "id": "uno",
+      "top": 259.7999999999993,
+      "left": 239.39999999999964,
+      "attrs": {}
+    },
+    {
+      "type": "wokwi-led",
+      "id": "led1",
+      "top": 82.79999999999927,
+      "left": 263,
+      "attrs": {
+        "color": "red"
+      }
+    },
+    {
+      "type": "wokwi-led",
+      "id": "led7",
+      "top": 82.79999999999927,
+      "left": 541.3999999999996,
+      "attrs": {
+        "color": "blue"
+      }
+    },
+    {
+      "type": "wokwi-led",
+      "id": "led9",
+      "top": 178.79999999999927,
+      "left": 541.3999999999996,
+      "attrs": {
+        "color": "yellow"
+      }
+    },
+    {
+      "type": "wokwi-led",
+      "id": "led10",
+      "top": 169.1999999999989,
+      "left": 263,
+      "attrs": {
+        "color": "green"
+      }
+    },
+    {
+      "type": "wokwi-pushbutton",
+      "id": "btn4",
+      "top": 0,
+      "left": 0,
+      "attrs": {}
+    },
+    {
+      "type": "wokwi-pushbutton",
+      "id": "btn8",
+      "top": 0,
+      "left": 0,
+      "attrs": {}
+    },
+    {
+      "type": "wokwi-pushbutton",
+      "id": "btn12",
+      "top": 0,
+      "left": 0,
+      "attrs": {}
+    },
+    {
+      "type": "wokwi-pushbutton",
+      "id": "btn16",
+      "top": 0,
+      "left": 0,
+      "attrs": {}
+    },
+    {
+      "type": "wokwi-buzzer",
+      "id": "buzzer4",
+      "top": 0,
+      "left": 0,
+      "attrs": {}
+    }
+  ],
+  "connections": [
+    [
+      "led1:C",
+      "uno:GND.1",
+      "black",
+      [
+        "v10",
+        "h-38",
+        "v154",
+        "h115"
+      ]
+    ],
+    [
+      "led10:C",
+      "uno:GND.1",
+      "black",
+      [
+        "h-38",
+        "v77",
+        "h10",
+        "h106"
+      ]
+    ],
+    [
+      "led7:C",
+      "uno:GND.1",
+      "black",
+      [
+        "v10",
+        "h-9",
+        "v154",
+        "h-192"
+      ]
+    ],
+    [
+      "led9:C",
+      "uno:GND.1",
+      "black",
+      [
+        "v29",
+        "h-9",
+        "v38",
+        "h-192"
+      ]
+    ],
+    [
+      "led1:A",
+      "uno:12",
+      "red",
+      [
+        "v38",
+        "h-38",
+        "v134",
+        "h125",
+        "v-29"
+      ]
+    ],
+    [
+      "led10:A",
+      "uno:11",
+      "green",
+      [
+        "v96",
+        "h96",
+        "v-38"
+      ]
+    ],
+    [
+      "btn1:2.r",
+      "uno:5",
+      "red",
+      [
+        "h67",
+        "v144",
+        "h6"
+      ]
+    ],
+    [
+      "btn1:1.l",
+      "uno:GND.1",
+      "black",
+      [
+        "v-29",
+        "h-48",
+        "h-19",
+        "v211",
+        "h10",
+        "h106"
+      ]
+    ],
+    [
+      "btn5:1.l",
+      "uno:GND.1",
+      "black",
+      [
+        "v-19",
+        "h-67",
+        "v115",
+        "h115"
+      ]
+    ],
+    [
+      "btn9:2.r",
+      "uno:GND.1",
+      "black",
+      [
+        "v10",
+        "h10",
+        "v154",
+        "h-192"
+      ]
+    ],
+    [
+      "btn13:2.r",
+      "uno:GND.1",
+      "black",
+      [
+        "h10",
+        "v67",
+        "h-192"
+      ]
+    ],
+    [
+      "btn13:1.l",
+      "uno:2",
+      "yellow",
+      [
+        "h-10",
+        "v48",
+        "h20",
+        "v19",
+        "h-4"
+      ]
+    ],
+    [
+      "led9:A",
+      "uno:9",
+      "yellow",
+      [
+        "v77",
+        "h-163",
+        "v-29"
+      ]
+    ],
+    [
+      "led7:A",
+      "uno:10",
+      "blue",
+      [
+        "v38",
+        "h29",
+        "v144",
+        "h-202",
+        "v-38"
+      ]
+    ],
+    [
+      "btn9:1.l",
+      "uno:3",
+      "blue",
+      [
+        "h-19",
+        "v67",
+        "v86",
+        "h19",
+        "v10",
+        "h-4"
+      ]
+    ],
+    [
+      "btn5:2.r",
+      "uno:4",
+      "green",
+      [
+        "v29",
+        "h67",
+        "v29"
+      ]
+    ],
+    [
+      "buzzer1:2",
+      "uno:8",
+      "purple",
+      [
+        "v-40",
+        "h-155"
+      ]
+    ],
+    [
+      "buzzer1:1",
+      "uno:GND.1",
+      "black",
+      [
+        "v-69",
+        "h-223"
+      ]
+    ]
+  ]
+}

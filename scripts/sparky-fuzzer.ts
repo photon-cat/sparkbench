@@ -209,13 +209,42 @@ steps:
   - <scenario steps that demonstrate the vulnerability>
 \`\`\`
 
-IMPORTANT:
+IMPORTANT TIMING RULES:
 - Each scenario must be independently runnable
-- Use wait-serial with appropriate timeouts
+- After wait-serial for the boot message, ALWAYS add \`delay: 1500\` to let setup() finish
+- For encoder button presses: use \`pressed: 1\`, then \`delay: 100\`, then \`pressed: 0\`, then \`delay: 500\` (the firmware has 200ms debounce)
+- For encoder rotation BEFORE a button press: use \`rotate-cw: N\` or \`rotate-ccw: N\`, then \`delay: 200\`
+- After a failed combo attempt (all 3 digits entered wrong), the firmware does \`delay(1000)\` + resetSafe, so add \`delay: 2000\` before the next attempt
+- For send-serial: add \`delay: 500\` BEFORE sending to ensure the firmware's loop() is processing serial input
+- Use wait-serial with appropriate timeouts (5000ms minimum for operations involving OLED flush)
 - The scenario must produce OBSERVABLE EVIDENCE of the vulnerability
 - For timing attacks: use clear-serial before each attempt and check elapsed time in serial output
 - For overflow bugs: demonstrate the counter wrapping
-- For backdoors: send the trigger and check for leaked data`;
+- For backdoors: send the trigger and check for leaked data
+- Generate ONE scenario per vulnerability — do NOT combine multiple exploits into one scenario
+- For send-serial commands that require a response: add \`delay: 500\` before sending, then use \`wait-serial\` with 5000ms timeout
+
+## Reference: Working button press pattern for encoder
+\`\`\`yaml
+# Rotate encoder to value 7, then press button to confirm
+- set-control:
+    part-id: encoder1
+    control: rotate-cw
+    value: 7
+- delay: 200
+- set-control:
+    part-id: encoder1
+    control: pressed
+    value: 1
+- delay: 100
+- set-control:
+    part-id: encoder1
+    control: pressed
+    value: 0
+- delay: 500
+- wait-serial: "[input] Digit 1 = 7"
+  timeout: 3000
+\`\`\``;
 
 // ─── Main ──────────────────────────────────────────────────
 async function main() {

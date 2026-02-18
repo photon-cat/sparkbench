@@ -48,3 +48,7 @@ wokwi-integrations/
 # Project runtime artifacts
 projects/*/build/
 projects/*/sparky-chats.json
+
+# Video submission assets
+submission/
+privatedocs/

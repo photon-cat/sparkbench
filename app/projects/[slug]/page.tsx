@@ -67,6 +67,7 @@ export default function ProjectPage() {
   const [mcuTarget, setMcuTarget] = useState<string | undefined>(undefined);
   const [mcuOptions, setMcuOptions] = useState<{ id: string; label: string }[]>([]);
   const [sparkyOpen, setSparkyOpen] = useState(false);
+  const [sparkyInitialMessage, setSparkyInitialMessage] = useState<string | null>(null);
   const [librariesTxt, setLibrariesTxt] = useState("");
   const [pendingReview, setPendingReview] = useState<FileSnapshot | null>(null);
 
@@ -168,6 +169,17 @@ export default function ProjectPage() {
     handleResume,
     handleRestart,
   } = useSimulation({ slug, diagram, sketchCode, projectFiles, board: mcuBoardId, librariesTxt });
+
+  // Listen for "Debug with Sparky" events from compilation errors
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const errorText = (e as CustomEvent).detail as string;
+      setSparkyInitialMessage(`Debug this build error:\n\n${errorText}`);
+      setSparkyOpen(true);
+    };
+    window.addEventListener("sparkbench:debug-with-sparky", handler);
+    return () => window.removeEventListener("sparkbench:debug-with-sparky", handler);
+  }, []);
 
   // Load diagram and sketch on mount (or when slug changes)
   useEffect(() => {
@@ -1091,6 +1103,8 @@ export default function ProjectPage() {
         onSimStop={handleStop}
         pendingReview={pendingReview}
         currentSnapshot={pendingReview ? currentSnapshot : null}
+        initialMessage={sparkyInitialMessage}
+        onInitialMessageConsumed={() => setSparkyInitialMessage(null)}
       />
     </div>
   );

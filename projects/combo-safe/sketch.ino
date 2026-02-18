@@ -1,5 +1,5 @@
 // ============================================================
-//  COMBO SAFE — SparkBench Security Demo
+//  COMBO SAFE - SparkBench Security Demo
 // ============================================================
 //
 //  A 3-digit combination safe using a rotary encoder and
@@ -10,10 +10,10 @@
 //  demonstrating SparkBench-CI's SparkyFuzzer:
 //
 //  [VULN 1] Timing side-channel in combo verification
-//           — each correct digit adds a measurable delay
-//  [VULN 2] Lockout counter uses uint8_t — overflows at 255
+//           - each correct digit adds a measurable delay
+//  [VULN 2] Lockout counter uses uint8_t - overflows at 255
 //           attempts, resetting the lockout
-//  [VULN 3] Serial debug backdoor — sending "DEBUG" over
+//  [VULN 3] Serial debug backdoor - sending "DEBUG" over
 //           serial dumps internal state including the combo
 //
 // ============================================================
@@ -256,7 +256,7 @@ bool checkCombo() {
   for (int i = 0; i < 3; i++) {
     if (enteredDigits[i] != SECRET_COMBO[i]) {
       unsigned long elapsed = millis() - startTime;
-      Serial.print("[check] WRONG combo — elapsed ");
+      Serial.print("[check] WRONG combo - elapsed ");
       Serial.print(elapsed);
       Serial.println("ms");
       return false;
@@ -265,7 +265,7 @@ bool checkCombo() {
   }
 
   unsigned long elapsed = millis() - startTime;
-  Serial.print("[check] CORRECT combo — elapsed ");
+  Serial.print("[check] CORRECT combo - elapsed ");
   Serial.print(elapsed);
   Serial.println("ms");
   return true;
@@ -309,7 +309,7 @@ void resetSafe() {
   }
 }
 
-// [VULN 3] Debug backdoor — "DEBUG" over serial leaks combo
+// [VULN 3] Debug backdoor - "DEBUG" over serial leaks combo
 void processSerialInput() {
   while (Serial.available()) {
     char c = Serial.read();

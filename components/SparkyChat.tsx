@@ -55,6 +55,8 @@ interface SparkyChatProps {
   onUpdatePCB?: () => void;
   pendingReview?: FileSnapshot | null;
   currentSnapshot?: FileSnapshot | null;
+  initialMessage?: string | null;
+  onInitialMessageConsumed?: () => void;
 }
 
 const SUGGESTIONS = [
@@ -270,6 +272,8 @@ export default function SparkyChat({
   onUpdatePCB,
   pendingReview,
   currentSnapshot,
+  initialMessage,
+  onInitialMessageConsumed,
 }: SparkyChatProps) {
   const [chats, setChats] = useState<ChatSession[]>([]);
   const [activeChatId, setActiveChatId] = useState<string | null>(null);
@@ -323,6 +327,14 @@ export default function SparkyChat({
       inputRef.current?.focus();
     }
   }, [open, streaming, showHistory]);
+
+  // Auto-send initial message (e.g., from "Debug with Sparky" button)
+  useEffect(() => {
+    if (initialMessage && open && !streaming) {
+      sendMessage(initialMessage);
+      onInitialMessageConsumed?.();
+    }
+  }, [initialMessage, open]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const startNewChat = useCallback(() => {
     const newChat: ChatSession = {

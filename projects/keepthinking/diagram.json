@@ -1,0 +1,50 @@
+{
+  "version": 1,
+  "author": "SparkBench",
+  "editor": "wokwi",
+  "parts": [
+    { "type": "wokwi-arduino-uno", "id": "uno", "top": 220, "left": 20, "attrs": {} },
+    { "type": "board-ssd1306", "id": "oled", "top": -60, "left": 0, "attrs": {} },
+    { "type": "wokwi-74hc595", "id": "sr", "top": 80, "left": 180, "attrs": {} },
+    { "type": "wokwi-led", "id": "led0", "top": -10, "left": 180, "attrs": { "color": "orange" } },
+    { "type": "wokwi-led", "id": "led1", "top": -10, "left": 210, "attrs": { "color": "orange" } },
+    { "type": "wokwi-led", "id": "led2", "top": -10, "left": 240, "attrs": { "color": "orange" } },
+    { "type": "wokwi-led", "id": "led3", "top": -10, "left": 270, "attrs": { "color": "orange" } },
+    { "type": "wokwi-led", "id": "led4", "top": -10, "left": 300, "attrs": { "color": "orange" } },
+    { "type": "wokwi-led", "id": "led5", "top": -10, "left": 330, "attrs": { "color": "orange" } },
+    { "type": "wokwi-led", "id": "led6", "top": -10, "left": 360, "attrs": { "color": "orange" } },
+    { "type": "wokwi-led", "id": "led7", "top": -10, "left": 390, "attrs": { "color": "orange" } }
+  ],
+  "connections": [
+    ["uno:4", "sr:DS", "blue", ["v-16", "*", "h0"]],
+    ["uno:3", "sr:SHCP", "green", ["v-20", "*", "h0"]],
+    ["uno:2", "sr:STCP", "orange", ["v-24", "*", "h0"]],
+    ["uno:5V", "sr:VCC", "red", ["v-28", "*", "h0"]],
+    ["uno:GND.1", "sr:GND", "black", ["v-12", "*", "h0"]],
+    ["uno:GND.1", "sr:OE", "black", ["v-12", "*", "h0"]],
+    ["uno:5V", "sr:MR", "red", ["v-28", "*", "h0"]],
+
+    ["sr:Q0", "led0:A", "orange", ["v-8", "*", "h0"]],
+    ["sr:Q1", "led1:A", "orange", ["v-8", "*", "h0"]],
+    ["sr:Q2", "led2:A", "orange", ["v-8", "*", "h0"]],
+    ["sr:Q3", "led3:A", "orange", ["v-8", "*", "h0"]],
+    ["sr:Q4", "led4:A", "orange", ["v-8", "*", "h0"]],
+    ["sr:Q5", "led5:A", "orange", ["v-8", "*", "h0"]],
+    ["sr:Q6", "led6:A", "orange", ["v-8", "*", "h0"]],
+    ["sr:Q7", "led7:A", "orange", ["v-8", "*", "h0"]],
+
+    ["uno:GND.2", "led0:C", "black", ["v-12", "*", "h0"]],
+    ["uno:GND.2", "led1:C", "black", ["v-12", "*", "h0"]],
+    ["uno:GND.2", "led2:C", "black", ["v-12", "*", "h0"]],
+    ["uno:GND.2", "led3:C", "black", ["v-12", "*", "h0"]],
+    ["uno:GND.3", "led4:C", "black", ["v-12", "*", "h0"]],
+    ["uno:GND.3", "led5:C", "black", ["v-12", "*", "h0"]],
+    ["uno:GND.3", "led6:C", "black", ["v-12", "*", "h0"]],
+    ["uno:GND.3", "led7:C", "black", ["v-12", "*", "h0"]],
+
+    ["uno:A4", "oled:DATA", "purple", ["v-32", "*", "h0"]],
+    ["uno:A5", "oled:CLK", "gold", ["v-36", "*", "h0"]],
+    ["uno:5V", "oled:VIN", "red", ["v-28", "*", "h0"]],
+    ["uno:GND.1", "oled:GND", "black", ["v-12", "*", "h0"]]
+  ]
+}
