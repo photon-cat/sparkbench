@@ -40,7 +40,7 @@ export interface FileSnapshot {
 interface SparkyChatProps {
   open: boolean;
   onToggle: () => void;
-  slug: string;
+  projectId: string;
   diagramJson: string;
   sketchCode: string;
   pcbText: string | null;
@@ -257,7 +257,7 @@ function DiffReview({
 export default function SparkyChat({
   open,
   onToggle,
-  slug,
+  projectId,
   diagramJson,
   sketchCode,
   pcbText,
@@ -279,6 +279,7 @@ export default function SparkyChat({
   const [activeChatId, setActiveChatId] = useState<string | null>(null);
   const [showHistory, setShowHistory] = useState(false);
   const [input, setInput] = useState("");
+  const [selectedModel, setSelectedModel] = useState("claude-sonnet-4-6");
   const [streaming, setStreaming] = useState(false);
   const [loaded, setLoaded] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -290,8 +291,8 @@ export default function SparkyChat({
 
   // Load chats from server on mount
   useEffect(() => {
-    if (!slug) return;
-    fetch(`/api/projects/${slug}/chats`)
+    if (!projectId) return;
+    fetch(`/api/projects/${projectId}/chats`)
       .then((res) => res.json())
       .then((data) => {
         const loaded = data.chats || [];
@@ -305,16 +306,16 @@ export default function SparkyChat({
         setLoaded(true);
       })
       .catch(() => setLoaded(true));
-  }, [slug]);
+  }, [projectId]);
 
   // Save chats to server
   const saveChats = useCallback((updatedChats: ChatSession[]) => {
-    fetch(`/api/projects/${slug}/chats`, {
+    fetch(`/api/projects/${projectId}/chats`, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ chats: updatedChats }),
     }).catch((err) => console.error("Failed to save chats:", err));
-  }, [slug]);
+  }, [projectId]);
 
   // Auto-scroll to bottom
   useEffect(() => {
@@ -423,7 +424,8 @@ export default function SparkyChat({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           message: text.trim(),
-          slug,
+          projectId,
+          model: selectedModel,
           context: { diagramJson, sketchCode, pcbText, librariesTxt, files: projectFiles },
         }),
         signal: controller.signal,
@@ -542,7 +544,7 @@ export default function SparkyChat({
         return prev;
       });
     }
-  }, [streaming, activeChatId, chats, slug, diagramJson, sketchCode, pcbText, librariesTxt, projectFiles, onProjectChanged, onChangesReady, onSimStart, onSimStop, onUpdatePCB, saveChats]);
+  }, [streaming, activeChatId, chats, projectId, selectedModel, diagramJson, sketchCode, pcbText, librariesTxt, projectFiles, onProjectChanged, onChangesReady, onSimStart, onSimStop, onUpdatePCB, saveChats]);
 
   const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
     if (e.key === "Enter" && !e.shiftKey) {
@@ -682,6 +684,18 @@ export default function SparkyChat({
 
                 {/* Input */}
                 <div className={styles.inputArea}>
+                  <div className={styles.modelRow}>
+                    <select
+                      className={styles.modelSelect}
+                      value={selectedModel}
+                      onChange={(e) => setSelectedModel(e.target.value)}
+                      disabled={streaming}
+                    >
+                      <option value="claude-haiku-4-5-20251001">Haiku 4.5</option>
+                      <option value="claude-sonnet-4-6">Sonnet 4.6</option>
+                      <option value="claude-opus-4-6">Opus 4.6</option>
+                    </select>
+                  </div>
                   <div className={styles.inputBox}>
                     <textarea
                       ref={inputRef}

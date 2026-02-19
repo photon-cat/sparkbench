@@ -7,6 +7,7 @@
  *   Click pad → rubber-band → click to place waypoints → click pad to finish
  *   / key toggles ortho_h / ortho_v / diagonal
  *   V key inserts via + switches layer mid-route
+ *   W key cycles trace width through preset values
  *   Escape cancels
  *
  * Via tool (V):
@@ -29,7 +30,7 @@ import type { SExprUndoStack } from "@/lib/sexpr-undo";
 import type { EditableBoardViewer } from "@/lib/editable-board-viewer";
 
 // JLC-compatible standard sizes
-const TRACE_WIDTH = 0.25; // mm
+export const TRACE_WIDTH_PRESETS = [0.15, 0.2, 0.25, 0.3, 0.4, 0.5, 0.8, 1.0]; // mm
 const VIA_DIAMETER = 0.8; // mm  (JLC min 0.5, standard 0.8)
 const VIA_DRILL = 0.4;    // mm  (JLC min 0.3)
 const GRID_SNAP = 0.1;    // mm
@@ -41,7 +42,7 @@ interface RoutingState {
     net: string;
     layer: CopperLayer;
     waypoints: { x: number; y: number }[];
-    committedSegs: { x1: number; y1: number; x2: number; y2: number }[];
+    committedSegs: { x1: number; y1: number; x2: number; y2: number; layer: CopperLayer }[];
     pendingVias: { x: number; y: number; net: string }[];
     mode: RoutingMode;
 }
@@ -70,12 +71,47 @@ function computeRoutePoints(
         return [from, { x: midX, y: midY }, to];
     }
 
-    if (mode === "ortho_h") {
-        return [from, { x: to.x, y: from.y }, to];
+    // 45° chamfered routing for ortho modes
+    const adx = Math.abs(dx);
+    const ady = Math.abs(dy);
+    // Chamfer length: min of half the shorter leg, 2mm max
+    const shorterLeg = Math.min(adx, ady);
+    const chamfer = Math.min(shorterLeg, 2.0);
+
+    if (chamfer < 0.05) {
+        // Too short for chamfer, fall back to simple ortho
+        if (mode === "ortho_h") {
+            return [from, { x: to.x, y: from.y }, to];
+        }
+        return [from, { x: from.x, y: to.y }, to];
     }
 
-    // ortho_v
-    return [from, { x: from.x, y: to.y }, to];
+    if (mode === "ortho_h") {
+        // Horizontal first, then 45° bend, then vertical
+        const cornerX = to.x;
+        const cornerY = from.y;
+        // Insert chamfer: shorten the horizontal leg and the vertical leg
+        const chamferStartX = cornerX - Math.sign(dx) * chamfer;
+        const chamferEndY = cornerY + Math.sign(dy) * chamfer;
+        return [
+            from,
+            { x: chamferStartX, y: from.y },
+            { x: cornerX, y: chamferEndY },
+            to,
+        ];
+    }
+
+    // ortho_v: Vertical first, then 45° bend, then horizontal
+    const cornerX = from.x;
+    const cornerY = to.y;
+    const chamferStartY = cornerY - Math.sign(dy) * chamfer;
+    const chamferEndX = cornerX + Math.sign(dx) * chamfer;
+    return [
+        from,
+        { x: from.x, y: chamferStartY },
+        { x: chamferEndX, y: cornerY },
+        to,
+    ];
 }
 
 export interface UseKiPCBRoutingOptions {
@@ -88,6 +124,8 @@ export interface UseKiPCBRoutingOptions {
     canvasElement: HTMLCanvasElement | null;
     activeRoute: boolean;
     activeVia: boolean;
+    traceWidth?: number;
+    onTraceWidthChange?: (width: number) => void;
 }
 
 export function useKiPCBRouting({
@@ -100,12 +138,18 @@ export function useKiPCBRouting({
     canvasElement,
     activeRoute,
     activeVia,
+    traceWidth = 0.25,
+    onTraceWidthChange,
 }: UseKiPCBRoutingOptions) {
     const routingRef = useRef<RoutingState | null>(null);
     const pcbTreeRef = useRef(pcbTree);
     pcbTreeRef.current = pcbTree;
     const onTreeChangeRef = useRef(onTreeChange);
     onTreeChangeRef.current = onTreeChange;
+    const traceWidthRef = useRef(traceWidth);
+    traceWidthRef.current = traceWidth;
+    const onTraceWidthChangeRef = useRef(onTraceWidthChange);
+    onTraceWidthChangeRef.current = onTraceWidthChange;
 
     const getWorldPos = useCallback(
         (e: MouseEvent): { x: number; y: number } | null => {
@@ -156,21 +200,22 @@ export function useKiPCBRouting({
             const routing = routingRef.current;
             if (!routing || !viewer) return;
 
+            const tw = traceWidthRef.current;
             const lastWp = routing.waypoints[routing.waypoints.length - 1]!;
             const previewPts = computeRoutePoints(lastWp, { x: cursorX, y: cursorY }, routing.mode);
 
             viewer.paintOverlay((gfx) => {
-                const layerColor = routing.layer === "F.Cu"
-                    ? Color.from_css("rgb(200, 52, 52)")
-                    : Color.from_css("rgb(77, 127, 196)");
+                const frontColor = Color.from_css("rgb(200, 52, 52)");
+                const backColor = Color.from_css("rgb(77, 127, 196)");
                 const previewColor = Color.from_css("rgba(255, 255, 255, 0.6)");
 
-                // Committed segments
+                // Committed segments — each with its own layer color
                 for (const seg of routing.committedSegs) {
+                    const layerColor = seg.layer === "F.Cu" ? frontColor : backColor;
                     gfx.line(
                         new Polyline(
                             [new Vec2(seg.x1, seg.y1), new Vec2(seg.x2, seg.y2)],
-                            TRACE_WIDTH,
+                            tw,
                             layerColor,
                         ),
                     );
@@ -188,7 +233,7 @@ export function useKiPCBRouting({
                     gfx.line(
                         new Polyline(
                             [new Vec2(a.x, a.y), new Vec2(b.x, b.y)],
-                            TRACE_WIDTH,
+                            tw,
                             previewColor,
                         ),
                     );
@@ -203,15 +248,16 @@ export function useKiPCBRouting({
         (routing: RoutingState) => {
             const tree = pcbTreeRef.current;
             const netNum = getNetNumber(tree, routing.net);
+            const tw = traceWidthRef.current;
 
             undoStack.pushSnapshot(tree);
             const newTree = structuredClone(tree);
 
-            // Add segments
+            // Add segments — each segment uses its own layer
             for (const seg of routing.committedSegs) {
                 appendChild(newTree, buildSegmentNode(
                     seg.x1, seg.y1, seg.x2, seg.y2,
-                    TRACE_WIDTH, routing.layer, netNum, generateUUID(),
+                    tw, seg.layer, netNum, generateUUID(),
                 ));
             }
 
@@ -264,6 +310,7 @@ export function useKiPCBRouting({
                     routing.committedSegs.push({
                         x1: pts[i]!.x, y1: pts[i]!.y,
                         x2: pts[i + 1]!.x, y2: pts[i + 1]!.y,
+                        layer: routing.layer,
                     });
                 }
                 commitRoute(routing);
@@ -279,6 +326,7 @@ export function useKiPCBRouting({
                 routing.committedSegs.push({
                     x1: pts[i]!.x, y1: pts[i]!.y,
                     x2: pts[i + 1]!.x, y2: pts[i + 1]!.y,
+                    layer: routing.layer,
                 });
             }
             routing.waypoints.push(worldPos);
@@ -333,6 +381,16 @@ export function useKiPCBRouting({
                 e.preventDefault();
                 routingRef.current = null;
                 viewer?.clearOverlay();
+                return;
+            }
+
+            // W during routing: cycle trace width
+            if ((e.key === "w" || e.key === "W") && routing && activeRoute) {
+                e.preventDefault();
+                const currentWidth = traceWidthRef.current;
+                const idx = TRACE_WIDTH_PRESETS.indexOf(currentWidth);
+                const nextIdx = (idx + 1) % TRACE_WIDTH_PRESETS.length;
+                onTraceWidthChangeRef.current?.(TRACE_WIDTH_PRESETS[nextIdx]!);
                 return;
             }
 

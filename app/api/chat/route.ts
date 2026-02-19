@@ -10,6 +10,8 @@ import { eq } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { projects } from "@/lib/db/schema";
 import { downloadFile, uploadFile, listProjectFiles } from "@/lib/storage";
+import { authorizeProjectRead, getServerSession } from "@/lib/auth-middleware";
+import { checkUsageLimit, recordUsage } from "@/lib/usage";
 import {
   mkdirSync,
   readFileSync,
@@ -376,10 +378,18 @@ async function syncTempDirToStorage(
 }
 
 export async function POST(request: Request) {
+  const ALLOWED_MODELS = [
+    "claude-haiku-4-5-20251001",
+    "claude-sonnet-4-6",
+    "claude-opus-4-6",
+  ] as const;
+  type AllowedModel = typeof ALLOWED_MODELS[number];
+
   const body = await request.json();
-  const { message, slug, context } = body as {
+  const { message, projectId, context, model: requestedModel } = body as {
     message: string;
-    slug: string;
+    projectId: string;
+    model?: string;
     context?: {
       diagramJson?: string;
       sketchCode?: string;
@@ -389,27 +399,43 @@ export async function POST(request: Request) {
     };
   };
 
-  if (!message?.trim() || !slug) {
-    return Response.json({ error: "message and slug are required" }, { status: 400 });
+  const model: AllowedModel = ALLOWED_MODELS.includes(requestedModel as AllowedModel)
+    ? (requestedModel as AllowedModel)
+    : "claude-sonnet-4-6";
+
+  if (!message?.trim() || !projectId) {
+    return Response.json({ error: "message and projectId are required" }, { status: 400 });
   }
 
-  // Look up project in DB
-  const rows = await db
-    .select()
-    .from(projects)
-    .where(eq(projects.slug, slug))
-    .limit(1);
+  // Require authentication for AI usage (needed for usage tracking)
+  const session = await getServerSession();
+  if (!session?.user) {
+    return Response.json({ error: "Sign in to use Sparky AI" }, { status: 401 });
+  }
+  const userId = session.user.id;
 
-  if (rows.length === 0) {
-    return Response.json({ error: "Project not found" }, { status: 404 });
+  // Check usage limit
+  const usageCheck = await checkUsageLimit(userId);
+  if (!usageCheck.allowed) {
+    return Response.json({
+      error: `Monthly AI usage limit reached ($${usageCheck.usedUsd.toFixed(2)} / $${usageCheck.limitUsd.toFixed(2)}). Resets on the 1st of next month.`,
+    }, { status: 429 });
   }
 
-  const project = rows[0];
+  // Allow read access (public projects viewable by anyone, private by owner)
+  const readResult = await authorizeProjectRead(projectId);
+  if (readResult.error) return readResult.error;
+
+  const project = readResult.project;
+
+  // Determine if this user is the owner (edits will persist)
+  const isOwner = !!project.ownerId && (project.ownerId === userId);
 
   // Set up temp dir with project files from MinIO
-  const tmpDir = await setupTempDir(project.id, slug);
+  const tmpDir = await setupTempDir(project.id, project.slug);
 
-  const existingSession = project.agentSessionId || undefined;
+  // Only resume sessions for owners (non-owners get ephemeral sessions)
+  const existingSession = isOwner ? (project.agentSessionId || undefined) : undefined;
 
   // Build context section from current project state
   let contextSection = "";
@@ -456,7 +482,7 @@ export async function POST(request: Request) {
     : `The user says: "${message}"
 
 Project directory: ${tmpDir}
-Project slug: ${slug}
+Project slug: ${project.slug}
 Sketch filename: sketch.ino
 
 ${projectInstructions}${contextSection}`;
@@ -473,7 +499,7 @@ ${projectInstructions}${contextSection}`;
       };
 
       const buildQueryOptions = (resumeId?: string) => ({
-        model: "claude-opus-4-6" as const,
+        model: model as string,
         systemPrompt: SYSTEM_PROMPT,
         tools: { type: "preset" as const, preset: "claude_code" as const },
         allowedTools: [
@@ -526,8 +552,8 @@ ${projectInstructions}${contextSection}`;
         let turnCount = 0;
 
         for await (const msg of q) {
-          // Capture/update session ID
-          if ("session_id" in msg && (msg as any).session_id) {
+          // Capture/update session ID (only for owners)
+          if (isOwner && "session_id" in msg && (msg as any).session_id) {
             const sessionId = (msg as any).session_id;
             await db
               .update(projects)
@@ -561,10 +587,24 @@ ${projectInstructions}${contextSection}`;
 
             case "result": {
               if (msg.subtype === "success") {
+                const cost = msg.total_cost_usd ?? 0;
+                const turns = msg.num_turns ?? 0;
+                // Record usage
+                try {
+                  await recordUsage({
+                    userId,
+                    projectId: project.id,
+                    model,
+                    costUsd: cost,
+                    turns,
+                  });
+                } catch (usageErr) {
+                  console.error("[sparky] Failed to record usage:", usageErr);
+                }
                 write({
                   type: "done",
-                  turns: msg.num_turns,
-                  cost: msg.total_cost_usd,
+                  turns,
+                  cost,
                 });
               } else {
                 write({
@@ -582,8 +622,8 @@ ${projectInstructions}${contextSection}`;
         await runQuery(existingSession);
       } catch (err: any) {
         // If resume failed, clear the stale session and retry fresh
-        if (existingSession) {
-          console.warn(`[sparky] Resume failed for ${slug}, starting fresh: ${err.message}`);
+        if (existingSession && isOwner) {
+          console.warn(`[sparky] Resume failed for ${projectId}, starting fresh: ${err.message}`);
           await db
             .update(projects)
             .set({ agentSessionId: null })
@@ -597,35 +637,37 @@ ${projectInstructions}${contextSection}`;
           write({ type: "error", message: err.message });
         }
       } finally {
-        // Sync changed files from temp dir back to MinIO
-        try {
-          const changedFiles = await syncTempDirToStorage(project.id, tmpDir, originalFiles);
+        // Only sync changed files back to MinIO for project owners
+        if (isOwner) {
+          try {
+            const changedFiles = await syncTempDirToStorage(project.id, tmpDir, originalFiles);
 
-          // Update file manifest and diagram JSON in DB if changed
-          if (changedFiles.length > 0) {
-            const allFiles = await listProjectFiles(project.id);
-            const updates: Record<string, any> = {
-              fileManifest: allFiles,
-              updatedAt: new Date(),
-            };
+            // Update file manifest and diagram JSON in DB if changed
+            if (changedFiles.length > 0) {
+              const allFiles = await listProjectFiles(project.id);
+              const updates: Record<string, any> = {
+                fileManifest: allFiles,
+                updatedAt: new Date(),
+              };
 
-            // If diagram.json was changed, update the DB column too
-            if (changedFiles.includes("diagram.json")) {
-              const diagramContent = await downloadFile(project.id, "diagram.json");
-              if (diagramContent) {
-                try {
-                  updates.diagramJson = JSON.parse(diagramContent);
-                } catch { /* ignore parse errors */ }
+              // If diagram.json was changed, update the DB column too
+              if (changedFiles.includes("diagram.json")) {
+                const diagramContent = await downloadFile(project.id, "diagram.json");
+                if (diagramContent) {
+                  try {
+                    updates.diagramJson = JSON.parse(diagramContent);
+                  } catch { /* ignore parse errors */ }
+                }
               }
-            }
 
-            await db
-              .update(projects)
-              .set(updates)
-              .where(eq(projects.id, project.id));
+              await db
+                .update(projects)
+                .set(updates)
+                .where(eq(projects.id, project.id));
+            }
+          } catch (syncErr) {
+            console.error("[sparky] Failed to sync files back to MinIO:", syncErr);
           }
-        } catch (syncErr) {
-          console.error("[sparky] Failed to sync files back to MinIO:", syncErr);
         }
 
         // Clean up temp dir (fire and forget)

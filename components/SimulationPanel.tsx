@@ -74,7 +74,7 @@ interface SimulationPanelProps {
   onMcuChange?: (id: string) => void;
   librariesTxt?: string;
   onLibrariesChange?: (text: string) => void;
-  slug?: string;
+  projectId?: string;
 }
 
 export default function SimulationPanel({
@@ -116,7 +116,7 @@ export default function SimulationPanel({
   onMcuChange,
   librariesTxt,
   onLibrariesChange,
-  slug,
+  projectId,
 }: SimulationPanelProps) {
   const [activeTab, setActiveTab] = useState("simulation");
   const [activeTool, setActiveTool] = useState<ToolType>("cursor");
@@ -273,7 +273,7 @@ export default function SimulationPanel({
               onSave={onPcbSave}
               onUpdateFromDiagram={onUpdateFromDiagram}
               onSaveOutline={onSaveOutline}
-              slug={slug}
+              projectId={projectId}
             />
         ) : activeTab === "pcb3d" ? (
           <PCB3DViewer pcbText={pcbText} />

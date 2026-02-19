@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { eq, desc } from "drizzle-orm";
+import { eq, desc, or, ilike, and, sql } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { projects } from "@/lib/db/schema";
 import { generateProjectId } from "@/lib/db/projects";
@@ -9,6 +9,7 @@ import { getServerSession } from "@/lib/auth-middleware";
 export const dynamic = "force-dynamic";
 
 interface ProjectMeta {
+  id: string;
   slug: string;
   partCount: number;
   partTypes: string[];
@@ -46,6 +47,7 @@ function extractMeta(
   const hasTests = manifest.includes("test.scenario.yaml");
 
   return {
+    id: project.id,
     slug: project.slug,
     partCount,
     partTypes,
@@ -56,12 +58,58 @@ function extractMeta(
   };
 }
 
-export async function GET() {
+export async function GET(request: Request) {
   try {
+    const url = new URL(request.url);
+    const page = Math.max(1, parseInt(url.searchParams.get("page") || "1", 10));
+    const limit = Math.min(100, Math.max(1, parseInt(url.searchParams.get("limit") || "50", 10)));
+    const q = url.searchParams.get("q")?.trim() || "";
+    const featured = url.searchParams.get("featured") === "true";
+
+    // Get current user (if logged in)
+    let userId: string | null = null;
+    try {
+      const session = await getServerSession();
+      if (session?.user) userId = session.user.id;
+    } catch { /* unauthenticated */ }
+
+    // Build visibility condition
+    const visibilityCondition = userId
+      ? or(eq(projects.isPublic, true), eq(projects.ownerId, userId))
+      : eq(projects.isPublic, true);
+
+    // Build conditions array
+    const conditions = [visibilityCondition];
+
+    if (q) {
+      conditions.push(
+        or(ilike(projects.slug, `%${q}%`), ilike(projects.title, `%${q}%`))!,
+      );
+    }
+
+    if (featured) {
+      conditions.push(eq(projects.isFeatured, true));
+    }
+
+    const whereClause = conditions.length === 1 ? conditions[0]! : and(...conditions);
+
+    // Get total count
+    const countResult = await db
+      .select({ count: sql<number>`count(*)::int` })
+      .from(projects)
+      .where(whereClause);
+    const total = countResult[0]?.count ?? 0;
+    const pages = Math.ceil(total / limit);
+    const offset = (page - 1) * limit;
+
+    // Fetch rows
     const rows = await db
       .select()
       .from(projects)
-      .orderBy(desc(projects.updatedAt));
+      .where(whereClause)
+      .orderBy(desc(projects.updatedAt))
+      .limit(limit)
+      .offset(offset);
 
     const metas: ProjectMeta[] = [];
     for (const row of rows) {
@@ -74,7 +122,7 @@ export async function GET() {
       metas.push(meta);
     }
 
-    return NextResponse.json(metas);
+    return NextResponse.json({ projects: metas, total, page, pages });
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     return NextResponse.json(
@@ -120,29 +168,15 @@ export async function POST(request: Request) {
       );
     }
 
-    const slug = name
+    const baseSlug = name
       .toLowerCase()
       .replace(/[^a-z0-9]+/g, "-")
       .replace(/^-|-$/g, "");
 
-    if (!slug) {
+    if (!baseSlug) {
       return NextResponse.json(
         { error: "Invalid project name" },
         { status: 400 },
-      );
-    }
-
-    // Check slug uniqueness
-    const existing = await db
-      .select({ id: projects.id })
-      .from(projects)
-      .where(eq(projects.slug, slug))
-      .limit(1);
-
-    if (existing.length > 0) {
-      return NextResponse.json(
-        { error: "Project already exists" },
-        { status: 409 },
       );
     }
 
@@ -154,6 +188,8 @@ export async function POST(request: Request) {
     } catch { /* unauthenticated is fine */ }
 
     const id = generateProjectId();
+    // Append first 4 chars of project ID to ensure URL uniqueness
+    const slug = `${baseSlug}-${id.slice(0, 4)}`;
     const diagramStr = JSON.stringify(DEFAULT_DIAGRAM, null, 2);
 
     // Insert DB row
@@ -170,7 +206,7 @@ export async function POST(request: Request) {
     await uploadFile(id, "sketch.ino", DEFAULT_SKETCH);
     await uploadFile(id, "diagram.json", diagramStr);
 
-    return NextResponse.json({ slug });
+    return NextResponse.json({ id, slug });
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     return NextResponse.json(

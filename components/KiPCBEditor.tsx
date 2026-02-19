@@ -9,7 +9,7 @@ import { SExprUndoStack } from "@/lib/sexpr-undo";
 import { serializeSExpr } from "@/lib/sexpr-serializer";
 import { parseSVGString, rectangleToSVG, svgPathToEdgeCuts } from "@/lib/svg-outline-import";
 import { useKiPCBDrag } from "@/hooks/useKiPCBDrag";
-import { useKiPCBRouting } from "@/hooks/useKiPCBRouting";
+import { useKiPCBRouting, TRACE_WIDTH_PRESETS } from "@/hooks/useKiPCBRouting";
 import type { KiPCBCanvasHandle } from "./KiPCBCanvas";
 import KiPCBToolPalette, { type PCBTool } from "./KiPCBToolPalette";
 import KiPCBLayerPanel from "./KiPCBLayerPanel";
@@ -80,7 +80,7 @@ interface KiPCBEditorProps {
     onSave?: (text: string) => void;
     onUpdateFromDiagram?: () => void;
     onSaveOutline?: (svgText: string) => void;
-    slug?: string;
+    projectId?: string;
 }
 
 export default function KiPCBEditor({
@@ -88,7 +88,7 @@ export default function KiPCBEditor({
     onSave,
     onUpdateFromDiagram,
     onSaveOutline,
-    slug,
+    projectId,
 }: KiPCBEditorProps) {
     // Parse initial text into S-expr tree, using empty board if null
     const [pcbTree, setPcbTree] = useState<List>(() =>
@@ -101,6 +101,7 @@ export default function KiPCBEditor({
     const [mousePos, setMousePos] = useState({ x: 0, y: 0 });
     const [boardLoaded, setBoardLoaded] = useState(false);
     const [showRatsnest, setShowRatsnest] = useState(true);
+    const [traceWidth, setTraceWidth] = useState(0.25);
 
     // Board outline dimension inputs
     const [outlineWidth, setOutlineWidth] = useState("100");
@@ -177,6 +178,8 @@ export default function KiPCBEditor({
         canvasElement: canvasHandleRef.current?.canvas ?? null,
         activeRoute: activeTool === "route",
         activeVia: activeTool === "via",
+        traceWidth,
+        onTraceWidthChange: setTraceWidth,
     });
 
     // Board stats from tree
@@ -242,7 +245,7 @@ export default function KiPCBEditor({
 
     // DeepPCB autorouter handler
     const handleDeepPCBRoute = useCallback(async () => {
-        if (!slug) return;
+        if (!projectId) return;
         setDeeppcbStatus("running");
         setDeeppcbMessage("Starting autorouter...");
         setDeeppcbProgress(null);
@@ -255,7 +258,7 @@ export default function KiPCBEditor({
             const res = await fetch("/api/deeppcb", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ slug }),
+                body: JSON.stringify({ projectId }),
             });
 
             if (!res.ok && !res.body) {
@@ -291,7 +294,7 @@ export default function KiPCBEditor({
                                 setDeeppcbMessage(event.message);
                                 // Reload the board from server
                                 try {
-                                    const pcbRes = await fetch(`/api/projects/${slug}/pcb`);
+                                    const pcbRes = await fetch(`/api/projects/${projectId}/pcb`);
                                     if (pcbRes.ok) {
                                         const newPcbText = await pcbRes.text();
                                         const newTree = listify(newPcbText)[0] as List;
@@ -315,7 +318,7 @@ export default function KiPCBEditor({
             setDeeppcbStatus("error");
             setDeeppcbMessage(err instanceof Error ? err.message : String(err));
         }
-    }, [slug, pcbTree, onSave]);
+    }, [projectId, pcbTree, onSave]);
 
     // Keyboard shortcuts for tool switching + save
     useEffect(() => {
@@ -424,6 +427,35 @@ export default function KiPCBEditor({
                             {activeLayer}
                         </strong>
                     </span>
+                    {activeTool === "route" && (
+                        <>
+                            <span>
+                                Width:{" "}
+                                <select
+                                    value={traceWidth}
+                                    onChange={(e) => setTraceWidth(parseFloat(e.target.value))}
+                                    style={{
+                                        background: "#111",
+                                        color: "#fff",
+                                        border: "1px solid #555",
+                                        borderRadius: 3,
+                                        fontSize: 11,
+                                        fontFamily: "monospace",
+                                        padding: "1px 2px",
+                                    }}
+                                >
+                                    {TRACE_WIDTH_PRESETS.map((w) => (
+                                        <option key={w} value={w}>
+                                            {w}mm
+                                        </option>
+                                    ))}
+                                </select>
+                            </span>
+                            <span style={{ color: "#666", fontSize: 10 }}>
+                                / toggle mode | W width | V via
+                            </span>
+                        </>
+                    )}
                     <span>
                         ({mousePos.x.toFixed(2)}, {mousePos.y.toFixed(2)}) mm
                     </span>
@@ -552,7 +584,7 @@ export default function KiPCBEditor({
                     </div>
 
                     {/* DeepPCB Autorouter */}
-                    {slug && (
+                    {projectId && (
                         <div style={{ marginBottom: 10, borderTop: "1px solid #333", paddingTop: 8 }}>
                             <div style={{ color: "#888", fontSize: 10, marginBottom: 4 }}>
                                 Autorouter

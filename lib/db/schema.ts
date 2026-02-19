@@ -5,6 +5,8 @@ import {
   boolean,
   jsonb,
   integer,
+  numeric,
+  uniqueIndex,
 } from "drizzle-orm/pg-core";
 
 // ─── Better-Auth tables (declared for Drizzle awareness, managed by Better-Auth) ───
@@ -15,6 +17,9 @@ export const users = pgTable("users", {
   email: text("email").notNull().unique(),
   emailVerified: boolean("email_verified").notNull().default(false),
   image: text("image"),
+  username: text("username").unique(),
+  plan: text("plan").notNull().default("free"),
+  usageLimitUsd: numeric("usage_limit_usd", { precision: 10, scale: 2 }).notNull().default("50.00"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });
@@ -63,7 +68,8 @@ export const verifications = pgTable("verifications", {
 
 export const projects = pgTable("projects", {
   id: text("id").primaryKey(), // 10-char nanoid
-  slug: text("slug").notNull().unique(),
+  slug: text("slug").notNull(),
+  isFeatured: boolean("is_featured").notNull().default(false),
   ownerId: text("owner_id").references(() => users.id, { onDelete: "set null" }),
   title: text("title").notNull().default(""),
   isPublic: boolean("is_public").notNull().default(true),
@@ -73,6 +79,16 @@ export const projects = pgTable("projects", {
   agentSessionId: text("agent_session_id"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
+
+export const projectOwners = pgTable("project_owners", {
+  projectId: text("project_id")
+    .notNull()
+    .references(() => projects.id, { onDelete: "cascade" }),
+  userId: text("user_id")
+    .notNull()
+    .references(() => users.id, { onDelete: "cascade" }),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 
 export const projectShares = pgTable("project_shares", {
@@ -86,6 +102,18 @@ export const projectShares = pgTable("project_shares", {
   role: text("role").notNull().default("viewer"), // "viewer" | "editor"
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
+
+export const projectStars = pgTable("project_stars", {
+  projectId: text("project_id")
+    .notNull()
+    .references(() => projects.id, { onDelete: "cascade" }),
+  userId: text("user_id")
+    .notNull()
+    .references(() => users.id, { onDelete: "cascade" }),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+}, (table) => [
+  uniqueIndex("project_stars_project_user_idx").on(table.projectId, table.userId),
+]);
 
 export const builds = pgTable("builds", {
   id: text("id").primaryKey(),
@@ -108,6 +136,19 @@ export const chatMessages = pgTable("chat_messages", {
   role: text("role").notNull(), // "user" | "assistant"
   content: text("content").notNull(),
   metadata: jsonb("metadata"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+export const aiUsageLog = pgTable("ai_usage_log", {
+  id: text("id").primaryKey(),
+  userId: text("user_id")
+    .notNull()
+    .references(() => users.id, { onDelete: "cascade" }),
+  projectId: text("project_id")
+    .references(() => projects.id, { onDelete: "set null" }),
+  model: text("model").notNull(),
+  costUsd: numeric("cost_usd", { precision: 10, scale: 6 }).notNull().default("0"),
+  turns: integer("turns").notNull().default(0),
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 

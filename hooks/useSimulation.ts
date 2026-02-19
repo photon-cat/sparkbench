@@ -8,7 +8,7 @@ import { buildProject } from "@/lib/api";
 export type SimulationStatus = "idle" | "compiling" | "running" | "paused" | "error";
 
 export interface UseSimulationOptions {
-  slug: string;
+  projectId: string;
   diagram: Diagram | null;
   sketchCode: string;
   projectFiles: { name: string; content: string }[];
@@ -28,7 +28,7 @@ export interface UseSimulationReturn {
 }
 
 export function useSimulation({
-  slug,
+  projectId,
   diagram,
   sketchCode,
   projectFiles,
@@ -47,7 +47,7 @@ export function useSimulation({
     setSerialOutput("");
 
     try {
-      const buildResult = await buildProject(slug, sketchCode, projectFiles, board || "uno", librariesTxt || "");
+      const buildResult = await buildProject(projectId, sketchCode, projectFiles, board || "uno", librariesTxt || "");
 
       if (!buildResult.success) {
         setStatus("error");
@@ -78,7 +78,7 @@ export function useSimulation({
       const msg = err instanceof Error ? err.message : String(err);
       setSerialOutput(`Error: ${msg}\n`);
     }
-  }, [diagram, sketchCode, slug, projectFiles, board]);
+  }, [diagram, sketchCode, projectId, projectFiles, board]);
 
   // Start execution after React renders and child effects (wiring) complete.
   // React runs child useEffects before parent useEffects, so DiagramCanvas's

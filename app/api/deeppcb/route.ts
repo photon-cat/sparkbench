@@ -1,26 +1,25 @@
 import { NextResponse } from "next/server";
-import { readFile, writeFile } from "fs/promises";
-import { existsSync } from "fs";
-import path from "path";
+import { eq } from "drizzle-orm";
+import { db } from "@/lib/db";
+import { projects } from "@/lib/db/schema";
+import { downloadFile, uploadFile } from "@/lib/storage";
 import { DeepPCBClient } from "@/lib/deeppcb-client";
-
-const PROJECTS_DIR = path.join(process.cwd(), "projects");
 
 // Allow long-running routing jobs (up to 2 hours)
 export const maxDuration = 7200;
 export const dynamic = "force-dynamic";
 
 export async function POST(request: Request) {
-  let slug: string;
+  let projectId: string;
   try {
     const body = await request.json();
-    slug = body.slug;
+    projectId = body.projectId;
   } catch {
     return NextResponse.json({ error: "Invalid request body" }, { status: 400 });
   }
 
-  if (!slug || !/^[a-zA-Z0-9_-]+$/.test(slug)) {
-    return NextResponse.json({ error: "Invalid project slug" }, { status: 400 });
+  if (!projectId || !/^[a-zA-Z0-9_-]+$/.test(projectId)) {
+    return NextResponse.json({ error: "Invalid project ID" }, { status: 400 });
   }
 
   const apiKey = process.env.DEEPPCB_API_KEY;
@@ -31,15 +30,25 @@ export async function POST(request: Request) {
     );
   }
 
-  const pcbPath = path.join(PROJECTS_DIR, slug, "board.kicad_pcb");
-  if (!existsSync(pcbPath)) {
+  // Verify project exists
+  const rows = await db
+    .select({ id: projects.id })
+    .from(projects)
+    .where(eq(projects.id, projectId))
+    .limit(1);
+
+  if (rows.length === 0) {
+    return NextResponse.json({ error: "Project not found" }, { status: 404 });
+  }
+
+  const pcbContent = await downloadFile(projectId, "board.kicad_pcb");
+  if (!pcbContent) {
     return NextResponse.json(
       { error: "No board.kicad_pcb found for this project. Generate a PCB layout first." },
       { status: 404 },
     );
   }
 
-  const pcbContent = await readFile(pcbPath, "utf-8");
   const encoder = new TextEncoder();
 
   const stream = new ReadableStream({
@@ -60,8 +69,8 @@ export async function POST(request: Request) {
           });
         });
 
-        // Save the routed board back to disk
-        await writeFile(pcbPath, routedPcb, "utf-8");
+        // Save the routed board back to MinIO
+        await uploadFile(projectId, "board.kicad_pcb", routedPcb);
 
         write({ type: "done", message: "Routing complete! Board updated." });
       } catch (err: unknown) {

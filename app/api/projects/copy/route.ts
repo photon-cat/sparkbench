@@ -8,11 +8,11 @@ import { getServerSession } from "@/lib/auth-middleware";
 
 export async function POST(request: Request) {
   try {
-    const { sourceSlug } = await request.json();
+    const { sourceId } = await request.json();
 
-    if (!sourceSlug || typeof sourceSlug !== "string") {
+    if (!sourceId || typeof sourceId !== "string") {
       return NextResponse.json(
-        { error: "sourceSlug is required" },
+        { error: "sourceId is required" },
         { status: 400 },
       );
     }
@@ -21,7 +21,7 @@ export async function POST(request: Request) {
     const sourceRows = await db
       .select()
       .from(projects)
-      .where(eq(projects.slug, sourceSlug))
+      .where(eq(projects.id, sourceId))
       .limit(1);
 
     if (sourceRows.length === 0) {
@@ -33,19 +33,10 @@ export async function POST(request: Request) {
 
     const source = sourceRows[0];
 
-    // Find available slug
-    let newSlug = `${sourceSlug}-copy`;
-    let attempt = 1;
-    while (true) {
-      const existing = await db
-        .select({ id: projects.id })
-        .from(projects)
-        .where(eq(projects.slug, newSlug))
-        .limit(1);
-      if (existing.length === 0) break;
-      attempt++;
-      newSlug = `${sourceSlug}-copy-${attempt}`;
-    }
+    const newId = generateProjectId();
+    // Append first 4 chars of ID for URL uniqueness
+    const baseSlug = source.slug.replace(/-[a-z0-9]{4}$/, ""); // strip old suffix if present
+    const newSlug = `${baseSlug}-copy-${newId.slice(0, 4)}`;
 
     // Get owner from session
     let ownerId: string | null = null;
@@ -53,8 +44,6 @@ export async function POST(request: Request) {
       const session = await getServerSession();
       if (session?.user) ownerId = session.user.id;
     } catch { /* unauthenticated is fine */ }
-
-    const newId = generateProjectId();
 
     // Insert new row
     await db.insert(projects).values({
@@ -71,7 +60,7 @@ export async function POST(request: Request) {
     // Copy all files in MinIO
     await copyProjectFiles(source.id, newId);
 
-    return NextResponse.json({ slug: newSlug });
+    return NextResponse.json({ id: newId, slug: newSlug });
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     return NextResponse.json(

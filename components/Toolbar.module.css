@@ -100,15 +100,30 @@
 
 .title {
   display: flex;
-  flex-direction: column;
   align-items: center;
   line-height: 1.2;
+  min-width: 0;
 }
 
 .titleName {
   font-size: 13px;
   font-weight: 500;
   color: #e8e9ee;
+  white-space: nowrap;
+}
+
+.ownerLink {
+  font-size: 11px;
+  color: #888;
+  text-decoration: none;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 260px;
+}
+
+.ownerLink:hover {
+  color: #f59e0b;
 }
 
 .right {
@@ -132,26 +147,6 @@
   opacity: 1;
 }
 
-.ioBtn {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  padding: 4px 8px;
-  background: #333;
-  color: #ccc;
-  border: 1px solid #555;
-  border-radius: 4px;
-  font-size: 11px;
-  font-weight: 500;
-  cursor: pointer;
-  height: 26px;
-  font-family: inherit;
-}
-
-.ioBtn:hover {
-  background: #444;
-  color: #fff;
-}
 
 .sparkyBtn {
   display: flex;
@@ -186,3 +181,20 @@
   background: #d97706;
   color: #000;
 }
+
+.starBtn {
+  background: none;
+  border: none;
+  color: #888;
+  cursor: pointer;
+  padding: 4px;
+  display: flex;
+  align-items: center;
+  border-radius: 4px;
+  transition: color 0.15s;
+}
+
+.starBtn:hover {
+  color: #f59e0b;
+}
+

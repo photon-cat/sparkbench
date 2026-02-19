@@ -63,7 +63,7 @@ interface WorkbenchProps {
   onLibrariesChange?: (text: string) => void;
   sparkyOpen?: boolean;
   onSparkyToggle?: () => void;
-  slug?: string;
+  projectId?: string;
   onProjectChanged?: () => void;
   onChangesReady?: (snapshot: FileSnapshot) => void;
   onRevertChanges?: (snapshot: FileSnapshot) => void;
@@ -127,7 +127,7 @@ export default function Workbench({
   onLibrariesChange,
   sparkyOpen,
   onSparkyToggle,
-  slug,
+  projectId,
   onProjectChanged,
   onChangesReady,
   onRevertChanges,
@@ -229,19 +229,19 @@ export default function Workbench({
                 onMcuChange={onMcuChange}
                 librariesTxt={librariesTxt}
                 onLibrariesChange={onLibrariesChange}
-                slug={slug}
+                projectId={projectId}
               />
             }
           />
         </div>
-        {!!sparkyOpen && slug && onSparkyToggle && (
+        {!!sparkyOpen && projectId && onSparkyToggle && (
           <>
             <div className={styles.chatDivider} onMouseDown={handleDividerDown} />
             <div className={styles.chatSidePanel} style={{ width: chatWidth }}>
               <SparkyChat
                 open={!!sparkyOpen}
                 onToggle={onSparkyToggle}
-                slug={slug}
+                projectId={projectId}
                 diagramJson={diagramJson}
                 sketchCode={sketchCode}
                 pcbText={pcbText}
