@@ -152,8 +152,19 @@ export const aiUsageLog = pgTable("ai_usage_log", {
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 
+export const activityLog = pgTable("activity_log", {
+  id: text("id").primaryKey(),
+  userId: text("user_id").references(() => users.id, { onDelete: "set null" }),
+  action: text("action").notNull(),
+  projectId: text("project_id").references(() => projects.id, { onDelete: "set null" }),
+  metadata: jsonb("metadata"),
+  durationMs: integer("duration_ms"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
 // ─── Type exports ───
 
 export type User = typeof users.$inferSelect;
 export type Project = typeof projects.$inferSelect;
 export type Build = typeof builds.$inferSelect;
+export type ActivityLog = typeof activityLog.$inferSelect;

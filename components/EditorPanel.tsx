@@ -203,6 +203,10 @@ interface EditorPanelProps {
   onFileContentChange: (name: string, content: string) => void;
   librariesTxt?: string;
   onLibrariesChange?: (text: string) => void;
+  debugMode?: boolean;
+  breakpointLines?: Set<number>;
+  currentDebugLine?: number | null;
+  onToggleBreakpointLine?: (line: number) => void;
 }
 
 export default function EditorPanel({
@@ -219,12 +223,20 @@ export default function EditorPanel({
   onFileContentChange,
   librariesTxt,
   onLibrariesChange,
+  debugMode,
+  breakpointLines,
+  currentDebugLine,
+  onToggleBreakpointLine,
 }: EditorPanelProps) {
   const [activeTab, setActiveTab] = useState("sketch");
   const [renamingFile, setRenamingFile] = useState<string | null>(null);
   const [renameValue, setRenameValue] = useState("");
   const renameInputRef = useRef<HTMLInputElement>(null);
   const monacoReady = useRef(false);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const editorRef = useRef<any>(null);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const decorationsRef = useRef<any>(null);
 
   // Focus rename input when it appears
   useEffect(() => {
@@ -358,6 +370,57 @@ export default function EditorPanel({
     }
   }, []);
 
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const handleEditorMount = useCallback((editor: any) => {
+    editorRef.current = editor;
+    if (debugMode && onToggleBreakpointLine) {
+      editor.onMouseDown((e: any) => {
+        if (e.target?.type === 2 /* GUTTER_GLYPH_MARGIN */ || e.target?.type === 3 /* GUTTER_LINE_NUMBERS */) {
+          const lineNumber = e.target.position?.lineNumber;
+          if (lineNumber) onToggleBreakpointLine(lineNumber);
+        }
+      });
+    }
+  }, [debugMode, onToggleBreakpointLine]);
+
+  // Update breakpoint and current-line decorations
+  useEffect(() => {
+    const editor = editorRef.current;
+    if (!editor || !debugMode || activeTab !== "sketch") return;
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const newDecorations: any[] = [];
+
+    if (breakpointLines) {
+      for (const line of breakpointLines) {
+        newDecorations.push({
+          range: { startLineNumber: line, startColumn: 1, endLineNumber: line, endColumn: 1 },
+          options: {
+            isWholeLine: true,
+            glyphMarginClassName: "debug-breakpoint-glyph",
+            className: "debug-breakpoint-line",
+          },
+        });
+      }
+    }
+
+    if (currentDebugLine != null) {
+      newDecorations.push({
+        range: { startLineNumber: currentDebugLine, startColumn: 1, endLineNumber: currentDebugLine, endColumn: 1 },
+        options: {
+          isWholeLine: true,
+          glyphMarginClassName: "debug-current-line-glyph",
+          className: "debug-current-line",
+        },
+      });
+    }
+
+    decorationsRef.current = editor.deltaDecorations(
+      decorationsRef.current || [],
+      newDecorations,
+    );
+  }, [debugMode, breakpointLines, currentDebugLine, activeTab]);
+
   return (
     <div className={styles.panel}>
       {/* Custom file tab bar */}
@@ -437,6 +500,7 @@ export default function EditorPanel({
           value={currentValue}
           onChange={handleEditorChange}
           beforeMount={handleBeforeMount}
+          onMount={handleEditorMount}
           options={{
             minimap: { enabled: false },
             fontSize: 14,
@@ -445,6 +509,7 @@ export default function EditorPanel({
             automaticLayout: true,
             tabSize: 2,
             wordWrap: "on",
+            glyphMargin: !!debugMode,
           }}
         />
       </div>

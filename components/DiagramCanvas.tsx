@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState, useCallback } from "react";
 import type { Diagram, DiagramPart, DiagramConnection, DiagramLabel } from "@/lib/diagram-parser";
-import type { AVRRunner } from "@/lib/avr-runner";
+import type { AVRRunnerLike } from "@/lib/pin-mapping";
 import {
   wireComponents,
   cleanupWiring,
@@ -97,7 +97,7 @@ export interface DiagramCanvasProps {
   showGrid: boolean;
   onZoomIn?: () => void;
   onZoomOut?: () => void;
-  runner: AVRRunner | null;
+  runner: AVRRunnerLike | null;
   mcuId?: string;
   simRunning?: boolean;
   onWiredComponentsChange?: (wired: Map<string, WiredComponent>) => void;

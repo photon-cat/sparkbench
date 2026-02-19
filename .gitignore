@@ -28,8 +28,12 @@ playwright-report/
 
 # Environment
 .env
-.env.local
-.env.*.local
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+credentials.json
 
 # IDE
 .vscode/

@@ -12,6 +12,7 @@ import { projects } from "@/lib/db/schema";
 import { downloadFile, uploadFile, listProjectFiles } from "@/lib/storage";
 import { authorizeProjectRead, getServerSession } from "@/lib/auth-middleware";
 import { checkUsageLimit, recordUsage } from "@/lib/usage";
+import { logger, logActivity } from "@/lib/logger";
 import {
   mkdirSync,
   readFileSync,
@@ -134,7 +135,7 @@ function buildPermissionHandler(projectDir: string) {
     const paths = extractPaths(toolName, input);
     for (const p of paths) {
       if (!isInsideDir(projectDir, p)) {
-        console.warn(`[sparky] DENIED ${toolName}: path ${p} outside ${projectDir}`);
+        logger.warn(`[sparky] DENIED ${toolName}: path outside project dir`, { tool: toolName, path: p, projectDir });
         return {
           behavior: "deny",
           message: `Access denied: ${p} is outside the project directory`,
@@ -146,7 +147,7 @@ function buildPermissionHandler(projectDir: string) {
       const command = String(input.command || "");
       const check = isBashCommandAllowed(command, projectDir);
       if (!check.allowed) {
-        console.warn(`[sparky] DENIED Bash: ${check.reason} | cmd: ${command.slice(0, 200)}`);
+        logger.warn(`[sparky] DENIED Bash: ${check.reason} | cmd: ${command.slice(0, 200)}`);
         return {
           behavior: "deny",
           message: `Bash command denied: ${check.reason}`,
@@ -431,6 +432,8 @@ export async function POST(request: Request) {
   // Determine if this user is the owner (edits will persist)
   const isOwner = !!project.ownerId && (project.ownerId === userId);
 
+  logActivity("chat.start", { userId, projectId: project.id, metadata: { model } });
+
   // Set up temp dir with project files from MinIO
   const tmpDir = await setupTempDir(project.id, project.slug);
 
@@ -536,7 +539,6 @@ ${projectInstructions}${contextSection}`;
         env: {
           HOME: process.env.HOME,
           PATH: process.env.PATH,
-          ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY,
           PLATFORMIO_CORE_DIR: process.env.PLATFORMIO_CORE_DIR,
         },
         stderr: () => {},
@@ -571,6 +573,24 @@ ${projectInstructions}${contextSection}`;
               break;
             }
 
+            case "tool_use_summary": {
+              const summary = msg as any;
+              if (summary.is_error) {
+                const errText = (summary.error_message || summary.output || "").slice(0, 500);
+                logger.error("[sparky] Tool error", {
+                  projectId: project.id,
+                  tool: summary.tool_name,
+                  error: errText,
+                });
+                logActivity("chat.tool_error", {
+                  userId,
+                  projectId: project.id,
+                  metadata: { tool: summary.tool_name, error: errText, model },
+                });
+              }
+              break;
+            }
+
             case "assistant": {
               turnCount++;
               for (const block of msg.message.content) {
@@ -599,14 +619,28 @@ ${projectInstructions}${contextSection}`;
                     turns,
                   });
                 } catch (usageErr) {
-                  console.error("[sparky] Failed to record usage:", usageErr);
+                  logger.error("[sparky] Failed to record usage", { error: String(usageErr) });
                 }
+                logActivity("chat.success", {
+                  userId,
+                  projectId: project.id,
+                  metadata: { model, turns, cost },
+                });
                 write({
                   type: "done",
                   turns,
                   cost,
                 });
               } else {
+                logger.error("[sparky] Agent execution failed", {
+                  projectId: project.id,
+                  subtype: msg.subtype,
+                });
+                logActivity("chat.error", {
+                  userId,
+                  projectId: project.id,
+                  metadata: { model, subtype: msg.subtype, turns: turnCount },
+                });
                 write({
                   type: "error",
                   message: msg.subtype,
@@ -623,7 +657,7 @@ ${projectInstructions}${contextSection}`;
       } catch (err: any) {
         // If resume failed, clear the stale session and retry fresh
         if (existingSession && isOwner) {
-          console.warn(`[sparky] Resume failed for ${projectId}, starting fresh: ${err.message}`);
+          logger.warn(`[sparky] Resume failed, starting fresh`, { projectId, error: err.message });
           await db
             .update(projects)
             .set({ agentSessionId: null })
@@ -631,9 +665,13 @@ ${projectInstructions}${contextSection}`;
           try {
             await runQuery();
           } catch (retryErr: any) {
+            logger.error("[sparky] Retry also failed", { projectId, error: retryErr.message });
+            logActivity("chat.error", { userId, projectId: project.id, metadata: { model, error: retryErr.message } });
             write({ type: "error", message: retryErr.message });
           }
         } else {
+          logger.error("[sparky] Agent query failed", { projectId, error: err.message });
+          logActivity("chat.error", { userId, projectId: project.id, metadata: { model, error: err.message } });
           write({ type: "error", message: err.message });
         }
       } finally {
@@ -666,7 +704,7 @@ ${projectInstructions}${contextSection}`;
                 .where(eq(projects.id, project.id));
             }
           } catch (syncErr) {
-            console.error("[sparky] Failed to sync files back to MinIO:", syncErr);
+            logger.error("[sparky] Failed to sync files back to MinIO", { error: String(syncErr) });
           }
         }
 

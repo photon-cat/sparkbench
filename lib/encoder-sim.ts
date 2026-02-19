@@ -1,5 +1,4 @@
-import { AVRRunner } from "./avr-runner";
-import { PinInfo, getPort } from "./pin-mapping";
+import { PinInfo, getPort, type AVRRunnerLike } from "./pin-mapping";
 
 /**
  * KY-040 rotary encoder simulator.
@@ -19,7 +18,7 @@ export class EncoderSimulator {
   private stepping = false;
 
   constructor(
-    private runner: AVRRunner,
+    private runner: AVRRunnerLike,
     private clkPin: PinInfo,
     private dtPin: PinInfo,
     private swPin: PinInfo | null,

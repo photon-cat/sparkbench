@@ -58,6 +58,38 @@
   background: #f44336;
 }
 
+.diagramDebugSplit {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+.diagramArea {
+  flex: 1;
+  position: relative;
+  overflow: hidden;
+  min-height: 0;
+}
+
+.inlineDebugResize {
+  height: 4px;
+  cursor: ns-resize;
+  background: var(--separator-border);
+  flex-shrink: 0;
+  transition: background 0.15s;
+}
+
+.inlineDebugResize:hover,
+.inlineDebugResizeActive {
+  background: var(--focus-border);
+}
+
+.inlineDebugPanel {
+  height: 280px;
+  flex-shrink: 0;
+  overflow: hidden;
+}
+
 .serialSection {
   border-top: 1px solid var(--separator-border);
   height: 150px;

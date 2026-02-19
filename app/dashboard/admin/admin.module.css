@@ -1,0 +1,138 @@
+.periodRow {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 16px;
+}
+
+.periodBtn {
+  padding: 4px 12px;
+  background: #2a2a2a;
+  color: #888;
+  border: 1px solid #333;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 12px;
+  font-family: inherit;
+}
+
+.periodBtn:hover {
+  color: #ccc;
+  border-color: #555;
+}
+
+.periodActive {
+  color: #f59e0b;
+  border-color: #f59e0b;
+}
+
+.cardGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: 12px;
+  margin-bottom: 20px;
+}
+
+.statCard {
+  background: #252525;
+  border: 1px solid #333;
+  border-radius: 6px;
+  padding: 12px;
+  text-align: center;
+}
+
+.statValue {
+  font-size: 22px;
+  font-weight: 700;
+  color: #eee;
+  font-variant-numeric: tabular-nums;
+}
+
+.statLabel {
+  font-size: 11px;
+  color: #888;
+  margin-top: 2px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.statSub {
+  font-size: 11px;
+  color: #666;
+  margin-top: 4px;
+}
+
+.section {
+  margin-bottom: 20px;
+}
+
+.sectionTitle {
+  font-size: 12px;
+  color: #666;
+  margin-bottom: 8px;
+}
+
+.barChart {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.barRow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.barLabel {
+  font-size: 12px;
+  color: #888;
+  width: 80px;
+  text-align: right;
+  flex-shrink: 0;
+}
+
+.barTrack {
+  flex: 1;
+  height: 18px;
+  background: #2a2a2a;
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.barFill {
+  height: 100%;
+  border-radius: 3px;
+  transition: width 0.3s ease;
+  min-width: 2px;
+}
+
+.barValue {
+  font-size: 12px;
+  color: #ccc;
+  width: 50px;
+  font-variant-numeric: tabular-nums;
+}
+
+.sparkline {
+  display: block;
+  margin-bottom: 16px;
+}
+
+.denied {
+  color: #888;
+  text-align: center;
+  margin-top: 80px;
+  font-size: 14px;
+}
+
+.loading {
+  color: #666;
+  text-align: center;
+  margin-top: 80px;
+  font-size: 13px;
+}
+
+.sandboxRow {
+  display: flex;
+  gap: 12px;
+}

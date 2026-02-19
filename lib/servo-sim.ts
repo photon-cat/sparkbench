@@ -1,6 +1,5 @@
 import { PinState } from "avr8js";
-import { AVRRunner } from "./avr-runner";
-import { PinInfo, getPort } from "./pin-mapping";
+import { PinInfo, getPort, type AVRRunnerLike } from "./pin-mapping";
 
 /**
  * Servo motor simulator.
@@ -21,7 +20,7 @@ export class ServoSimulator {
   onAngleChange: ((angle: number) => void) | null = null;
 
   constructor(
-    private runner: AVRRunner,
+    private runner: AVRRunnerLike,
     private pinInfo: PinInfo,
   ) {
     const port = getPort(runner, pinInfo.port);

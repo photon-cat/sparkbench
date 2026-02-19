@@ -103,18 +103,22 @@ export async function authorizeProjectWrite(projectId: string) {
 
   const project = rows[0];
 
-  // Unowned projects are writable by anyone (legacy/migration period)
-  if (!project.ownerId) {
-    return { project };
-  }
-
   let userId: string | null = null;
   try {
     const session = await getServerSession();
     if (session?.user) userId = session.user.id;
   } catch { /* unauthenticated */ }
 
-  if (!userId || !(await isProjectOwner(projectId, userId))) {
+  if (!userId) {
+    return { error: NextResponse.json({ error: "Unauthorized" }, { status: 401 }) };
+  }
+
+  // Unowned projects: allow any authenticated user to claim/write
+  if (!project.ownerId) {
+    return { project };
+  }
+
+  if (!(await isProjectOwner(projectId, userId))) {
     return { error: NextResponse.json({ error: "Forbidden" }, { status: 403 }) };
   }
 

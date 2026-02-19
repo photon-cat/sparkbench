@@ -4,6 +4,8 @@ import { db } from "@/lib/db";
 import { projects, users } from "@/lib/db/schema";
 import { authorizeProjectWrite, getServerSession, isProjectOwner } from "@/lib/auth-middleware";
 import { listProjectFiles, deleteFile } from "@/lib/storage";
+import { logger, logActivity } from "@/lib/logger";
+import { destroyProjectSandbox } from "@/lib/sandbox";
 
 /**
  * GET /api/projects/:id/settings — project metadata (isPublic, isOwner, title)
@@ -106,6 +108,12 @@ export async function PATCH(
 
     await db.update(projects).set(updates).where(eq(projects.id, id));
 
+    logActivity("project.update", {
+      userId: result.project.ownerId,
+      projectId: id,
+      metadata: { fields: Object.keys(updates).filter(k => k !== "updatedAt") },
+    });
+
     return NextResponse.json({ success: true });
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
@@ -130,6 +138,9 @@ export async function DELETE(
     const result = await authorizeProjectWrite(id);
     if (result.error) return result.error;
 
+    // Destroy sandbox container + volume
+    destroyProjectSandbox(id).catch(() => {});
+
     // Delete files from MinIO
     try {
       const files = await listProjectFiles(id);
@@ -137,8 +148,13 @@ export async function DELETE(
         await deleteFile(id, file);
       }
     } catch (err) {
-      console.error("[delete-project] Failed to delete files:", err);
+      logger.error("[delete-project] Failed to delete files", { projectId: id, error: String(err) });
     }
+
+    logActivity("project.delete", {
+      userId: result.project.ownerId,
+      projectId: id,
+    });
 
     // Delete from DB (cascades handle related tables)
     await db.delete(projects).where(eq(projects.id, id));

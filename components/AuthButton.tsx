@@ -152,7 +152,7 @@ export default function AuthButton() {
 
           {/* Menu items */}
           <div style={{ padding: "4px 0" }}>
-            <MenuRow icon={<CodeIcon sx={{ fontSize: 18 }} />} label="My projects" onClick={() => { setOpen(false); router.push("/dashboard/projects"); }} />
+            <MenuRow icon={<CodeIcon sx={{ fontSize: 18 }} />} label="My projects" onClick={() => { setOpen(false); router.push("/dashboard/mine"); }} />
             <MenuRow icon={<StarIcon sx={{ fontSize: 18 }} />} label="Starred projects" onClick={() => { setOpen(false); router.push("/dashboard/starred"); }} />
             <MenuRow icon={<PersonIcon sx={{ fontSize: 18 }} />} label="Profile settings" onClick={() => { setOpen(false); router.push("/dashboard/profile"); }} />
             <div style={{ height: 1, background: "#333", margin: "4px 0" }} />

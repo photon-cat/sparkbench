@@ -25,6 +25,7 @@ const STACK = [
 
 export default function ProjectsPage() {
   const router = useRouter();
+
   const [projects, setProjects] = useState<ProjectMeta[]>([]);
   const [featuredProjects, setFeaturedProjects] = useState<ProjectMeta[]>([]);
   const [total, setTotal] = useState(0);
@@ -131,8 +132,9 @@ export default function ProjectsPage() {
 
       {/* Tab bar */}
       <div className={styles.tabBar}>
-        <div className={`${styles.tab} ${styles.tabActive}`}>projects</div>
-        <div className={styles.tab}>about</div>
+        <a href="/dashboard/projects" className={`${styles.tab} ${styles.tabActive}`} style={{ textDecoration: "none" }}>projects</a>
+        <a href="/dashboard/mine" className={styles.tab} style={{ textDecoration: "none" }}>my projects</a>
+        <a href="/dashboard/starred" className={styles.tab} style={{ textDecoration: "none" }}>starred</a>
       </div>
 
       {/* Main */}
@@ -191,18 +193,26 @@ export default function ProjectsPage() {
             <>
               <div className={styles.sectionHeader}>
                 <span className={styles.sectionTitle}>featured</span>
+                <span className={styles.projectCount}>{featuredProjects.length}</span>
               </div>
-              <div className={styles.featuredList}>
+              <div className={styles.projectList}>
                 {featuredProjects.map((p) => (
-                  <a key={p.id} href={`/projects/${p.id}`} className={styles.featuredCard}>
-                    <span className={styles.featuredName}>{p.slug}</span>
-                    <span className={styles.featuredMeta}>
-                      {p.partCount} parts &middot; {p.lineCount} lines
+                  <a key={p.id} href={`/projects/${p.id}`} className={styles.projectRow}>
+                    <span className={styles.projectDot} style={{ background: "#f59e0b" }} />
+                    <span className={styles.projectName}>{p.slug}</span>
+                    <span className={styles.projectMeta}>
+                      <span>{p.partCount} parts</span>
+                      <span>{p.lineCount} lines</span>
+                      <span>{timeAgo(p.modifiedAt)}</span>
                     </span>
                     <span className={styles.projectTags}>
                       {p.partTypes.map((t) => (
                         <span key={t} className={styles.partTag}>{t}</span>
                       ))}
+                    </span>
+                    <span className={styles.badges}>
+                      {p.hasPCB && <span className={`${styles.badge} ${styles.badgePcb}`}>PCB</span>}
+                      {p.hasTests && <span className={`${styles.badge} ${styles.badgeTest}`}>TEST</span>}
                     </span>
                   </a>
                 ))}

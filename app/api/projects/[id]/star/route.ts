@@ -3,6 +3,7 @@ import { eq, and } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { projectStars } from "@/lib/db/schema";
 import { getServerSession } from "@/lib/auth-middleware";
+import { logActivity } from "@/lib/logger";
 
 export async function GET(
   _request: Request,
@@ -33,6 +34,11 @@ export async function POST(
   { params }: { params: Promise<{ id: string }> },
 ) {
   const { id: projectId } = await params;
+
+  if (!/^[a-zA-Z0-9_-]+$/.test(projectId)) {
+    return NextResponse.json({ error: "Invalid project ID" }, { status: 400 });
+  }
+
   const session = await getServerSession();
   if (!session?.user) {
     return NextResponse.json({ error: "Sign in required" }, { status: 401 });
@@ -62,10 +68,12 @@ export async function POST(
           eq(projectStars.userId, userId),
         ),
       );
+    logActivity("project.unstar", { userId, projectId });
     return NextResponse.json({ starred: false });
   } else {
     // Star
     await db.insert(projectStars).values({ projectId, userId });
+    logActivity("project.star", { userId, projectId });
     return NextResponse.json({ starred: true });
   }
 }

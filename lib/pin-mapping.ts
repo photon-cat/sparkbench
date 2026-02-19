@@ -1,9 +1,20 @@
-import { AVRIOPort } from "avr8js";
-import { AVRRunner } from "./avr-runner";
+import { AVRIOPort, AVRUSART, AVRTWI, AVRADC, CPU } from "avr8js";
 
 export interface PinInfo {
   port: "portB" | "portC" | "portD";
   pin: number; // 0-7 within port
+}
+
+/** Common interface for AVRRunner and AVRDebugRunner — what wiring/sims need. */
+export interface AVRRunnerLike {
+  readonly cpu: CPU;
+  readonly portB: AVRIOPort;
+  readonly portC: AVRIOPort;
+  readonly portD: AVRIOPort;
+  readonly usart: AVRUSART;
+  readonly twi: AVRTWI;
+  readonly adc: AVRADC;
+  readonly speed: number;
 }
 
 /**
@@ -54,6 +65,6 @@ export function mapAtmega328Pin(pinName: string): PinInfo | null {
 }
 
 /** Get the AVRIOPort instance from a runner given a port name. */
-export function getPort(runner: AVRRunner, portName: PinInfo["port"]): AVRIOPort {
+export function getPort(runner: AVRRunnerLike, portName: PinInfo["port"]): AVRIOPort {
   return runner[portName];
 }

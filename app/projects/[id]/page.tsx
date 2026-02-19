@@ -6,6 +6,7 @@ import Toolbar from "@/components/Toolbar";
 import Workbench from "@/components/Workbench";
 import { parseDiagram, findMCUs, type Diagram, type DiagramPart, type DiagramConnection, type MCUInfo } from "@/lib/diagram-parser";
 import { useSimulation } from "@/hooks/useSimulation";
+import { useDebugger } from "@/hooks/useDebugger";
 import { fetchDiagram, fetchSketch, saveDiagram, saveSketch, fetchPCB, savePCB, fetchLibraries, saveLibraries, fetchProjectSettings, updateProjectSettings, deleteProject, toggleStar, fetchStarStatus } from "@/lib/api";
 import type { ProjectSettings } from "@/lib/api";
 import { importWokwi, exportToWokwi } from "@/lib/diagram-io";
@@ -177,6 +178,32 @@ export default function ProjectPage() {
     handleResume,
     handleRestart,
   } = useSimulation({ projectId, diagram, sketchCode, projectFiles, board: mcuBoardId, librariesTxt });
+
+  const [debugMode, setDebugMode] = useState(false);
+  const debugState = useDebugger({ projectId, diagram, sketchCode, projectFiles, board: mcuBoardId, librariesTxt });
+
+  const handleStartDebug = useCallback(() => {
+    // Stop normal simulation if running
+    if (status !== "idle") handleStop();
+    setDebugMode(true);
+    debugState.handleStartDebug();
+  }, [status, handleStop, debugState]);
+
+  // When debug stops, exit debug mode
+  useEffect(() => {
+    if (debugMode && debugState.status === "idle" && status === "idle") {
+      // Debug session ended
+    }
+  }, [debugMode, debugState.status, status]);
+
+  const handleDebugStop = useCallback(() => {
+    debugState.handleStop();
+    setDebugMode(false);
+  }, [debugState]);
+
+  // The active runner for the diagram canvas: debug runner when debugging, normal runner otherwise
+  const activeRunner = debugMode && debugState.debugRunner ? debugState.debugRunner : runner;
+  const activeStatus = debugMode ? debugState.status : status;
 
   // Listen for "Debug with Sparky" events from compilation errors
   useEffect(() => {
@@ -1020,13 +1047,43 @@ export default function ProjectPage() {
     };
   }, []);
 
-  // App-level keyboard shortcuts: A = catalog, G = grid
+  // App-level keyboard shortcuts: A = catalog, G = grid, debug keys
   useEffect(() => {
     const handleKey = (e: KeyboardEvent) => {
       const el = e.target as HTMLElement;
       const tag = el.tagName;
       if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") return;
       if (el.isContentEditable || el.closest(".monaco-editor")) return;
+
+      // Debug keyboard shortcuts (active when in debug mode)
+      if (debugMode) {
+        if (e.key === "F5") {
+          e.preventDefault();
+          if (debugState.status === "paused") debugState.handleRun();
+          else if (debugState.status === "running") debugState.handlePause();
+          return;
+        }
+        if (e.key === "F10") {
+          e.preventDefault();
+          debugState.handleStep();
+          return;
+        }
+        if (e.key === "F11") {
+          e.preventDefault();
+          debugState.handleStepOver();
+          return;
+        }
+        if (e.key === "F9") {
+          e.preventDefault();
+          debugState.handleReset();
+          return;
+        }
+        if (e.key === "Escape") {
+          e.preventDefault();
+          handleDebugStop();
+          return;
+        }
+      }
 
       if ((e.key === "z" || e.key === "Z") && (e.ctrlKey || e.metaKey)) {
         e.preventDefault();
@@ -1050,7 +1107,7 @@ export default function ProjectPage() {
     };
     window.addEventListener("keydown", handleKey);
     return () => window.removeEventListener("keydown", handleKey);
-  }, [handleUndo, handleRedo]);
+  }, [handleUndo, handleRedo, debugMode, debugState, handleDebugStop]);
 
   const handleToggleVisibility = useCallback(async () => {
     if (!projectId || !projectSettings?.isOwner) return;
@@ -1105,9 +1162,9 @@ export default function ProjectPage() {
       <Toolbar projectName={projectSettings?.title || projectSettings?.slug || projectId} onSave={isOwner ? handleSave : undefined} onImportWokwi={isOwner ? handleImportWokwi : undefined} onExportWokwi={handleExportWokwi} onDownloadZip={handleDownloadZip} onCopyProject={handleCopyProject} lastSaved={lastSaved} dirty={dirty} sparkyOpen={sparkyOpen} onSparkyToggle={() => setSparkyOpen((v) => !v)} isPublic={isPublic} isOwner={isOwner} onToggleVisibility={handleToggleVisibility} ownerUsername={projectSettings?.ownerUsername} onRenameProject={isOwner ? handleRenameProject : undefined} onDeleteProject={isOwner ? handleDeleteProject : undefined} starred={starred} onToggleStar={handleToggleStar} />
       <Workbench
         diagram={diagram}
-        runner={runner}
-        status={status}
-        serialOutput={serialOutput}
+        runner={activeRunner}
+        status={activeStatus}
+        serialOutput={debugMode ? debugState.serialOutput : serialOutput}
         sketchCode={sketchCode}
         diagramJson={diagramJson}
         pcbText={pcbText}
@@ -1165,6 +1222,9 @@ export default function ProjectPage() {
         currentSnapshot={pendingReview ? currentSnapshot : null}
         initialMessage={sparkyInitialMessage}
         onInitialMessageConsumed={() => setSparkyInitialMessage(null)}
+        debugMode={debugMode}
+        debugState={debugMode ? { ...debugState, handleStop: handleDebugStop } : null}
+        onStartDebug={handleStartDebug}
       />
     </div>
   );

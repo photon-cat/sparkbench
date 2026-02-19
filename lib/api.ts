@@ -23,12 +23,14 @@ export async function fetchProjects(params?: {
   limit?: number;
   q?: string;
   featured?: boolean;
+  mine?: boolean;
 }): Promise<ProjectListResponse> {
   const sp = new URLSearchParams();
   if (params?.page) sp.set("page", String(params.page));
   if (params?.limit) sp.set("limit", String(params.limit));
   if (params?.q) sp.set("q", params.q);
   if (params?.featured) sp.set("featured", "true");
+  if (params?.mine) sp.set("mine", "true");
   const qs = sp.toString();
   const res = await fetch(`/api/projects${qs ? `?${qs}` : ""}`);
   const data = await res.json();
@@ -90,12 +92,19 @@ export async function saveSketch(projectId: string, code: string, files?: { name
   if (!res.ok) throw new Error(`Failed to save sketch: ${res.statusText}`);
 }
 
+export interface SourceMapEntry {
+  file: string;
+  line: number;
+  address: number; // word address
+}
+
 export interface BuildResult {
   success: boolean;
   hex: string;
   error?: string;
   stdout?: string;
   stderr?: string;
+  sourceMap?: SourceMapEntry[];
 }
 
 // ── PCB (.kicad_pcb) ─────────────────────────────────────────────
@@ -207,6 +216,12 @@ export async function fetchStarStatus(projectId: string): Promise<{ starred: boo
   return res.json();
 }
 
+export async function fetchMyProjects(): Promise<ProjectMeta[]> {
+  const res = await fetch("/api/user/projects");
+  if (!res.ok) return [];
+  return res.json();
+}
+
 export async function fetchStarred(): Promise<ProjectMeta[]> {
   const res = await fetch("/api/user/stars");
   if (!res.ok) return [];
@@ -221,11 +236,12 @@ export async function buildProject(
   files: { name: string; content: string }[],
   board = "uno",
   librariesTxt = "",
+  debug = false,
 ): Promise<BuildResult> {
   const res = await fetch(`/api/projects/${projectId}/build`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ sketch, files, board, librariesTxt }),
+    body: JSON.stringify({ sketch, files, board, librariesTxt, debug }),
   });
   return res.json();
 }

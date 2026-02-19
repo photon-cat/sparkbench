@@ -1,5 +1,5 @@
 import { PinState } from "avr8js";
-import { AVRRunner } from "./avr-runner";
+import type { AVRRunnerLike } from "./pin-mapping";
 import {
   Diagram,
   DiagramPart,
@@ -88,7 +88,7 @@ function findPartConnections(
  * Returns a map of componentId -> WiredComponent for the caller to bind UI callbacks.
  */
 export function wireComponents(
-  runner: AVRRunner,
+  runner: AVRRunnerLike,
   diagram: Diagram,
   mcuId?: string
 ): Map<string, WiredComponent> {
@@ -254,7 +254,7 @@ export function wireComponents(
  * Traces connections to find MCU pins for PL/CP/Q7 and switch inputs for D0-D7.
  */
 function wireHC165(
-  runner: AVRRunner,
+  runner: AVRRunnerLike,
   diagram: Diagram,
   mcuId: string,
   pinMapper: (name: string) => PinInfo | null,
@@ -327,7 +327,7 @@ function wireHC165(
  * Connects Q0-Q7 outputs to LEDs and 7-segment displays.
  */
 function wireHC595(
-  runner: AVRRunner,
+  runner: AVRRunnerLike,
   diagram: Diagram,
   mcuId: string,
   pinMapper: (name: string) => PinInfo | null,
@@ -503,7 +503,7 @@ function wireHC595Outputs(
  * Traces connections to find MCU pins for CLK, DT, and SW.
  */
 function wireEncoders(
-  runner: AVRRunner,
+  runner: AVRRunnerLike,
   diagram: Diagram,
   mcuId: string,
   pinMapper: (name: string) => PinInfo | null,

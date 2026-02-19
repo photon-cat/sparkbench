@@ -3,11 +3,11 @@ services:
     image: postgres:16-alpine
     restart: unless-stopped
     ports:
-      - "5432:5432"
+      - "127.0.0.1:5432:5432"
     environment:
-      POSTGRES_DB: sparkbench
-      POSTGRES_USER: sparkbench
-      POSTGRES_PASSWORD: sparkbench_dev
+      POSTGRES_DB: ${POSTGRES_DB:-sparkbench}
+      POSTGRES_USER: ${POSTGRES_USER:-sparkbench}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
     volumes:
       - pgdata:/var/lib/postgresql/data
 
@@ -15,14 +15,21 @@ services:
     image: minio/minio:latest
     restart: unless-stopped
     ports:
-      - "9000:9000"
-      - "9001:9001"
+      - "127.0.0.1:9000:9000"
+      - "127.0.0.1:9001:9001"
     environment:
-      MINIO_ROOT_USER: minioadmin
-      MINIO_ROOT_PASSWORD: minioadmin123
+      MINIO_ROOT_USER: ${MINIO_ACCESS_KEY:?Set MINIO_ACCESS_KEY in .env}
+      MINIO_ROOT_PASSWORD: ${MINIO_SECRET_KEY:?Set MINIO_SECRET_KEY in .env}
     volumes:
       - miniodata:/data
     command: server /data --console-address ":9001"
+
+  sandbox:
+    build:
+      context: .
+      dockerfile: Dockerfile.sandbox
+    image: sparkbench-sandbox:latest
+    profiles: ["build"]
 
 volumes:
   pgdata:

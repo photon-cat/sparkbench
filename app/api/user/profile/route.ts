@@ -3,6 +3,7 @@ import { eq, and, ne } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { users, accounts } from "@/lib/db/schema";
 import { getServerSession } from "@/lib/auth-middleware";
+import { logActivity } from "@/lib/logger";
 
 /**
  * Ensure the user has a username set. If not, default to their user ID.
@@ -108,6 +109,11 @@ export async function PATCH(request: Request) {
     }
 
     await db.update(users).set(updates).where(eq(users.id, session.user.id));
+
+    logActivity("user.update_profile", {
+      userId: session.user.id,
+      metadata: { fields: Object.keys(updates).filter(k => k !== "updatedAt") },
+    });
 
     return NextResponse.json({ success: true });
   } catch (err) {

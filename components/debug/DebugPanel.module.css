@@ -1,0 +1,355 @@
+/* Debug Panel Container */
+.panel {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  background: #1a1a1a;
+  color: #ccc;
+  font-family: "Cascadia Code", "Fira Code", "Consolas", monospace;
+  font-size: 12px;
+  overflow: hidden;
+}
+
+/* Toolbar */
+.toolbar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 8px;
+  background: #222;
+  border-bottom: 1px solid #333;
+  flex-shrink: 0;
+}
+
+.speedInput {
+  background: #2a2a2a;
+  color: #ccc;
+  border: 1px solid #444;
+  border-radius: 3px;
+  padding: 2px 6px;
+  font-size: 10px;
+  font-family: inherit;
+  margin-left: 4px;
+  width: 64px;
+  text-align: right;
+}
+
+.speedInput:focus {
+  outline: none;
+  border-color: #007fd4;
+}
+
+.toolbarInfo {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* Panel Body - split layout */
+.panelBody {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.panelLeft {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.panelDivider {
+  width: 4px;
+  cursor: ew-resize;
+  background: #333;
+  flex-shrink: 0;
+  transition: background 0.15s;
+}
+
+.panelDivider:hover,
+.panelDividerActive {
+  background: #007fd4;
+}
+
+.panelRight {
+  width: 280px;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+/* Tab Bar */
+.tabBar {
+  display: flex;
+  background: #222;
+  border-bottom: 1px solid #333;
+  flex-shrink: 0;
+}
+
+.tab {
+  padding: 4px 12px;
+  background: none;
+  border: none;
+  color: #888;
+  font-size: 11px;
+  font-family: inherit;
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+}
+
+.tab:hover {
+  color: #ccc;
+}
+
+.tabActive {
+  color: #7dd3fc;
+  border-bottom-color: #7dd3fc;
+}
+
+.tabContent {
+  flex: 1;
+  overflow: auto;
+}
+
+/* Disassembly View */
+.disassembly {
+  height: 100%;
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
+.disasmRow {
+  display: flex;
+  align-items: center;
+  padding: 1px 4px;
+  cursor: default;
+  white-space: nowrap;
+}
+
+.disasmRow:hover {
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.disasmCurrent {
+  background: rgba(59, 130, 246, 0.15) !important;
+  border-left: 3px solid #3b82f6;
+  padding-left: 1px;
+}
+
+.disasmBp {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  margin-right: 4px;
+  cursor: pointer;
+  border: 1px solid transparent;
+}
+
+.disasmBp:hover {
+  border-color: #ef4444;
+}
+
+.disasmBpActive {
+  background: #ef4444;
+}
+
+.disasmAddr {
+  width: 40px;
+  color: #666;
+  flex-shrink: 0;
+}
+
+.disasmBytes {
+  width: 80px;
+  color: #555;
+  flex-shrink: 0;
+}
+
+.disasmMnemonic {
+  width: 60px;
+  color: #93c5fd;
+  font-weight: bold;
+  flex-shrink: 0;
+}
+
+.disasmOperands {
+  color: #ccc;
+}
+
+/* Register View */
+.registers {
+  padding: 8px;
+}
+
+.regSection {
+  margin-bottom: 8px;
+}
+
+.regLabel {
+  color: #888;
+  font-size: 10px;
+  text-transform: uppercase;
+  margin-bottom: 4px;
+}
+
+.regRow {
+  display: flex;
+  justify-content: space-between;
+  padding: 1px 0;
+}
+
+.regValue {
+  color: #e2e8f0;
+}
+
+.sregBits {
+  display: flex;
+  gap: 2px;
+}
+
+.sregBit {
+  width: 20px;
+  height: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #2a2a2a;
+  border: 1px solid #444;
+  border-radius: 2px;
+  font-size: 10px;
+  color: #666;
+}
+
+.sregBitSet {
+  background: #1e3a5f;
+  color: #7dd3fc;
+  border-color: #3b82f6;
+}
+
+.regGrid {
+  display: grid;
+  grid-template-columns: repeat(8, 1fr);
+  gap: 1px;
+}
+
+.regCell {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 2px;
+  background: #2a2a2a;
+  border-radius: 2px;
+}
+
+.regChanged {
+  background: #422006;
+}
+
+.regCellName {
+  font-size: 8px;
+  color: #666;
+}
+
+.regCellValue {
+  font-size: 10px;
+  color: #e2e8f0;
+}
+
+/* Memory View */
+.memory {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.memControls {
+  display: flex;
+  gap: 4px;
+  padding: 4px 8px;
+  border-bottom: 1px solid #333;
+  flex-shrink: 0;
+}
+
+.memSelect {
+  background: #2a2a2a;
+  color: #ccc;
+  border: 1px solid #444;
+  border-radius: 3px;
+  padding: 2px 4px;
+  font-size: 11px;
+  font-family: inherit;
+}
+
+.memAddrInput {
+  background: #2a2a2a;
+  color: #ccc;
+  border: 1px solid #444;
+  border-radius: 3px;
+  padding: 2px 4px;
+  font-size: 11px;
+  font-family: inherit;
+  width: 60px;
+}
+
+.memDump {
+  flex: 1;
+  overflow: auto;
+  padding: 4px 8px;
+}
+
+.memHeader {
+  display: flex;
+  gap: 0;
+  color: #666;
+  border-bottom: 1px solid #333;
+  padding-bottom: 2px;
+  margin-bottom: 2px;
+}
+
+.memRow {
+  display: flex;
+  gap: 0;
+}
+
+.memAddrCol {
+  width: 40px;
+  color: #666;
+  flex-shrink: 0;
+}
+
+.memHexCol {
+  width: 16px;
+  text-align: center;
+  flex-shrink: 0;
+}
+
+.memRecent {
+  background: #422006;
+  color: #fbbf24;
+}
+
+.memZero {
+  color: #444;
+}
+
+.memAsciiCol {
+  margin-left: 8px;
+  color: #4ade80;
+  letter-spacing: 0.5px;
+}
+
+/* Serial Output */
+.serialOutput {
+  padding: 8px;
+  margin: 0;
+  color: #4ade80;
+  white-space: pre-wrap;
+  word-break: break-all;
+  overflow: auto;
+  height: 100%;
+}

@@ -10,8 +10,7 @@
  */
 
 import { PinState } from "avr8js";
-import { AVRRunner } from "./avr-runner";
-import { PinInfo, getPort } from "./pin-mapping";
+import { PinInfo, getPort, type AVRRunnerLike } from "./pin-mapping";
 
 export class HC165Simulator {
   private register = 0; // 8-bit shift register
@@ -28,7 +27,7 @@ export class HC165Simulator {
    * @param cePin     - MCU pin connected to CE, or null if hardwired to GND (always enabled)
    */
   constructor(
-    private runner: AVRRunner,
+    private runner: AVRRunnerLike,
     private plPin: PinInfo,
     private cpPin: PinInfo,
     private q7Pin: PinInfo,

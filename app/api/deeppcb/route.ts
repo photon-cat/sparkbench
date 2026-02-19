@@ -1,8 +1,6 @@
 import { NextResponse } from "next/server";
-import { eq } from "drizzle-orm";
-import { db } from "@/lib/db";
-import { projects } from "@/lib/db/schema";
 import { downloadFile, uploadFile } from "@/lib/storage";
+import { authorizeProjectWrite, getServerSession } from "@/lib/auth-middleware";
 import { DeepPCBClient } from "@/lib/deeppcb-client";
 
 // Allow long-running routing jobs (up to 2 hours)
@@ -10,6 +8,12 @@ export const maxDuration = 7200;
 export const dynamic = "force-dynamic";
 
 export async function POST(request: Request) {
+  // Require authentication
+  const session = await getServerSession();
+  if (!session?.user) {
+    return NextResponse.json({ error: "Sign in required" }, { status: 401 });
+  }
+
   let projectId: string;
   try {
     const body = await request.json();
@@ -25,21 +29,14 @@ export async function POST(request: Request) {
   const apiKey = process.env.DEEPPCB_API_KEY;
   if (!apiKey) {
     return NextResponse.json(
-      { error: "DEEPPCB_API_KEY not configured. Add it to your .env.local file." },
+      { error: "PCB routing is not configured." },
       { status: 500 },
     );
   }
 
-  // Verify project exists
-  const rows = await db
-    .select({ id: projects.id })
-    .from(projects)
-    .where(eq(projects.id, projectId))
-    .limit(1);
-
-  if (rows.length === 0) {
-    return NextResponse.json({ error: "Project not found" }, { status: 404 });
-  }
+  // Require write access to the project
+  const writeResult = await authorizeProjectWrite(projectId);
+  if (writeResult.error) return writeResult.error;
 
   const pcbContent = await downloadFile(projectId, "board.kicad_pcb");
   if (!pcbContent) {

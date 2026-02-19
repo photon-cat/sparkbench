@@ -1,20 +1,21 @@
 "use client";
 
-import { useState, useCallback, useRef } from "react";
+import { useState, useCallback, useRef, useMemo } from "react";
 import dynamic from "next/dynamic";
 import styles from "./Workbench.module.css";
 import EditorPanel from "./EditorPanel";
 import SimulationPanel from "./SimulationPanel";
 import SparkyChat, { type FileSnapshot } from "./SparkyChat";
 import { Diagram, DiagramConnection } from "@/lib/diagram-parser";
-import { AVRRunner } from "@/lib/avr-runner";
+import type { AVRRunnerLike } from "@/lib/pin-mapping";
+import type { UseDebuggerReturn } from "@/hooks/useDebugger";
 
 // SplitPane wraps Allotment and imports its CSS — must skip SSR
 const SplitPane = dynamic(() => import("./SplitPane"), { ssr: false });
 
 interface WorkbenchProps {
   diagram: Diagram | null;
-  runner: AVRRunner | null;
+  runner: AVRRunnerLike | null;
   status: "idle" | "compiling" | "running" | "paused" | "error";
   serialOutput: string;
   sketchCode: string;
@@ -74,6 +75,9 @@ interface WorkbenchProps {
   currentSnapshot?: FileSnapshot | null;
   initialMessage?: string | null;
   onInitialMessageConsumed?: () => void;
+  debugMode?: boolean;
+  debugState?: UseDebuggerReturn | null;
+  onStartDebug?: () => void;
 }
 
 export default function Workbench({
@@ -138,9 +142,31 @@ export default function Workbench({
   currentSnapshot,
   initialMessage,
   onInitialMessageConsumed,
+  debugMode,
+  debugState,
+  onStartDebug,
 }: WorkbenchProps) {
   const [chatWidth, setChatWidth] = useState(400);
   const dividerRef = useRef<{ startX: number; startWidth: number } | null>(null);
+
+  // Compute breakpoint lines and current debug line for Monaco
+  const breakpointLines = useMemo(() => {
+    if (!debugMode || !debugState?.sourceMap || !debugState?.breakpoints) return undefined;
+    const lines = new Set<number>();
+    for (const entry of debugState.sourceMap) {
+      if (entry.file === "main.cpp" && debugState.breakpoints.has(entry.address)) {
+        lines.add(entry.line - 1); // Adjust for auto-added #include <Arduino.h>
+      }
+    }
+    return lines.size > 0 ? lines : undefined;
+  }, [debugMode, debugState?.sourceMap, debugState?.breakpoints]);
+
+  const currentDebugLine = useMemo(() => {
+    if (!debugMode || !debugState?.sourceMap || debugState.status === "idle") return null;
+    const pc = debugState.pc;
+    const entry = debugState.sourceMap.find((e) => e.file === "main.cpp" && e.address === pc);
+    return entry ? entry.line - 1 : null; // Adjust for auto-added #include <Arduino.h>
+  }, [debugMode, debugState?.sourceMap, debugState?.pc, debugState?.status]);
 
   const handleDividerDown = useCallback((e: React.MouseEvent) => {
     e.preventDefault();
@@ -187,6 +213,10 @@ export default function Workbench({
                 onFileContentChange={onFileContentChange}
                 librariesTxt={librariesTxt}
                 onLibrariesChange={onLibrariesChange}
+                debugMode={debugMode}
+                breakpointLines={breakpointLines}
+                currentDebugLine={currentDebugLine}
+                onToggleBreakpointLine={debugState?.handleToggleBreakpointLine}
               />
             }
             right={
@@ -230,6 +260,9 @@ export default function Workbench({
                 librariesTxt={librariesTxt}
                 onLibrariesChange={onLibrariesChange}
                 projectId={projectId}
+                debugMode={debugMode}
+                debugState={debugState}
+                onStartDebug={onStartDebug}
               />
             }
           />

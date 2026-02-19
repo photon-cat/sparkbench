@@ -8,10 +8,16 @@ import { nanoid } from "nanoid";
 import { db } from "@/lib/db";
 import { projects, builds } from "@/lib/db/schema";
 import { uploadFile } from "@/lib/storage";
-import { authorizeProjectRead } from "@/lib/auth-middleware";
+import { authorizeProjectRead, getServerSession } from "@/lib/auth-middleware";
+import { runProjectBuild } from "@/lib/sandbox";
+import { logActivity } from "@/lib/logger";
 
 const PIO_CMD = path.join(os.homedir(), ".platformio/penv/bin/platformio");
-const BUILD_DIR = path.join(process.cwd(), "_build");
+const SANDBOX_ENABLED = process.env.SANDBOX_ENABLED === "true";
+
+const VALID_BOARDS = ["uno", "nano", "mega", "atmega328p", "leonardo", "micro", "pro", "promini"];
+const VALID_FILENAME = /^[a-zA-Z0-9][a-zA-Z0-9._-]*$/;
+const VALID_LIB_NAME = /^[a-zA-Z0-9_.@\/ -]+$/;
 
 // Map header files to PlatformIO library names/specs for auto-detection
 const HEADER_TO_LIB: Record<string, string> = {
@@ -148,22 +154,44 @@ export async function POST(
       );
     }
 
-    // Authorize: anyone who can read the project can build it
+    // Require authentication to build
+    const session = await getServerSession();
+    if (!session?.user) {
+      return NextResponse.json(
+        { success: false, error: "Sign in to build projects" },
+        { status: 401 },
+      );
+    }
+
     const readResult = await authorizeProjectRead(id);
     if (readResult.error) return readResult.error;
 
     const project = readResult.project;
 
+    const buildStart = Date.now();
+
+    // Per-build temp directory for concurrency safety
+    const BUILD_DIR = path.join(os.tmpdir(), `sparkbench-build-${nanoid(8)}`);
+    await mkdir(BUILD_DIR, { recursive: true });
+
+    try {
+
     const data = await request.json();
     const board = data.board || "uno";
+    if (!VALID_BOARDS.includes(board)) {
+      return NextResponse.json(
+        { success: false, error: `Invalid board type. Valid boards: ${VALID_BOARDS.join(", ")}` },
+        { status: 400 },
+      );
+    }
     const files: { name: string; content: string }[] = data.files || [];
     const librariesTxt: string = data.librariesTxt || "";
 
-    // Parse libraries.txt into library names
+    // Parse libraries.txt into library names (validate to prevent INI injection)
     const extraLibs = librariesTxt
       .split("\n")
       .map((l: string) => l.trim())
-      .filter((l: string) => l && !l.startsWith("#"));
+      .filter((l: string) => l && !l.startsWith("#") && VALID_LIB_NAME.test(l));
 
     // Auto-detect libraries from #include directives in sketch + extra files
     const allSources = [data.sketch || "", ...files.map((f: { content: string }) => f.content || "")].join("\n");
@@ -214,12 +242,15 @@ ${libDepsStr}
     await mkdir(srcDir, { recursive: true });
     await mkdir(includeDir, { recursive: true });
 
-    // Write extra files (headers, etc.)
+    // Write extra files (headers, etc.) — validate names to prevent path traversal
     for (const f of files) {
       if (!f.name || !f.content) continue;
-      const dest = f.name.endsWith(".h")
-        ? path.join(includeDir, f.name)
-        : path.join(srcDir, f.name);
+      const safeName = path.basename(f.name);
+      if (!VALID_FILENAME.test(safeName)) continue;
+      const targetDir = safeName.endsWith(".h") ? includeDir : srcDir;
+      const dest = path.join(targetDir, safeName);
+      const resolved = path.resolve(dest);
+      if (!resolved.startsWith(BUILD_DIR)) continue;
       await writeFile(dest, f.content);
     }
 
@@ -246,25 +277,47 @@ ${libDepsStr}
     // Create build record
     const buildId = nanoid(10);
 
-    // Compile with PlatformIO
-    const result = await new Promise<{
-      code: number;
-      stdout: string;
-      stderr: string;
-    }>((resolve) => {
-      execFile(
-        PIO_CMD,
-        ["run", "-e", board],
-        { cwd: BUILD_DIR, timeout: 120_000 },
-        (error, stdout, stderr) => {
-          resolve({
-            code: typeof error?.code === "number" ? error.code : error ? 1 : 0,
-            stdout: stdout || "",
-            stderr: stderr || "",
-          });
-        },
-      );
-    });
+    // Compile with PlatformIO (sandboxed or direct)
+    let result: { code: number; stdout: string; stderr: string };
+    let sandboxArtifacts: Map<string, Buffer> | undefined;
+
+    if (SANDBOX_ENABLED) {
+      const sbResult = await runProjectBuild(project.id, {
+        projectDir: BUILD_DIR,
+        command: ["platformio", "run", "-e", board],
+        timeout: 120_000,
+        artifactPaths: [
+          `.pio/build/${board}/firmware.hex`,
+          `.pio/build/${board}/firmware.elf`,
+        ],
+      });
+      result = {
+        code: sbResult.exitCode,
+        stdout: sbResult.stdout,
+        stderr: sbResult.stderr,
+      };
+      sandboxArtifacts = sbResult.artifacts;
+    } else {
+      result = await new Promise<{
+        code: number;
+        stdout: string;
+        stderr: string;
+      }>((resolve) => {
+        execFile(
+          PIO_CMD,
+          ["run", "-e", board],
+          { cwd: BUILD_DIR, timeout: 120_000 },
+          (error, stdout, stderr) => {
+            resolve({
+              code:
+                typeof error?.code === "number" ? error.code : error ? 1 : 0,
+              stdout: stdout || "",
+              stderr: stderr || "",
+            });
+          },
+        );
+      });
+    }
 
     if (result.code !== 0) {
       // Record failed build
@@ -277,6 +330,12 @@ ${libDepsStr}
         stderr: result.stderr,
       });
 
+      logActivity("build.error", {
+        projectId: project.id,
+        metadata: { board, buildId },
+        durationMs: Date.now() - buildStart,
+      });
+
       return NextResponse.json({
         success: false,
         error: result.stderr || "Compilation failed",
@@ -285,9 +344,47 @@ ${libDepsStr}
       });
     }
 
-    // Read hex file
-    const hexPath = path.join(BUILD_DIR, ".pio", "build", board, "firmware.hex");
-    const hex = await readFile(hexPath, "utf-8");
+    // Read hex file (from sandbox artifacts or local filesystem)
+    let hex: string;
+    if (sandboxArtifacts?.has(`.pio/build/${board}/firmware.hex`)) {
+      hex = sandboxArtifacts.get(`.pio/build/${board}/firmware.hex`)!.toString("utf-8");
+    } else {
+      const hexPath = path.join(BUILD_DIR, ".pio", "build", board, "firmware.hex");
+      hex = await readFile(hexPath, "utf-8");
+    }
+
+    // Extract source map for debug mode
+    let sourceMap: { file: string; line: number; address: number }[] | undefined;
+    if (data.debug) {
+      try {
+        // When sandboxed, write the ELF artifact to disk for objdump
+        const elfPath = path.join(BUILD_DIR, ".pio", "build", board, "firmware.elf");
+        const elfArtifactKey = `.pio/build/${board}/firmware.elf`;
+        if (sandboxArtifacts?.has(elfArtifactKey)) {
+          const elfDir = path.dirname(elfPath);
+          await mkdir(elfDir, { recursive: true });
+          await writeFile(elfPath, sandboxArtifacts.get(elfArtifactKey)!);
+        }
+
+        const objdumpPath = path.join(
+          os.homedir(),
+          ".platformio/packages/toolchain-atmelavr/bin/avr-objdump",
+        );
+        const dwarfResult = await new Promise<{ stdout: string; stderr: string }>((resolve) => {
+          execFile(
+            objdumpPath,
+            ["--dwarf=decodedline", elfPath],
+            { timeout: 30_000 },
+            (_error, stdout, stderr) => {
+              resolve({ stdout: stdout || "", stderr: stderr || "" });
+            },
+          );
+        });
+        sourceMap = parseDwarfLineInfo(dwarfResult.stdout);
+      } catch {
+        // Source map extraction is best-effort; continue without it
+      }
+    }
 
     // Upload firmware.hex to MinIO
     const hexKey = `builds/${buildId}/firmware.hex`;
@@ -304,18 +401,58 @@ ${libDepsStr}
       stderr: result.stderr,
     });
 
+    logActivity("build.success", {
+      projectId: project.id,
+      metadata: { board, buildId },
+      durationMs: Date.now() - buildStart,
+    });
+
     return NextResponse.json({
       success: true,
       firmware: "firmware.hex",
       hex,
       stdout: result.stdout,
       stderr: result.stderr,
+      ...(sourceMap ? { sourceMap } : {}),
     });
+
+    } finally {
+      // Clean up per-build temp directory
+      rm(BUILD_DIR, { recursive: true, force: true }).catch(() => {});
+    }
   } catch (err) {
-    const message = err instanceof Error ? err.message : String(err);
+    console.error("Build error:", err);
     return NextResponse.json(
-      { success: false, error: message },
+      { success: false, error: "Internal build error" },
       { status: 500 },
     );
   }
+}
+
+/**
+ * Parse avr-objdump --dwarf=decodedline output into source map entries.
+ * Output format:
+ *   File name   Line number    Starting address    View    Stmt
+ *   main.cpp             10          0x00000080               x
+ */
+function parseDwarfLineInfo(
+  output: string,
+): { file: string; line: number; address: number }[] {
+  const entries: { file: string; line: number; address: number }[] = [];
+  for (const rawLine of output.split("\n")) {
+    const line = rawLine.trim();
+    // Match lines like: main.cpp             10          0x00000080               x
+    const match = line.match(
+      /^(\S+)\s+(\d+)\s+0x([0-9a-fA-F]+)/,
+    );
+    if (!match) continue;
+    const [, file, lineStr, addrHex] = match;
+    const byteAddr = parseInt(addrHex, 16);
+    entries.push({
+      file,
+      line: parseInt(lineStr, 10),
+      address: byteAddr >> 1, // convert byte address to word address
+    });
+  }
+  return entries;
 }

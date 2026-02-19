@@ -1,14 +1,22 @@
 import { Client } from "minio";
+import path from "path";
+
+if (!process.env.MINIO_ACCESS_KEY || !process.env.MINIO_SECRET_KEY) {
+  throw new Error("MINIO_ACCESS_KEY and MINIO_SECRET_KEY environment variables are required");
+}
 
 const minioClient = new Client({
   endPoint: process.env.MINIO_ENDPOINT || "localhost",
   port: parseInt(process.env.MINIO_PORT || "9000", 10),
-  useSSL: false,
-  accessKey: process.env.MINIO_ACCESS_KEY || "minioadmin",
-  secretKey: process.env.MINIO_SECRET_KEY || "minioadmin123",
+  useSSL: process.env.MINIO_USE_SSL === "true",
+  accessKey: process.env.MINIO_ACCESS_KEY,
+  secretKey: process.env.MINIO_SECRET_KEY,
 });
 
 const BUCKET = process.env.MINIO_BUCKET || "sparkbench";
+
+const MAX_UPLOAD_SIZE = 10 * 1024 * 1024; // 10 MB
+const SAFE_FILENAME = /^[a-zA-Z0-9][a-zA-Z0-9._\/-]*$/;
 
 let bucketReady = false;
 
@@ -21,8 +29,21 @@ export async function ensureBucket(): Promise<void> {
   bucketReady = true;
 }
 
+function sanitizeFilename(filename: string): string {
+  // Normalize and strip path traversal
+  const normalized = path.posix.normalize(filename).replace(/^(\.\.\/)+/, "");
+  if (!SAFE_FILENAME.test(normalized) || normalized.includes("..")) {
+    throw new Error(`Invalid filename: ${filename}`);
+  }
+  return normalized;
+}
+
 function objectKey(projectId: string, filename: string): string {
-  return `projects/${projectId}/${filename}`;
+  if (!/^[a-zA-Z0-9_-]+$/.test(projectId)) {
+    throw new Error(`Invalid project ID: ${projectId}`);
+  }
+  const safe = sanitizeFilename(filename);
+  return `projects/${projectId}/${safe}`;
 }
 
 export async function uploadFile(
@@ -32,6 +53,9 @@ export async function uploadFile(
 ): Promise<void> {
   await ensureBucket();
   const buf = typeof content === "string" ? Buffer.from(content, "utf-8") : content;
+  if (buf.length > MAX_UPLOAD_SIZE) {
+    throw new Error(`File too large (${buf.length} bytes). Maximum is ${MAX_UPLOAD_SIZE} bytes.`);
+  }
   await minioClient.putObject(BUCKET, objectKey(projectId, filename), buf);
 }
 

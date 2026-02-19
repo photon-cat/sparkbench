@@ -39,6 +39,7 @@ export default function StarredPage() {
 
       <div className={styles.tabBar}>
         <a href="/dashboard/projects" className={styles.tab} style={{ textDecoration: "none" }}>projects</a>
+        <a href="/dashboard/mine" className={styles.tab} style={{ textDecoration: "none" }}>my projects</a>
         <div className={`${styles.tab} ${styles.tabActive}`}>starred</div>
       </div>
 

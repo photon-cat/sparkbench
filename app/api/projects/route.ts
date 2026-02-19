@@ -3,8 +3,9 @@ import { eq, desc, or, ilike, and, sql } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { projects } from "@/lib/db/schema";
 import { generateProjectId } from "@/lib/db/projects";
-import { uploadFile, downloadFile } from "@/lib/storage";
+import { uploadFile } from "@/lib/storage";
 import { getServerSession } from "@/lib/auth-middleware";
+import { logActivity } from "@/lib/logger";
 
 export const dynamic = "force-dynamic";
 
@@ -62,9 +63,10 @@ export async function GET(request: Request) {
   try {
     const url = new URL(request.url);
     const page = Math.max(1, parseInt(url.searchParams.get("page") || "1", 10));
-    const limit = Math.min(100, Math.max(1, parseInt(url.searchParams.get("limit") || "50", 10)));
+    const limit = Math.min(100, Math.max(1, parseInt(url.searchParams.get("limit") || "25", 10)));
     const q = url.searchParams.get("q")?.trim() || "";
     const featured = url.searchParams.get("featured") === "true";
+    const mine = url.searchParams.get("mine") === "true";
 
     // Get current user (if logged in)
     let userId: string | null = null;
@@ -74,16 +76,24 @@ export async function GET(request: Request) {
     } catch { /* unauthenticated */ }
 
     // Build visibility condition
-    const visibilityCondition = userId
-      ? or(eq(projects.isPublic, true), eq(projects.ownerId, userId))
-      : eq(projects.isPublic, true);
+    let visibilityCondition;
+    if (mine && userId) {
+      // "My projects" — only show projects owned by user
+      visibilityCondition = eq(projects.ownerId, userId);
+    } else {
+      visibilityCondition = userId
+        ? or(eq(projects.isPublic, true), eq(projects.ownerId, userId))
+        : eq(projects.isPublic, true);
+    }
 
     // Build conditions array
     const conditions = [visibilityCondition];
 
     if (q) {
+      // Escape ILIKE wildcard characters to prevent pattern injection
+      const escaped = q.replace(/[%_\\]/g, "\\$&");
       conditions.push(
-        or(ilike(projects.slug, `%${q}%`), ilike(projects.title, `%${q}%`))!,
+        or(ilike(projects.slug, `%${escaped}%`), ilike(projects.title, `%${escaped}%`))!,
       );
     }
 
@@ -102,31 +112,30 @@ export async function GET(request: Request) {
     const pages = Math.ceil(total / limit);
     const offset = (page - 1) * limit;
 
-    // Fetch rows
+    // Fetch only the columns we need (avoid pulling large diagramJson for listing)
     const rows = await db
-      .select()
+      .select({
+        id: projects.id,
+        slug: projects.slug,
+        title: projects.title,
+        isPublic: projects.isPublic,
+        diagramJson: projects.diagramJson,
+        fileManifest: projects.fileManifest,
+        updatedAt: projects.updatedAt,
+      })
       .from(projects)
       .where(whereClause)
       .orderBy(desc(projects.updatedAt))
       .limit(limit)
       .offset(offset);
 
-    const metas: ProjectMeta[] = [];
-    for (const row of rows) {
-      const meta = extractMeta(row);
-      // Fetch sketch line count from MinIO
-      const sketch = await downloadFile(row.id, "sketch.ino");
-      if (sketch) {
-        meta.lineCount = sketch.split("\n").length;
-      }
-      metas.push(meta);
-    }
+    const metas: ProjectMeta[] = rows.map((row) => extractMeta(row as typeof projects.$inferSelect));
 
     return NextResponse.json({ projects: metas, total, page, pages });
   } catch (err) {
-    const message = err instanceof Error ? err.message : String(err);
+    console.error("Failed to list projects:", err);
     return NextResponse.json(
-      { error: `Failed to list projects: ${message}` },
+      { error: "Failed to list projects" },
       { status: 500 },
     );
   }
@@ -180,12 +189,15 @@ export async function POST(request: Request) {
       );
     }
 
-    // Get owner from session (optional — unauthenticated users can create projects)
-    let ownerId: string | null = null;
-    try {
-      const session = await getServerSession();
-      if (session?.user) ownerId = session.user.id;
-    } catch { /* unauthenticated is fine */ }
+    // Require authentication to create projects
+    const session = await getServerSession();
+    if (!session?.user) {
+      return NextResponse.json(
+        { error: "Sign in to create projects" },
+        { status: 401 },
+      );
+    }
+    const ownerId = session.user.id;
 
     const id = generateProjectId();
     // Append first 4 chars of project ID to ensure URL uniqueness
@@ -206,11 +218,13 @@ export async function POST(request: Request) {
     await uploadFile(id, "sketch.ino", DEFAULT_SKETCH);
     await uploadFile(id, "diagram.json", diagramStr);
 
+    logActivity("project.create", { userId: ownerId, projectId: id, metadata: { slug, name } });
+
     return NextResponse.json({ id, slug });
   } catch (err) {
-    const message = err instanceof Error ? err.message : String(err);
+    console.error("Failed to create project:", err);
     return NextResponse.json(
-      { error: `Failed to create project: ${message}` },
+      { error: "Failed to create project" },
       { status: 500 },
     );
   }

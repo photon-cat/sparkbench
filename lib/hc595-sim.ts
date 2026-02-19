@@ -8,8 +8,7 @@
  */
 
 import { PinState } from "avr8js";
-import { AVRRunner } from "./avr-runner";
-import { PinInfo, getPort } from "./pin-mapping";
+import { PinInfo, getPort, type AVRRunnerLike } from "./pin-mapping";
 
 /** A single 74HC595 chip's shift/latch logic (no port listeners). */
 export class HC595Chip {
@@ -59,7 +58,7 @@ export class HC595Chain {
   private cleanups: (() => void)[] = [];
 
   constructor(
-    private runner: AVRRunner,
+    private runner: AVRRunnerLike,
     private dsPin: PinInfo,
     private shcpPin: PinInfo,
     private stcpPin: PinInfo,

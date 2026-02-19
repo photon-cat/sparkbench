@@ -28,12 +28,16 @@ export async function GET(
     }
 
     return new NextResponse(content, {
-      headers: { "Content-Type": "image/svg+xml; charset=utf-8" },
+      headers: {
+        "Content-Type": "image/svg+xml; charset=utf-8",
+        "Content-Security-Policy": "default-src 'none'; style-src 'unsafe-inline'",
+        "X-Content-Type-Options": "nosniff",
+      },
     });
   } catch (err) {
-    const message = err instanceof Error ? err.message : String(err);
+    console.error("Failed to read outline:", err);
     return NextResponse.json(
-      { error: `Failed to read outline: ${message}` },
+      { error: "Failed to read outline" },
       { status: 500 },
     );
   }
@@ -70,9 +74,9 @@ export async function PUT(
 
     return NextResponse.json({ success: true });
   } catch (err) {
-    const message = err instanceof Error ? err.message : String(err);
+    console.error("Failed to save outline:", err);
     return NextResponse.json(
-      { error: `Failed to save outline: ${message}` },
+      { error: "Failed to save outline" },
       { status: 500 },
     );
   }

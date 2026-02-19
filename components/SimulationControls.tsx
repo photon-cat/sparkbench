@@ -23,13 +23,13 @@ import ZoomOutIcon from "@mui/icons-material/ZoomOut";
 import GridOnIcon from "@mui/icons-material/GridOn";
 import HelpIcon from "@mui/icons-material/Help";
 import AddPartPanel from "./AddPartPanel";
-import type { AVRRunner } from "@/lib/avr-runner";
+import type { AVRRunnerLike } from "@/lib/pin-mapping";
 
 type Status = "idle" | "compiling" | "running" | "paused" | "error";
 
 interface SimulationControlsProps {
   status: Status;
-  runner: AVRRunner | null;
+  runner: AVRRunnerLike | null;
   onStart: () => void;
   onStop: () => void;
   onPause: () => void;
