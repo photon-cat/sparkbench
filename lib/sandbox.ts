@@ -123,7 +123,6 @@ export async function runProjectBuild(
       "create",
       "--name", name,
       "--network", "none",
-      "--read-only",
       "--tmpfs", "/tmp:size=100m",
       "-v", `${vol}:/workspace`,
       "--cap-drop", "ALL",
@@ -147,6 +146,15 @@ export async function runProjectBuild(
         reused: false,
       };
     }
+
+    // Ensure workspace volume is owned by sandbox user (UID 1000)
+    await exec("docker", [
+      "run", "--rm", "--user", "root",
+      "-v", `${vol}:/workspace`,
+      "--entrypoint", "chown",
+      SANDBOX_IMAGE,
+      "-R", "1000:1000", "/workspace",
+    ]);
 
     logger.info("[sandbox] Created container", { projectId, name });
     logActivity("sandbox.create", { projectId });

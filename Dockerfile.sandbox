@@ -6,49 +6,63 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 RUN pip install --no-cache-dir platformio
 
-# Pre-cache atmelavr platform and toolchain
+# Create unprivileged user early so packages install to /home/sandbox/.platformio
+RUN useradd -m -s /bin/bash sandbox
+USER sandbox
+
+# Pre-cache atmelavr platform, toolchain, and Arduino framework
 RUN platformio platform install atmelavr
 
-# Pre-install commonly used libraries so builds don't need network access.
-# These are the most popular libs from the HEADER_TO_LIB map.
-RUN platformio pkg install -g \
-      --library "arduino-libraries/Servo@^1.2.1" \
-      --library "adafruit/DHT sensor library@^1.4.6" \
-      --library "adafruit/Adafruit Unified Sensor@^1.1.14" \
-      --library "bblanchon/ArduinoJson" \
-      --library "adafruit/Adafruit NeoPixel" \
-      --library "adafruit/Adafruit SSD1306" \
-      --library "adafruit/Adafruit GFX Library" \
-      --library "fastled/FastLED" \
-      --library "olikraus/U8g2" \
-      --library "arduino-libraries/LiquidCrystal" \
-      --library "marcoschwartz/LiquidCrystal_I2C" \
-      --library "paulstoffregen/Encoder" \
-      --library "br3ttb/Arduino-PID-Library" \
-      --library "mathertel/OneButton" \
-      --library "thomasfredericks/Bounce2" \
-      --library "arduino-libraries/SD" \
-      --library "paulstoffregen/OneWire" \
-      --library "milesburton/DallasTemperature" \
-      --library "adafruit/Adafruit MPU6050" \
-      --library "Arduino-IRremote/Arduino-IRremote" \
-      --library "chris--a/Keypad" \
-      --library "waspinator/AccelStepper" \
-      --library "adafruit/RTClib" \
-      --library "paulstoffregen/TimerOne" \
-      --library "paulstoffregen/Time" \
-      --library "DeanIsMe/SevSeg" \
-      --library "wayoda/LedControl" \
-      --library "majicdesigns/MD_MAX72XX" \
-      --library "majicdesigns/MD_Parola" \
-      --library "adafruit/Adafruit BMP085 Library"
+# Do a dummy build to trigger framework-arduino-avr download and cache it
+RUN mkdir -p /tmp/dummy/src && \
+    echo '[env:uno]\nplatform = atmelavr\nboard = uno\nframework = arduino' > /tmp/dummy/platformio.ini && \
+    echo '#include <Arduino.h>\nvoid setup(){}\nvoid loop(){}' > /tmp/dummy/src/main.cpp && \
+    cd /tmp/dummy && platformio run -e uno && \
+    rm -rf /tmp/dummy
 
-# Create unprivileged user
-RUN useradd -m -s /bin/bash sandbox
+# Pre-install commonly used libraries so builds don't need network access.
+# Install each individually so one failure doesn't block the rest.
+RUN for lib in \
+      "arduino-libraries/Servo@^1.2.1" \
+      "adafruit/DHT sensor library@^1.4.6" \
+      "adafruit/Adafruit Unified Sensor@^1.1.14" \
+      "bblanchon/ArduinoJson" \
+      "adafruit/Adafruit NeoPixel" \
+      "adafruit/Adafruit SSD1306" \
+      "adafruit/Adafruit GFX Library" \
+      "fastled/FastLED" \
+      "olikraus/U8g2" \
+      "arduino-libraries/LiquidCrystal" \
+      "marcoschwartz/LiquidCrystal_I2C" \
+      "paulstoffregen/Encoder" \
+      "br3ttb/PID@^1.2.1" \
+      "mathertel/OneButton" \
+      "thomasfredericks/Bounce2" \
+      "arduino-libraries/SD" \
+      "paulstoffregen/OneWire" \
+      "milesburton/DallasTemperature" \
+      "adafruit/Adafruit MPU6050" \
+      "z3t0/Arduino-IRremote" \
+      "chris--a/Keypad" \
+      "waspinator/AccelStepper" \
+      "adafruit/RTClib" \
+      "paulstoffregen/TimerOne" \
+      "paulstoffregen/Time" \
+      "DeanIsMe/SevSeg" \
+      "wayoda/LedControl" \
+      "majicdesigns/MD_MAX72XX" \
+      "majicdesigns/MD_Parola" \
+      "adafruit/Adafruit BMP085 Library" \
+    ; do \
+      echo "Installing: $lib" && \
+      platformio pkg install -g --library "$lib" || \
+      echo "WARNING: Failed to install $lib, skipping"; \
+    done
+
+# Disable telemetry to avoid write attempts at runtime
+RUN platformio settings set enable_telemetry No
 
 WORKDIR /workspace
-
-USER sandbox
 
 ENTRYPOINT ["platformio", "run", "-e"]
 CMD ["uno"]
