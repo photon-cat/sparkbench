@@ -135,4 +135,65 @@
 .sandboxRow {
   display: flex;
   gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 12px;
+}
+
+.containerTable {
+  background: #1e1e1e;
+  border: 1px solid #333;
+  border-radius: 6px;
+  overflow: hidden;
+  font-size: 12px;
+}
+
+.containerHeader {
+  display: flex;
+  padding: 8px 12px;
+  background: #252525;
+  border-bottom: 1px solid #333;
+  color: #666;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  font-size: 10px;
+}
+
+.containerRow {
+  display: flex;
+  padding: 6px 12px;
+  border-bottom: 1px solid #2a2a2a;
+  color: #999;
+}
+
+.containerRow:last-child {
+  border-bottom: none;
+}
+
+.containerRunning {
+  color: #ccc;
+}
+
+.containerCol {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.containerColWide {
+  flex: 2;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.statusDot {
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  margin-right: 5px;
+  vertical-align: middle;
 }

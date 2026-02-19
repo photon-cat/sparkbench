@@ -137,15 +137,79 @@ async function getTimeBuckets(since: Date, period: string) {
 
 async function getSandboxStats() {
   try {
+    // Get container list with resource details
     const result = await exec("docker", [
-      "ps", "-a", "--filter", "name=sb-", "--format", "{{.Names}}\t{{.Status}}",
+      "ps", "-a", "--filter", "name=sb-",
+      "--format", "{{.Names}}\t{{.Status}}\t{{.Size}}\t{{.CreatedAt}}",
     ]);
     if (result.exitCode !== 0) return null;
     const lines = result.stdout.trim().split("\n").filter(Boolean);
+
+    const containers = lines.map((line) => {
+      const [name, status, size, createdAt] = line.split("\t");
+      const projectId = name?.replace("sb-", "") ?? "";
+      const isRunning = status?.includes("Up") ?? false;
+      return { name: name ?? "", projectId, status: status ?? "", size: size ?? "", createdAt: createdAt ?? "", isRunning };
+    });
+
+    // Get live stats for running containers
+    const statsResult = await exec("docker", [
+      "stats", "--no-stream", "--format",
+      "{{.Name}}\t{{.CPUPerc}}\t{{.MemUsage}}\t{{.MemPerc}}\t{{.PIDs}}",
+    ]);
+    const liveStats = new Map<string, { cpu: string; mem: string; memPct: string; pids: string }>();
+    if (statsResult.exitCode === 0) {
+      for (const line of statsResult.stdout.trim().split("\n").filter(Boolean)) {
+        const [name, cpu, mem, memPct, pids] = line.split("\t");
+        if (name?.startsWith("sb-")) {
+          liveStats.set(name, { cpu: cpu ?? "0%", mem: mem ?? "", memPct: memPct ?? "0%", pids: pids ?? "0" });
+        }
+      }
+    }
+
+    // Get volume sizes
+    const volResult = await exec("docker", [
+      "system", "df", "-v", "--format", "{{.Name}}\t{{.Size}}",
+    ]);
+    // docker system df -v doesn't support --format well, fall back to volume ls
+    const volLsResult = await exec("docker", [
+      "volume", "ls", "--filter", "name=sb-", "--format", "{{.Name}}",
+    ]);
+    const volumeNames = volLsResult.exitCode === 0
+      ? volLsResult.stdout.trim().split("\n").filter(Boolean)
+      : [];
+
+    // Get image size
+    const imgResult = await exec("docker", [
+      "image", "ls", "sparkbench-sandbox", "--format", "{{.Size}}",
+    ]);
+    const imageSize = imgResult.exitCode === 0 ? imgResult.stdout.trim().split("\n")[0] ?? null : null;
+
+    // Get Docker system memory info
+    const infoResult = await exec("docker", [
+      "info", "--format", "{{.MemTotal}}",
+    ]);
+    const dockerMemTotal = infoResult.exitCode === 0 ? Number(infoResult.stdout.trim()) || 0 : 0;
+
+    const enriched = containers.map((c) => {
+      const live = liveStats.get(c.name);
+      return {
+        ...c,
+        cpu: live?.cpu ?? null,
+        mem: live?.mem ?? null,
+        memPct: live?.memPct ?? null,
+        pids: live?.pids ?? null,
+      };
+    });
+
     return {
-      total: lines.length,
-      running: lines.filter((l) => l.includes("Up")).length,
-      stopped: lines.filter((l) => l.includes("Exited")).length,
+      total: containers.length,
+      running: containers.filter((c) => c.isRunning).length,
+      stopped: containers.filter((c) => !c.isRunning).length,
+      volumes: volumeNames.length,
+      imageSize,
+      dockerMemTotalBytes: dockerMemTotal,
+      containers: enriched,
     };
   } catch {
     return null;

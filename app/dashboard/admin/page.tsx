@@ -20,7 +20,26 @@ interface AdminStats {
   activeUsers: number;
   projects: { total: number; new: number };
   aiCosts: { model: string; totalCost: number; cnt: number }[];
-  sandboxes: { total: number; running: number; stopped: number } | null;
+  sandboxes: {
+    total: number;
+    running: number;
+    stopped: number;
+    volumes: number;
+    imageSize: string | null;
+    dockerMemTotalBytes: number;
+    containers: {
+      name: string;
+      projectId: string;
+      status: string;
+      size: string;
+      createdAt: string;
+      isRunning: boolean;
+      cpu: string | null;
+      mem: string | null;
+      memPct: string | null;
+      pids: string | null;
+    }[];
+  } | null;
   timeBuckets: { bucket: string; cnt: number }[];
 }
 
@@ -105,6 +124,13 @@ function Sparkline({
       />
     </svg>
   );
+}
+
+function formatBytes(bytes: number): string {
+  if (bytes === 0) return "0 B";
+  const units = ["B", "KB", "MB", "GB", "TB"];
+  const i = Math.floor(Math.log(bytes) / Math.log(1024));
+  return `${(bytes / Math.pow(1024, i)).toFixed(1)} ${units[i]}`;
 }
 
 function pct(a: number, total: number): string {
@@ -301,8 +327,65 @@ export default function AdminDashboard() {
                       label="Stopped"
                       value={stats.sandboxes.stopped}
                     />
-                    <StatCard label="Total" value={stats.sandboxes.total} />
+                    <StatCard label="Containers" value={stats.sandboxes.total} />
+                    <StatCard label="Volumes" value={stats.sandboxes.volumes} />
+                    {stats.sandboxes.imageSize && (
+                      <StatCard label="Image" value={stats.sandboxes.imageSize} />
+                    )}
+                    {stats.sandboxes.dockerMemTotalBytes > 0 && (
+                      <StatCard
+                        label="Docker RAM"
+                        value={formatBytes(stats.sandboxes.dockerMemTotalBytes)}
+                      />
+                    )}
                   </div>
+
+                  {/* Container table */}
+                  {stats.sandboxes.containers.length > 0 && (
+                    <div className={s.containerTable}>
+                      <div className={s.containerHeader}>
+                        <span className={s.containerCol}>project</span>
+                        <span className={s.containerCol}>status</span>
+                        <span className={s.containerCol}>cpu</span>
+                        <span className={s.containerCol}>memory</span>
+                        <span className={s.containerCol}>pids</span>
+                        <span className={s.containerColWide}>created</span>
+                      </div>
+                      {stats.sandboxes.containers.map((c) => (
+                        <div
+                          key={c.name}
+                          className={`${s.containerRow} ${c.isRunning ? s.containerRunning : ""}`}
+                        >
+                          <span className={s.containerCol} title={c.name}>
+                            {c.projectId.slice(0, 12)}
+                          </span>
+                          <span className={s.containerCol}>
+                            <span
+                              className={s.statusDot}
+                              style={{
+                                background: c.isRunning ? "#4ade80" : "#666",
+                              }}
+                            />
+                            {c.isRunning ? "running" : "stopped"}
+                          </span>
+                          <span className={s.containerCol}>
+                            {c.cpu ?? "—"}
+                          </span>
+                          <span className={s.containerCol}>
+                            {c.mem ?? "—"}
+                          </span>
+                          <span className={s.containerCol}>
+                            {c.pids ?? "—"}
+                          </span>
+                          <span className={s.containerColWide}>
+                            {c.createdAt
+                              ? new Date(c.createdAt).toLocaleString()
+                              : "—"}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
               )}
             </>
