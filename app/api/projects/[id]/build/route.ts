@@ -12,7 +12,7 @@ import { authorizeProjectRead, getServerSession } from "@/lib/auth-middleware";
 import { runProjectBuild } from "@/lib/sandbox";
 import { logActivity } from "@/lib/logger";
 
-const PIO_CMD = path.join(os.homedir(), ".platformio/penv/bin/platformio");
+const PIO_CMD = process.env.PIO_CMD || "/usr/bin/platformio";
 const SANDBOX_ENABLED = process.env.SANDBOX_ENABLED === "true";
 
 const VALID_BOARDS = ["uno", "nano", "mega", "atmega328p", "leonardo", "micro", "pro", "promini"];
@@ -366,9 +366,10 @@ ${libDepsStr}
           await writeFile(elfPath, sandboxArtifacts.get(elfArtifactKey)!);
         }
 
+        const pioDir = process.env.PLATFORMIO_CORE_DIR || path.join(os.homedir(), ".platformio");
         const objdumpPath = path.join(
-          os.homedir(),
-          ".platformio/packages/toolchain-atmelavr/bin/avr-objdump",
+          pioDir,
+          "packages/toolchain-atmelavr/bin/avr-objdump",
         );
         const dwarfResult = await new Promise<{ stdout: string; stderr: string }>((resolve) => {
           execFile(

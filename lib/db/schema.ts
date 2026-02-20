@@ -19,7 +19,7 @@ export const users = pgTable("users", {
   image: text("image"),
   username: text("username").unique(),
   plan: text("plan").notNull().default("free"),
-  usageLimitUsd: numeric("usage_limit_usd", { precision: 10, scale: 2 }).notNull().default("50.00"),
+  usageLimitUsd: numeric("usage_limit_usd", { precision: 10, scale: 2 }).notNull().default("10.00"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });

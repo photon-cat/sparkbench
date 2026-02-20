@@ -57,6 +57,7 @@ services:
       GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
       DEEPPCB_API_KEY: ${DEEPPCB_API_KEY:-}
+      ADMIN_USER_IDS: ${ADMIN_USER_IDS:-}
       SANDBOX_ENABLED: "false"
     depends_on:
       postgres:

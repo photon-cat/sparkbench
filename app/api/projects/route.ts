@@ -200,8 +200,7 @@ export async function POST(request: Request) {
     const ownerId = session.user.id;
 
     const id = generateProjectId();
-    // Append first 4 chars of project ID to ensure URL uniqueness
-    const slug = `${baseSlug}-${id.slice(0, 4)}`;
+    const slug = baseSlug;
     const diagramStr = JSON.stringify(DEFAULT_DIAGRAM, null, 2);
 
     // Insert DB row

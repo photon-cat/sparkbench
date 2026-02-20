@@ -431,7 +431,11 @@ export default function SparkyChat({
         signal: controller.signal,
       });
 
-      if (!res.ok || !res.body) throw new Error(`HTTP ${res.status}`);
+      if (!res.ok || !res.body) {
+        let msg = `HTTP ${res.status}`;
+        try { const j = await res.json(); if (j.error) msg = j.error; } catch {}
+        throw new Error(msg);
+      }
 
       const reader = res.body.getReader();
       const decoder = new TextDecoder();
@@ -693,7 +697,6 @@ export default function SparkyChat({
                     >
                       <option value="claude-haiku-4-5-20251001">Haiku 4.5</option>
                       <option value="claude-sonnet-4-6">Sonnet 4.6</option>
-                      <option value="claude-opus-4-6">Opus 4.6</option>
                     </select>
                   </div>
                   <div className={styles.inputBox}>

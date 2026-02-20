@@ -52,8 +52,14 @@
   height: 28px;
 }
 
-.saveBtn:hover {
+.saveBtn:hover:not(:disabled) {
   background: #1d4ed8;
+}
+
+.saveBtn:disabled {
+  background: #444;
+  color: #888;
+  cursor: not-allowed;
 }
 
 .dropdownBtn {

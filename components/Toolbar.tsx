@@ -98,7 +98,7 @@ export default function Toolbar({ projectName, onSave, onImportWokwi, onExportWo
       {/* Save */}
       <div className={styles.actions}>
         <div className={styles.saveBtnGroup}>
-          <button className={styles.saveBtn} onClick={handleSave} disabled={saving}>
+          <button className={styles.saveBtn} onClick={handleSave} disabled={!onSave || saving} title={!onSave ? "Read-only — make a copy to edit" : undefined}>
             <SaveIcon sx={{ fontSize: 16 }} />
             {saving ? "SAVING..." : "SAVE"}
           </button>

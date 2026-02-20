@@ -27,7 +27,7 @@ export async function getUserUsage(userId: string): Promise<{
     .limit(1);
 
   if (userRows.length === 0) {
-    return { plan: "free", limitUsd: 50, usedUsd: 0, periodStart: periodStart() };
+    return { plan: "free", limitUsd: 10, usedUsd: 0, periodStart: periodStart() };
   }
 
   const start = periodStart();

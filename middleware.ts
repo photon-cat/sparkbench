@@ -50,8 +50,9 @@ export function middleware(request: NextRequest) {
     // Skip CSRF check for auth callbacks (Better-Auth handles its own CSRF)
     if (!pathname.startsWith("/api/auth")) {
       const requestOrigin = request.headers.get("origin");
+      const appUrl = process.env.NEXT_PUBLIC_APP_URL || origin;
       // If Origin header is present, verify it matches our app
-      if (requestOrigin && !requestOrigin.startsWith(origin)) {
+      if (requestOrigin && !requestOrigin.startsWith(appUrl)) {
         return NextResponse.json(
           { error: "CSRF check failed" },
           { status: 403 },
