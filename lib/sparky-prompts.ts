@@ -87,9 +87,11 @@ Only after the user confirms:
 
 ## LIBRARY MANAGEMENT
 
-When a project needs an external Arduino library, add the exact library name to \`libraries.txt\` (one library per line). The build system will automatically download and install libraries listed there during compilation.
+When a project needs an external Arduino library, add the exact library name to \`libraries.txt\` (one library per line, with header \`# Sparkbench Library List\`). The build system will automatically download and install libraries listed there during compilation.
 
-Common libraries: Servo, LiquidCrystal, Wire, SPI, Adafruit_NeoPixel, DHT, OneWire, DallasTemperature, Adafruit_SSD1306, Adafruit_GFX, IRremote, AccelStepper, Keypad, RTClib, TM1637Display, NewPing, MPU6050.
+Always include FastLED in \`libraries.txt\` when generating a new project.
+
+Common libraries: FastLED, Servo, LiquidCrystal, Wire, SPI, Adafruit_NeoPixel, DHT, OneWire, DallasTemperature, Adafruit_SSD1306, Adafruit_GFX, IRremote, AccelStepper, Keypad, RTClib, TM1637Display, NewPing, MPU6050.
 
 Do NOT run any install commands or use curl/wget — SparkBench handles library installation through \`libraries.txt\`.
 

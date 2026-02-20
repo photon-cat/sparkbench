@@ -355,6 +355,14 @@
   border: 1px solid #2e2e4a;
 }
 
+.starCount {
+  font-size: 11px;
+  color: #f59e0b;
+  flex-shrink: 0;
+  margin-left: auto;
+  font-family: "Cascadia Code", "Fira Code", Consolas, monospace;
+}
+
 .emptyState {
   color: #555;
   font-size: 12px;

@@ -214,6 +214,7 @@ export default function ProjectsPage() {
                       {p.hasPCB && <span className={`${styles.badge} ${styles.badgePcb}`}>PCB</span>}
                       {p.hasTests && <span className={`${styles.badge} ${styles.badgeTest}`}>TEST</span>}
                     </span>
+                    <span className={styles.starCount}>&#9733; {p.starCount}</span>
                   </a>
                 ))}
               </div>
@@ -276,6 +277,9 @@ export default function ProjectsPage() {
                     {p.hasPCB && <span className={`${styles.badge} ${styles.badgePcb}`}>PCB</span>}
                     {p.hasTests && <span className={`${styles.badge} ${styles.badgeTest}`}>TEST</span>}
                   </span>
+                  {p.starCount > 0 && (
+                    <span className={styles.starCount}>&#9733; {p.starCount}</span>
+                  )}
                 </a>
               ))}
             </div>

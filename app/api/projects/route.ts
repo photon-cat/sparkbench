@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { eq, desc, or, ilike, and, sql } from "drizzle-orm";
 import { db } from "@/lib/db";
-import { projects } from "@/lib/db/schema";
+import { projects, projectStars } from "@/lib/db/schema";
 import { generateProjectId } from "@/lib/db/projects";
 import { uploadFile } from "@/lib/storage";
 import { getServerSession } from "@/lib/auth-middleware";
@@ -17,11 +17,13 @@ interface ProjectMeta {
   lineCount: number;
   hasPCB: boolean;
   hasTests: boolean;
+  starCount: number;
   modifiedAt: string;
 }
 
 function extractMeta(
   project: typeof projects.$inferSelect,
+  starCount: number = 0,
 ): ProjectMeta {
   let partCount = 0;
   let partTypes: string[] = [];
@@ -55,6 +57,7 @@ function extractMeta(
     lineCount: 0, // computed lazily if needed
     hasPCB,
     hasTests,
+    starCount,
     modifiedAt: project.updatedAt.toISOString(),
   };
 }
@@ -122,14 +125,17 @@ export async function GET(request: Request) {
         diagramJson: projects.diagramJson,
         fileManifest: projects.fileManifest,
         updatedAt: projects.updatedAt,
+        starCount: sql<number>`count(${projectStars.userId})::int`,
       })
       .from(projects)
+      .leftJoin(projectStars, eq(projects.id, projectStars.projectId))
       .where(whereClause)
-      .orderBy(desc(projects.updatedAt))
+      .groupBy(projects.id)
+      .orderBy(desc(sql`count(${projectStars.userId})`), desc(projects.updatedAt))
       .limit(limit)
       .offset(offset);
 
-    const metas: ProjectMeta[] = rows.map((row) => extractMeta(row as typeof projects.$inferSelect));
+    const metas: ProjectMeta[] = rows.map((row) => extractMeta(row as unknown as typeof projects.$inferSelect, row.starCount));
 
     return NextResponse.json({ projects: metas, total, page, pages });
   } catch (err) {

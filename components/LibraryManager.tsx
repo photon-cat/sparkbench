@@ -26,7 +26,7 @@ function parseLibraries(text: string): string[] {
 /** Build libraries.txt content from an array of library names. */
 function buildLibrariesTxt(libs: string[]): string {
   if (libs.length === 0) return "";
-  return "# Wokwi Library List\n# See https://docs.wokwi.com/guides/libraries\n\n" + libs.join("\n") + "\n";
+  return "# Sparkbench Library List\n\n" + libs.join("\n") + "\n";
 }
 
 export default function LibraryManager({

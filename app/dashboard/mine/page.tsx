@@ -74,6 +74,7 @@ export default function MyProjectsPage() {
                     {p.hasPCB && <span className={`${styles.badge} ${styles.badgePcb}`}>PCB</span>}
                     {p.hasTests && <span className={`${styles.badge} ${styles.badgeTest}`}>TEST</span>}
                   </span>
+                  <span className={styles.starCount}>&#9733; {p.starCount}</span>
                 </a>
               ))}
             </div>

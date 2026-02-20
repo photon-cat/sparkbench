@@ -8,6 +8,7 @@ export interface ProjectMeta {
   lineCount: number;
   hasPCB: boolean;
   hasTests: boolean;
+  starCount: number;
   modifiedAt: string;
 }
 

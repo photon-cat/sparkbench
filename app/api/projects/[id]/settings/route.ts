@@ -104,6 +104,14 @@ export async function PATCH(
     }
     if (typeof body.title === "string" && body.title.trim()) {
       updates.title = body.title.trim();
+      // Keep slug in sync with title
+      const newSlug = body.title.trim()
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, "-")
+        .replace(/^-|-$/g, "");
+      if (newSlug) {
+        updates.slug = newSlug;
+      }
     }
 
     await db.update(projects).set(updates).where(eq(projects.id, id));

@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
-import { eq, desc } from "drizzle-orm";
+import { eq, desc, sql } from "drizzle-orm";
 import { db } from "@/lib/db";
-import { projects } from "@/lib/db/schema";
+import { projects, projectStars } from "@/lib/db/schema";
 import { getServerSession } from "@/lib/auth-middleware";
 
 export const dynamic = "force-dynamic";
@@ -21,9 +21,12 @@ export async function GET() {
       diagramJson: projects.diagramJson,
       fileManifest: projects.fileManifest,
       updatedAt: projects.updatedAt,
+      starCount: sql<number>`count(${projectStars.userId})::int`,
     })
     .from(projects)
+    .leftJoin(projectStars, eq(projects.id, projectStars.projectId))
     .where(eq(projects.ownerId, session.user.id))
+    .groupBy(projects.id)
     .orderBy(desc(projects.updatedAt));
 
   const metas = rows.map((row) => {
@@ -53,6 +56,7 @@ export async function GET() {
       lineCount: 0,
       hasPCB: manifest.includes("board.kicad_pcb"),
       hasTests: manifest.includes("test.scenario.yaml"),
+      starCount: row.starCount,
       modifiedAt: row.updatedAt.toISOString(),
     };
   });

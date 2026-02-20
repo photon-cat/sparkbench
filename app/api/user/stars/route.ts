@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { eq, desc } from "drizzle-orm";
+import { eq, desc, sql } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { projects, projectStars } from "@/lib/db/schema";
 import { getServerSession } from "@/lib/auth-middleware";
@@ -24,6 +24,7 @@ export async function GET() {
       diagramJson: projects.diagramJson,
       fileManifest: projects.fileManifest,
       updatedAt: projects.updatedAt,
+      starCount: sql<number>`(select count(*)::int from project_stars ps where ps.project_id = ${projects.id})`,
     })
     .from(projectStars)
     .innerJoin(projects, eq(projectStars.projectId, projects.id))
@@ -57,6 +58,7 @@ export async function GET() {
       lineCount: 0,
       hasPCB: manifest.includes("board.kicad_pcb"),
       hasTests: manifest.includes("test.scenario.yaml"),
+      starCount: row.starCount,
       modifiedAt: row.updatedAt.toISOString(),
     };
   });
