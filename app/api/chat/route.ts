@@ -539,8 +539,9 @@ ${projectInstructions}${contextSection}`;
           HOME: process.env.HOME,
           PATH: process.env.PATH,
           PLATFORMIO_CORE_DIR: process.env.PLATFORMIO_CORE_DIR,
+          ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY,
         },
-        stderr: () => {},
+        stderr: (data: string) => { logger.error("[sparky:stderr]", { data: data.slice(0, 500) }); },
       });
 
       async function runQuery(resumeId?: string) {
@@ -605,7 +606,7 @@ ${projectInstructions}${contextSection}`;
             }
 
             case "result": {
-              if (msg.subtype === "success") {
+              if (msg.subtype === "success" && !msg.is_error) {
                 const cost = msg.total_cost_usd ?? 0;
                 const turns = msg.num_turns ?? 0;
                 // Record usage
@@ -631,6 +632,10 @@ ${projectInstructions}${contextSection}`;
                   cost,
                 });
               } else {
+                // If resume failed (stale session), throw to trigger retry without resume
+                if (resumeId && turnCount === 0) {
+                  throw new Error(`resume_failed:${msg.subtype}`);
+                }
                 logger.error("[sparky] Agent execution failed", {
                   projectId: project.id,
                   subtype: msg.subtype,
@@ -645,7 +650,7 @@ ${projectInstructions}${contextSection}`;
                   message: msg.subtype,
                 });
               }
-              break;
+              return; // Exit immediately — do not iterate further (process may exit with code 1 after result)
             }
           }
         }
