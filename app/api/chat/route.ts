@@ -126,7 +126,7 @@ function isBashCommandAllowed(command: string, projectDir: string): { allowed: b
   return { allowed: true };
 }
 
-/** Build a canUseTool handler that confines all operations to projectDir */
+/** Build a canUseTool handler that confines all operations to projectDir. */
 function buildPermissionHandler(projectDir: string) {
   return async (
     toolName: string,
@@ -480,15 +480,17 @@ export async function POST(request: Request) {
     projectInstructions = `This is a new/empty project. Follow your workflow starting with Step 1 (clarifying questions).`;
   }
 
-  const prompt = existingSession
-    ? message
-    : `The user says: "${message}"
+  const fullPrompt = `The user says: "${message}"
 
 Project directory: ${tmpDir}
 Project slug: ${project.slug}
 Sketch filename: sketch.ino
 
 ${projectInstructions}${contextSection}`;
+
+  // When resuming an existing session, send just the message (agent has context).
+  // Keep the full prompt for fresh starts and retries.
+  const prompt = existingSession ? message : fullPrompt;
 
   const encoder = new TextEncoder();
 
@@ -544,9 +546,13 @@ ${projectInstructions}${contextSection}`;
         stderr: () => {},
       });
 
+      let filesSynced = false;
       async function runQuery(resumeId?: string) {
+        // When resuming, use bare message (agent has context).
+        // When starting fresh (no resumeId), use full prompt with project state.
+        const queryPrompt = resumeId ? prompt : fullPrompt;
         const q = query({
-          prompt,
+          prompt: queryPrompt,
           options: buildQueryOptions(resumeId),
         });
 
@@ -626,6 +632,35 @@ ${projectInstructions}${contextSection}`;
                   projectId: project.id,
                   metadata: { model, turns, cost },
                 });
+                // Sync files to MinIO BEFORE sending "done" so the client
+                // can fetch the latest files immediately on receiving it.
+                if (isOwner) {
+                  try {
+                    const changedFiles = await syncTempDirToStorage(project.id, tmpDir, originalFiles);
+                    if (changedFiles.length > 0) {
+                      const allFiles = await listProjectFiles(project.id);
+                      const updates: Record<string, any> = {
+                        fileManifest: allFiles,
+                        updatedAt: new Date(),
+                      };
+                      if (changedFiles.includes("diagram.json")) {
+                        const diagramContent = await downloadFile(project.id, "diagram.json");
+                        if (diagramContent) {
+                          try {
+                            updates.diagramJson = JSON.parse(diagramContent);
+                          } catch { /* ignore parse errors */ }
+                        }
+                      }
+                      await db
+                        .update(projects)
+                        .set(updates)
+                        .where(eq(projects.id, project.id));
+                    }
+                    filesSynced = true;
+                  } catch (syncErr) {
+                    logger.error("[sparky] Failed to sync files before done", { error: String(syncErr) });
+                  }
+                }
                 write({
                   type: "done",
                   turns,
@@ -641,10 +676,10 @@ ${projectInstructions}${contextSection}`;
                   projectId: project.id,
                   metadata: { model, subtype: msg.subtype, turns: turnCount },
                 });
-                write({
-                  type: "error",
-                  message: msg.subtype,
-                });
+                // Throw instead of writing directly so the outer
+                // try/catch can retry with a fresh session when a
+                // stale resume caused the failure.
+                throw new Error(msg.subtype);
               }
               break;
             }
@@ -675,12 +710,11 @@ ${projectInstructions}${contextSection}`;
           write({ type: "error", message: err.message });
         }
       } finally {
-        // Only sync changed files back to MinIO for project owners
-        if (isOwner) {
+        // Sync files if not already done in the success handler
+        if (isOwner && !filesSynced) {
           try {
             const changedFiles = await syncTempDirToStorage(project.id, tmpDir, originalFiles);
 
-            // Update file manifest and diagram JSON in DB if changed
             if (changedFiles.length > 0) {
               const allFiles = await listProjectFiles(project.id);
               const updates: Record<string, any> = {
@@ -688,7 +722,6 @@ ${projectInstructions}${contextSection}`;
                 updatedAt: new Date(),
               };
 
-              // If diagram.json was changed, update the DB column too
               if (changedFiles.includes("diagram.json")) {
                 const diagramContent = await downloadFile(project.id, "diagram.json");
                 if (diagramContent) {

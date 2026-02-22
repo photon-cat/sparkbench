@@ -92,11 +92,7 @@ export function initPCBFromSchematic(
   boardSize?: { width: number; height: number },
 ): PCBDesign {
   const footprints: PCBFootprint[] = [];
-  const COLS = 4;
-  const SPACING_X = 25;
-  const SPACING_Y = 20;
-  const OFFSET_X = 10;
-  const OFFSET_Y = 10;
+  const MARGIN = 5;
 
   // Build net table from netlist
   const nets = netlist.nets.map((n, i) => ({
@@ -104,11 +100,33 @@ export function initPCBFromSchematic(
     name: n.name,
   }));
 
-  let newIdx = 0; // only incremented for NEW footprints that need grid placement
-  let hasArduinoShield = false;
-  for (const part of diagram.parts) {
-    if (part.type === "wokwi-arduino-uno") hasArduinoShield = true;
+  // Determine board dimensions first so grid placement fits within the board
+  const hasArduinoShield = diagram.parts.some(p => p.type === "wokwi-arduino-uno");
+  const placeableParts = diagram.parts.filter(p => {
+    const instanceFp = p.footprint;
+    const mapping = getFootprintForType(p.type);
+    return !!(instanceFp ? generateFootprintByType(p.id, instanceFp) : mapping?.generate(p.id));
+  });
 
+  // Board size: explicit > Arduino shield > auto-size from part count
+  const defaultCols = Math.max(2, Math.ceil(Math.sqrt(placeableParts.length)));
+  const defaultSpacingX = 20;
+  const defaultSpacingY = 18;
+  const boardW = boardSize?.width
+    ?? (hasArduinoShield ? 68.6 : Math.max(80, MARGIN * 2 + defaultCols * defaultSpacingX));
+  const boardH = boardSize?.height
+    ?? (hasArduinoShield ? 53.3 : Math.max(60, MARGIN * 2 + Math.ceil(placeableParts.length / defaultCols) * defaultSpacingY));
+
+  // Compute grid that fits within the board
+  const usableW = boardW - MARGIN * 2;
+  const usableH = boardH - MARGIN * 2;
+  const gridCols = Math.max(2, Math.ceil(Math.sqrt(placeableParts.length)));
+  const gridRows = Math.ceil(placeableParts.length / gridCols);
+  const spacingX = usableW / Math.max(gridCols, 1);
+  const spacingY = usableH / Math.max(gridRows, 1);
+
+  let newIdx = 0; // only incremented for NEW footprints that need grid placement
+  for (const part of diagram.parts) {
     // Use per-instance footprint if set, otherwise fall back to registry default
     const instanceFp = part.footprint;
     const mapping = getFootprintForType(part.type);
@@ -147,10 +165,10 @@ export function initPCBFromSchematic(
       y = existing.y;
       rotation = existing.rotation;
     } else {
-      const col = newIdx % COLS;
-      const row = Math.floor(newIdx / COLS);
-      x = OFFSET_X + col * SPACING_X;
-      y = OFFSET_Y + row * SPACING_Y;
+      const col = newIdx % gridCols;
+      const row = Math.floor(newIdx / gridCols);
+      x = MARGIN + spacingX / 2 + col * spacingX;
+      y = MARGIN + spacingY / 2 + row * spacingY;
       rotation = 0;
       newIdx++;
     }
@@ -158,7 +176,7 @@ export function initPCBFromSchematic(
     footprints.push({
       uuid: generateUUID(),
       ref: part.id,
-      value: part.value ?? part.attrs?.value,
+      value: part.value ?? part.attrs?.value ?? part.attrs?.color ?? "",
       footprintType: fpType,
       x,
       y,
@@ -171,12 +189,6 @@ export function initPCBFromSchematic(
       courtyard: fpDef.courtyard,
     });
   }
-
-  // Board dimensions: explicit boardSize > Arduino shield > auto-size
-  const boardW = boardSize?.width
-    ?? (hasArduinoShield ? 68.6 : Math.max(100, OFFSET_X * 2 + COLS * SPACING_X));
-  const boardH = boardSize?.height
-    ?? (hasArduinoShield ? 53.3 : Math.max(80, OFFSET_Y * 2 + Math.ceil(footprints.length / COLS) * SPACING_Y));
 
   return {
     version: 2,

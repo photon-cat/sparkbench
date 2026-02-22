@@ -214,19 +214,22 @@ export async function POST(
     }
     const libDepsStr = allLibDeps.map((l) => `  ${l}`).join("\n");
 
+    // In sandboxed mode, libs are pre-installed globally in the Docker image.
+    // Skip lib_deps (which triggers network downloads) and use lib_extra_dirs instead.
+    const libSection = SANDBOX_ENABLED
+      ? `lib_extra_dirs = /home/sandbox/.platformio/lib`
+      : `lib_deps =\n${libDepsStr}`;
     const pioIni = `[env:uno]
 platform = atmelavr
 board = uno
 framework = arduino
-lib_deps =
-${libDepsStr}
+${libSection}
 
 [env:atmega328p]
 platform = atmelavr
 board = uno
 framework = arduino
-lib_deps =
-${libDepsStr}
+${libSection}
 `;
     await writeFile(path.join(BUILD_DIR, "platformio.ini"), pioIni);
 

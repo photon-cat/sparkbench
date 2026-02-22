@@ -288,6 +288,21 @@ For parts not listed above, use a generic header footprint based on pin count:
 ### Resistor (wokwi-resistor)
 - 1, 2
 
+### SSD1306 OLED (board-ssd1306)
+- GND, VCC, DATA (SDA), CLK (SCL)
+- I2C address: 0x3C
+- MUST connect ALL 4 pins: GND → GND, VCC → 5V, DATA → A4 (SDA), CLK → A5 (SCL)
+- Libraries: Adafruit SSD1306, Adafruit GFX Library
+
+### MPU6050 (wokwi-mpu6050)
+- VCC, GND, SCL, SDA, INT
+- I2C address: 0x68
+- Connect: VCC → 5V, GND → GND, SDA → A4, SCL → A5
+
+### DHT22 (wokwi-dht22)
+- VCC, SDA (data), NC, GND
+- Connect: VCC → 5V, SDA → digital pin, GND → GND
+
 ---
 
 ## DIAGRAM.JSON FORMAT

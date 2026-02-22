@@ -243,6 +243,23 @@ export default function KiPCBEditor({
         URL.revokeObjectURL(url);
     }, [pcbTree]);
 
+    const handleDownloadGerbers = useCallback(async () => {
+        const { generateFabricationFiles } = await import("@/lib/gerber-export");
+        const JSZip = (await import("jszip")).default;
+        const files = generateFabricationFiles(pcbTree);
+        const zip = new JSZip();
+        for (const f of files) {
+            zip.file(f.name, f.content);
+        }
+        const blob = await zip.generateAsync({ type: "blob" });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = "fabrication-outputs.zip";
+        a.click();
+        URL.revokeObjectURL(url);
+    }, [pcbTree]);
+
     // DeepPCB autorouter handler
     const handleDeepPCBRoute = useCallback(async () => {
         if (!projectId) return;
@@ -580,6 +597,12 @@ export default function KiPCBEditor({
                             style={{ ...btnStyle, background: "#2a3a5c", borderColor: "#3a5a8a" }}
                         >
                             Download .kicad_pcb
+                        </button>
+                        <button
+                            onClick={handleDownloadGerbers}
+                            style={{ ...btnStyle, background: "#1a4a2a", borderColor: "#2a6a3a" }}
+                        >
+                            Download Fabrication Files
                         </button>
                     </div>
 

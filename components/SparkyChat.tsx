@@ -12,6 +12,7 @@ import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
 import ExpandLessIcon from "@mui/icons-material/ExpandLess";
 import StopIcon from "@mui/icons-material/Stop";
 import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 import { diffLines } from "@/lib/diff";
 import styles from "./SparkyChat.module.css";
 
@@ -659,7 +660,7 @@ export default function SparkyChat({
                             )}
                             {msg.content && (
                               <div className={styles.messageContent}>
-                                <ReactMarkdown>{msg.content}</ReactMarkdown>
+                                <ReactMarkdown remarkPlugins={[remarkGfm]}>{msg.content}</ReactMarkdown>
                               </div>
                             )}
                             {isStreaming && (() => {
