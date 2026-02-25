@@ -28,7 +28,6 @@ const VIA_COLOR = "#a0a0a0"; // Via barrel
 const IC_BODY_COLOR = "#1a1a1a"; // Black IC body
 const IC_NOTCH_COLOR = "#333333"; // IC notch/dimple
 const BTN_BODY_COLOR = "#222222"; // Pushbutton housing
-const BTN_CAP_COLOR = "#cc3333"; // Pushbutton cap
 const HEADER_BODY_COLOR = "#1a1a1a"; // Header plastic
 const HEADER_PIN_COLOR = "#c0c0c0"; // Header pin metal
 
@@ -60,9 +59,15 @@ const LED_COLOR_MAP: Record<string, string> = {
 // Cycle through distinct colors for LEDs without explicit color info
 const LED_CYCLE = ["#ff2020", "#20ff20", "#2040ff", "#ffee00", "#ff8800", "#cc20ff", "#f0f0f0", "#20ffdd"];
 
-function getLedColor(fp: Footprint3D): string {
+function getComponentColor(fp: Footprint3D): string {
+  // Check value field first (carries attrs.color from diagram)
   const v = fp.value.toLowerCase();
   if (LED_COLOR_MAP[v]) return LED_COLOR_MAP[v]!;
+  // Check reference name for color keywords (e.g., "led-red", "btn-green")
+  const ref = fp.reference.toLowerCase();
+  for (const [name, hex] of Object.entries(LED_COLOR_MAP)) {
+    if (ref.includes(name)) return hex;
+  }
   // Extract number from reference (e.g., "led3" → 3) to cycle colors
   const numMatch = fp.reference.match(/(\d+)/);
   if (numMatch) {
@@ -158,7 +163,7 @@ function LEDModel({ color }: { color: string }) {
  * Pad layout: (0,0), (6.5,0), (0,6.5), (6.5,6.5)
  * Body centered at (3.25, 3.25)
  */
-function PushbuttonModel() {
+function PushbuttonModel({ color }: { color: string }) {
   const cx = 3.25;
   const cy = -3.25; // Y flipped
   return (
@@ -171,7 +176,81 @@ function PushbuttonModel() {
       {/* Button cap (circular, standing upright) */}
       <mesh position={[0, 0, 4.0]} rotation={[-Math.PI / 2, 0, 0]}>
         <cylinderGeometry args={[1.7, 1.7, 1.0, 20]} />
-        <meshStandardMaterial color={BTN_CAP_COLOR} roughness={0.3} metalness={0.1} />
+        <meshStandardMaterial color={color} roughness={0.3} metalness={0.1} />
+      </mesh>
+    </group>
+  );
+}
+
+/**
+ * Axial through-hole resistor
+ * Pad layout: pad1 at (0,0), pad2 at (10.16,0) for 0.4in spacing
+ * Body centered between pads
+ */
+function ResistorModel() {
+  const padSpacing = 10.16;
+  const cy = -padSpacing / 2; // center between pads (Y flipped)
+  const bodyL = 6.0;
+  const bodyR = 1.2;
+  const wireR = 0.25;
+
+  return (
+    <group position={[0, cy, 0]}>
+      {/* Resistor body (cylinder running along Y axis) */}
+      <mesh position={[0, 0, 1.5]} rotation={[Math.PI / 2, 0, 0]}>
+        <cylinderGeometry args={[bodyR, bodyR, bodyL, 16]} />
+        <meshStandardMaterial color="#c4a882" roughness={0.6} metalness={0.0} />
+      </mesh>
+      {/* Color bands */}
+      {[-1.8, -0.9, 0, 1.2].map((offset, i) => (
+        <mesh key={i} position={[0, -offset, 1.5]} rotation={[Math.PI / 2, 0, 0]}>
+          <cylinderGeometry args={[bodyR + 0.02, bodyR + 0.02, 0.4, 16]} />
+          <meshStandardMaterial
+            color={["#884400", "#000000", "#ff0000", "#d4a847"][i]}
+            roughness={0.5}
+          />
+        </mesh>
+      ))}
+      {/* Lead wires */}
+      <mesh position={[0, bodyL / 2 + 1, 1.5]} rotation={[Math.PI / 2, 0, 0]}>
+        <cylinderGeometry args={[wireR, wireR, 2, 8]} />
+        <meshStandardMaterial color="#c0c0c0" roughness={0.3} metalness={0.8} />
+      </mesh>
+      <mesh position={[0, -(bodyL / 2 + 1), 1.5]} rotation={[Math.PI / 2, 0, 0]}>
+        <cylinderGeometry args={[wireR, wireR, 2, 8]} />
+        <meshStandardMaterial color="#c0c0c0" roughness={0.3} metalness={0.8} />
+      </mesh>
+    </group>
+  );
+}
+
+/**
+ * 12mm piezo buzzer
+ * Pad layout: pad1 at (0,0), pad2 at (0,7.6)
+ * Body centered between pads, circular disc
+ */
+function BuzzerModel() {
+  const padSpacing = 7.6;
+  const cy = -padSpacing / 2;
+  const radius = 6.0;
+  const bodyH = 4.0;
+
+  return (
+    <group position={[0, cy, 0]}>
+      {/* Buzzer body (black cylinder) */}
+      <mesh position={[0, 0, bodyH / 2]} rotation={[-Math.PI / 2, 0, 0]}>
+        <cylinderGeometry args={[radius, radius, bodyH, 24]} />
+        <meshStandardMaterial color="#1a1a1a" roughness={0.4} metalness={0.1} />
+      </mesh>
+      {/* Top marking (slightly recessed circle) */}
+      <mesh position={[0, 0, bodyH]} rotation={[-Math.PI / 2, 0, 0]}>
+        <cylinderGeometry args={[radius - 1, radius - 1, 0.1, 24]} />
+        <meshStandardMaterial color="#333333" roughness={0.6} />
+      </mesh>
+      {/* Sound hole */}
+      <mesh position={[0, 0, bodyH + 0.05]} rotation={[-Math.PI / 2, 0, 0]}>
+        <cylinderGeometry args={[1.5, 1.5, 0.15, 16]} />
+        <meshStandardMaterial color="#555555" roughness={0.8} />
       </mesh>
     </group>
   );
@@ -225,10 +304,15 @@ function ComponentModel3D({ footprint, thickness }: { footprint: Footprint3D; th
     const pins = pinMatch ? parseInt(pinMatch[1]!) : 16;
     model = <DIPModel padCount={pins} />;
   } else if (fpName.includes("LED-THT")) {
-    const color = getLedColor(footprint);
+    const color = getComponentColor(footprint);
     model = <LEDModel color={color} />;
   } else if (fpName.includes("SW-THT-6mm")) {
-    model = <PushbuttonModel />;
+    const color = getComponentColor(footprint);
+    model = <PushbuttonModel color={color} />;
+  } else if (fpName.includes("Axial")) {
+    model = <ResistorModel />;
+  } else if (fpName.includes("Buzzer")) {
+    model = <BuzzerModel />;
   } else if (fpName.match(/Header-1x(\d+)/)) {
     const pinMatch = fpName.match(/Header-1x(\d+)/);
     const pins = pinMatch ? parseInt(pinMatch[1]!) : 3;

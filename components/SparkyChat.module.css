@@ -365,6 +365,7 @@
 .messageContent th {
   background: rgba(255, 255, 255, 0.06);
   font-weight: 600;
+  white-space: nowrap;
 }
 
 .messageContent ul,

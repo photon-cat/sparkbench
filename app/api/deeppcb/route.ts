@@ -26,6 +26,10 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Invalid project ID" }, { status: 400 });
   }
 
+  // Require write access to the project
+  const writeResult = await authorizeProjectWrite(projectId);
+  if (writeResult.error) return writeResult.error;
+
   const apiKey = process.env.DEEPPCB_API_KEY;
   if (!apiKey) {
     return NextResponse.json(
@@ -33,10 +37,6 @@ export async function POST(request: Request) {
       { status: 500 },
     );
   }
-
-  // Require write access to the project
-  const writeResult = await authorizeProjectWrite(projectId);
-  if (writeResult.error) return writeResult.error;
 
   const pcbContent = await downloadFile(projectId, "board.kicad_pcb");
   if (!pcbContent) {
