@@ -5,6 +5,19 @@ import AuthButton from "@/components/AuthButton";
 import styles from "../../Home.module.css";
 import s from "./admin.module.css";
 
+interface AdminUser {
+  id: string;
+  name: string;
+  email: string;
+  image: string | null;
+  plan: string;
+  usageLimitUsd: number;
+  createdAt: string;
+  projectCount: number;
+  aiCostUsd: number;
+  aiSessions: number;
+}
+
 interface AdminStats {
   period: string;
   since: string;
@@ -140,6 +153,7 @@ function pct(a: number, total: number): string {
 
 export default function AdminDashboard() {
   const [stats, setStats] = useState<AdminStats | null>(null);
+  const [users, setUsers] = useState<AdminUser[]>([]);
   const [period, setPeriod] = useState("24h");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
@@ -157,6 +171,13 @@ export default function AdminDashboard() {
       .catch((e) => setError(e.message))
       .finally(() => setLoading(false));
   }, [period]);
+
+  useEffect(() => {
+    fetch("/api/admin/users")
+      .then((r) => r.ok ? r.json() : null)
+      .then((data) => { if (data?.users) setUsers(data.users); })
+      .catch(() => {});
+  }, []);
 
   return (
     <div className={styles.page}>
@@ -386,6 +407,42 @@ export default function AdminDashboard() {
                       ))}
                     </div>
                   )}
+                </div>
+              )}
+
+              {/* Users */}
+              {users.length > 0 && (
+                <div className={s.section}>
+                  <div className={s.sectionTitle}>// users ({users.length})</div>
+                  <div className={s.containerTable}>
+                    <div className={s.containerHeader}>
+                      <span className={s.containerColWide}>user</span>
+                      <span className={s.containerCol}>plan</span>
+                      <span className={s.containerCol}>projects</span>
+                      <span className={s.containerCol}>ai cost</span>
+                      <span className={s.containerCol}>sessions</span>
+                      <span className={s.containerColWide}>joined</span>
+                    </div>
+                    {users.map((u) => (
+                      <div key={u.id} className={s.containerRow}>
+                        <span className={s.containerColWide} title={u.email}>
+                          <span style={{ color: "#ccc" }}>{u.name}</span>
+                          <span style={{ color: "#666", marginLeft: 6, fontSize: 11 }}>
+                            {u.email}
+                          </span>
+                        </span>
+                        <span className={s.containerCol}>{u.plan}</span>
+                        <span className={s.containerCol}>{u.projectCount}</span>
+                        <span className={s.containerCol} style={{ color: u.aiCostUsd > 0 ? "#f59e0b" : undefined }}>
+                          ${u.aiCostUsd.toFixed(2)}
+                        </span>
+                        <span className={s.containerCol}>{u.aiSessions}</span>
+                        <span className={s.containerColWide}>
+                          {new Date(u.createdAt).toLocaleDateString()}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
                 </div>
               )}
             </>
